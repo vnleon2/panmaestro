@@ -2491,7 +2491,7 @@ async function pcChgSt(sbId, st) {
         pedido_id:   sbId,
         fecha_pago:  new Date().toISOString().slice(0,10),
         total,
-        metodo_pago: 'Efectivo',
+        metodo_pago: 'efectivo',
         cliente_nom: ped?.cliente_nom || '',
         tipo:        'comercial'
       }).catch(e => console.warn('[pmDB] venta comercial error:', e.message));
