@@ -2485,15 +2485,19 @@ async function pcChgSt(sbId, st, cliNom) {
     if (st === 'Pagado' || st === 'En recepción pagado') {
       const lineas = await pmDB.get('pedido_lineas', { pedido_id: sbId });
       const total  = (lineas||[]).reduce((s,l) => s + (l.precio_applied||0)*(l.cantidad||1), 0);
-      await pmDB.ventas.crear({
-        pedido_id:   sbId,
-        fecha_pago:  new Date().toISOString().slice(0,10),
-        total,
-        metodo_pago: 'efectivo',
-        cliente_nom: cliNom || '',
-        tipo:        'comercial'
-      }).catch(e => console.warn('[pmDB] venta comercial error:', e.message));
-      pmToast('Venta registrada ✓', 'ok');
+      // Verificar si ya existe venta para este pedido
+      const ventaExist = await pmDB.get('ventas', { pedido_id: sbId });
+      if (!ventaExist || !ventaExist.length) {
+        await pmDB.ventas.crear({
+          pedido_id:   sbId,
+          fecha_pago:  new Date().toISOString().slice(0,10),
+          total,
+          metodo_pago: 'efectivo',
+          cliente_nom: cliNom || '',
+          tipo:        'comercial'
+        }).catch(e => console.warn('[pmDB] venta comercial error:', e.message));
+        pmToast('Venta registrada ✓', 'ok');
+      }
     }
     _sbPedComCache = null;
     await pcRender();
