@@ -2481,7 +2481,21 @@ async function pcRender() {
 // ── Cambiar estado pedido ──
 async function pcChgSt(sbId, st) {
   try {
-    await pmDB.update('pedidos', sbId, { status: st });
+    await pmDB.update('pedidos', sbId, { status: st, updated_at: new Date().toISOString() });
+    // Si se marca como Pagado o En recepción pagado → crear registro de venta
+    if (st === 'Pagado' || st === 'En recepción pagado') {
+      const lineas = await pmDB.get('pedido_lineas', { pedido_id: sbId });
+      const total  = (lineas||[]).reduce((s,l) => s + (l.precio_applied||0)*(l.cantidad||1), 0);
+      const ped    = (_sbPedComCache||[]).find(p => p.id === sbId);
+      await pmDB.ventas.crear({
+        pedido_id:    sbId,
+        fecha_pago:   new Date().toISOString().slice(0,10),
+        total,
+        metodo_pago:  'Efectivo',
+        cliente_nom:  ped?.cliente_nom || '',
+        tipo:         'comercial'
+      }).catch(e => console.warn('[pmDB] venta comercial error:', e.message));
+    }
     _sbPedComCache = null;
     await pcRender();
   } catch(e) {
