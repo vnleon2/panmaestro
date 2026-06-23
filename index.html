@@ -2469,7 +2469,7 @@ async function pcRender() {
       <div class="ped-body" id="pb-sb-${p.id}">
         ${lineasHtml}
         <div class="row" style="margin-top:10px;gap:6px">
-          <select onchange="pcChgSt('${p.id}',this.value)" style="flex:1;font-size:12px">${estOpts}</select>
+          <select onchange="pcChgSt('${p.id}',this.value,'${(p.cliente_nom||'').replace(/'/g,"\\'")}')" style="flex:1;font-size:12px">${estOpts}</select>
           <button class="btn btn-out btn-sm" onclick="pcOpenLinea('${p.id}','${p.cliente_id||''}','${(p.cliente_nom||'').replace(/'/g,"\\'")}')">+ Producto</button>
           <button class="btn btn-red btn-sm" onclick="pcDel('${p.id}')">🗑</button>
         </div>
@@ -2479,12 +2479,10 @@ async function pcRender() {
 }
 
 // ── Cambiar estado pedido ──
-async function pcChgSt(sbId, st) {
+async function pcChgSt(sbId, st, cliNom) {
   try {
     await pmDB.update('pedidos', sbId, { status: st, updated_at: new Date().toISOString() });
     if (st === 'Pagado' || st === 'En recepción pagado') {
-      // Obtener datos del pedido directo desde Supabase
-      const ped    = await pmDB.pedidos.obtener(sbId);
       const lineas = await pmDB.get('pedido_lineas', { pedido_id: sbId });
       const total  = (lineas||[]).reduce((s,l) => s + (l.precio_applied||0)*(l.cantidad||1), 0);
       await pmDB.ventas.crear({
@@ -2492,7 +2490,7 @@ async function pcChgSt(sbId, st) {
         fecha_pago:  new Date().toISOString().slice(0,10),
         total,
         metodo_pago: 'efectivo',
-        cliente_nom: ped?.cliente_nom || '',
+        cliente_nom: cliNom || '',
         tipo:        'comercial'
       }).catch(e => console.warn('[pmDB] venta comercial error:', e.message));
       pmToast('Venta registrada ✓', 'ok');
