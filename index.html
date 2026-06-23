@@ -2485,23 +2485,30 @@ async function pcChgSt(sbId, st, cliNom) {
     if (st === 'Pagado' || st === 'En recepción pagado') {
       const lineas = await pmDB.get('pedido_lineas', { pedido_id: sbId });
       const total  = (lineas||[]).reduce((s,l) => s + (l.precio_applied||0)*(l.cantidad||1), 0);
+      // Obtener nombre del cliente directo desde Supabase
+      const ped = await pmDB.pedidos.obtener(sbId);
+      const nombreCliente = ped?.cliente_nom || cliNom || '';
       // Verificar si ya existe venta para este pedido
       const ventaExist = await pmDB.get('ventas', { pedido_id: sbId });
       if (!ventaExist || !ventaExist.length) {
-        await pmDB.ventas.crear({
+        const res = await pmDB.ventas.crear({
           pedido_id:   sbId,
           fecha_pago:  new Date().toISOString().slice(0,10),
           total,
           metodo_pago: 'efectivo',
-          cliente_nom: cliNom || '',
+          cliente_nom: nombreCliente,
           tipo:        'comercial'
-        }).catch(e => console.warn('[pmDB] venta comercial error:', e.message));
+        });
+        console.log('[venta] creada:', nombreCliente, res);
         pmToast('Venta registrada ✓', 'ok');
+      } else {
+        console.log('[venta] ya existe para este pedido');
       }
     }
     _sbPedComCache = null;
     await pcRender();
   } catch(e) {
+    console.error('[pcChgSt] error:', e);
     pmToast('Error al actualizar estado', 'err');
   }
 }
