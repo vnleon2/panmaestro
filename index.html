@@ -3785,6 +3785,34 @@ async function repVentas(mes) {
     byMetodo[mp].count++;
   });
 
+  // Agrupar por cliente (para ventas comerciales)
+  const byCliente = {};
+  ventas.filter(v => v.cliente_nom).forEach(v => {
+    const cli = v.cliente_nom;
+    if (!byCliente[cli]) byCliente[cli] = { total: 0, count: 0 };
+    byCliente[cli].total += parseFloat(v.total) || 0;
+    byCliente[cli].count++;
+  });
+
+  const rowsCliente = Object.entries(byCliente).sort((a,b) => b[1].total - a[1].total).map(([cli, v]) =>
+    `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:8px 10px;font-weight:600">${cli}</td>
+      <td style="padding:8px 10px;text-align:center;font-family:'DM Mono',monospace;color:var(--cream2)">${v.count}</td>
+      <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace;font-weight:700;color:var(--gold)">${pmMoney(v.total)}</td>
+    </tr>`
+  ).join('');
+
+  const secClientes = Object.keys(byCliente).length ? `
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--cream2);margin:16px 0 8px">Por cliente</div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px">
+      <thead><tr style="border-bottom:2px solid var(--border)">
+        <th style="padding:7px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Cliente</th>
+        <th style="padding:7px 10px;text-align:center;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Ventas</th>
+        <th style="padding:7px 10px;text-align:right;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Total</th>
+      </tr></thead>
+      <tbody>${rowsCliente}</tbody>
+    </table>` : '';
+
   const totalVentas  = ventas.reduce((s,v) => s + (parseFloat(v.total)||0), 0);
   const totalPedidos = pedidosSb.reduce((s,p) => s + (parseFloat(p.total)||0), 0);
   const diff         = totalVentas - totalPedidos;
@@ -3839,6 +3867,9 @@ async function repVentas(mes) {
         </div>
       </div>
     </div>
+
+    <!-- Por cliente -->
+    ${secClientes}
 
     <!-- Por método de pago -->
     <div class="ctitle">Por método de pago</div>
