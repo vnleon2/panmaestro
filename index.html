@@ -2493,8 +2493,10 @@ async function pcChgSt(sbId, st, cliNom) {
         nombreCliente = ped?.cliente_nom || cliNom || '';
       }
       // Verificar si ya existe venta para este pedido
-      const ventaExist = await pmDB.get('ventas', { pedido_id: sbId });
-      if (!ventaExist || !ventaExist.length) {
+      let ventaExist = [];
+      try { ventaExist = await pmDB.get('ventas', { pedido_id: sbId }) || []; } catch(e) { ventaExist = []; }
+      console.log('[venta] ventaExist:', ventaExist, 'length:', ventaExist.length);
+      if (!ventaExist.length) {
         const res = await pmDB.ventas.crear({
           pedido_id:   sbId,
           fecha_pago:  new Date().toISOString().slice(0,10),
