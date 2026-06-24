@@ -2479,7 +2479,10 @@ async function pcRender() {
 }
 
 // ── Cambiar estado pedido ──
+let _pcChgStRunning = false;
 async function pcChgSt(sbId, st, cliNom) {
+  if (_pcChgStRunning) return;
+  _pcChgStRunning = true;
   try {
     await pmDB.update('pedidos', sbId, { status: st, updated_at: new Date().toISOString() });
     if (st === 'Pagado' || st === 'En recepción pagado') {
@@ -2516,6 +2519,8 @@ async function pcChgSt(sbId, st, cliNom) {
   } catch(e) {
     console.error('[pcChgSt] error:', e);
     pmToast('Error al actualizar estado', 'err');
+  } finally {
+    _pcChgStRunning = false;
   }
 }
 
