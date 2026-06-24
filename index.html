@@ -2485,9 +2485,13 @@ async function pcChgSt(sbId, st, cliNom) {
     if (st === 'Pagado' || st === 'En recepción pagado') {
       const lineas = await pmDB.get('pedido_lineas', { pedido_id: sbId });
       const total  = (lineas||[]).reduce((s,l) => s + (l.precio_applied||0)*(l.cantidad||1), 0);
-      // Obtener nombre del cliente directo desde Supabase
-      const ped = await pmDB.pedidos.obtener(sbId);
-      const nombreCliente = ped?.cliente_nom || cliNom || '';
+      // Obtener nombre del cliente — primero del cache, luego de Supabase
+      const pedCache = (_sbPedComCache||[]).find(p => p.id === sbId);
+      let nombreCliente = pedCache?.cliente_nom || '';
+      if (!nombreCliente) {
+        const ped = await pmDB.pedidos.obtener(sbId);
+        nombreCliente = ped?.cliente_nom || cliNom || '';
+      }
       // Verificar si ya existe venta para este pedido
       const ventaExist = await pmDB.get('ventas', { pedido_id: sbId });
       if (!ventaExist || !ventaExist.length) {
