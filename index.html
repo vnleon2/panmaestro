@@ -278,7 +278,12 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
       <div class="col"><label>Cliente</label><input type="text" id="pg-cli" placeholder="Nombre del cliente" onkeydown="if(event.key==='Enter')pgAdd()"></div>
       <div class="col xs"><label>&nbsp;</label><button class="btn btn-gold" onclick="pgAdd()">+ Agregar</button></div>
     </div>
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+      <button class="btn btn-out btn-sm" onclick="pgVerResumen()">📋 Resumen del día</button>
+      <button class="btn btn-out btn-sm" onclick="pgVerPlanVsPedidos()">🔥 Plan vs Pedidos</button>
+    </div>
   </div>
+  <div id="pg-vista-extra" style="display:none"></div>
   <div id="pg-list"></div>
 </div>
 
@@ -2069,14 +2074,42 @@ function ppListo(id) {
   document.getElementById('pp-cli').focus();
 }
 
-function ppChgStatus(id, st) {
+async function ppChgStatus(id, st) {
   const p = G.pedidosPan.find(x=>x.id===id);
-  if (p) {
-    p.status=st; pmSave('pedidos'); ppRender();
-    setTimeout(()=>{ const b=document.getElementById('pb-'+id); if(b) b.style.display='block'; },20);
-    if (pmDB.disponible() && p._sbId) {
-      pmDB.pedidos.cambiarStatus(p._sbId, st)
-        .catch(e => console.warn('[pmDB] ppChgStatus error:', e.message));
+  if (!p) return;
+  const prevSt = p.status;
+  p.status = st; pmSave('pedidos'); ppRender();
+  setTimeout(()=>{ const b=document.getElementById('pb-'+id); if(b) b.style.display='block'; },20);
+  if (pmDB.disponible()) {
+    // Actualizar status en Supabase si tiene _sbId
+    if (p._sbId) pmDB.pedidos.cambiarStatus(p._sbId, st).catch(e => console.warn('[pmDB] ppChgStatus:', e.message));
+    // Crear venta al pagar
+    if ((st === 'Pagado' || st === 'en recepción pagado') && prevSt !== st) {
+      const refId = 'PAN-' + id;
+      const exist = await pmDB.get('ventas', { notas: refId }).catch(()=>[]);
+      if (!exist || !exist.length) {
+        const total = pmTotalPan(p);
+        await pmDB.ventas.crear({
+          fecha_pago:  pmHoy(),
+          total,
+          metodo_pago: 'efectivo',
+          cliente_nom: p.cli,
+          tipo:        'pan',
+          notas:       refId
+        }).catch(e => console.warn('[pmDB] ppVenta crear:', e.message));
+        pmToast('Venta registrada ✓', 'ok');
+      }
+    }
+    // Anular venta al desmarcar Pagado
+    if (prevSt === 'Pagado' || prevSt === 'en recepción pagado') {
+      if (st !== 'Pagado' && st !== 'en recepción pagado') {
+        const refId = 'PAN-' + id;
+        const exist = await pmDB.get('ventas', { notas: refId }).catch(()=>[]);
+        if (exist && exist.length) {
+          await pmDB.hardDelete('ventas', exist[0].id).catch(e => console.warn('[pmDB] ppVenta anular:', e.message));
+          pmToast('Venta anulada', 'ok');
+        }
+      }
     }
   }
 }
@@ -2227,6 +2260,121 @@ function pgInstOpts(selected='') {
     (G.instrucciones||[]).map(i=>`<option value="${i}"${i===selected?' selected':''}>${i}</option>`).join('');
 }
 
+// ── Resumen del día — galletas ──
+function pgVerResumen() {
+  const fecha   = document.getElementById('pg-fecha').value || pmHoy();
+  const peds    = G.pedidosGalletas.filter(p => p.date === fecha);
+  const vistaEl = document.getElementById('pg-vista-extra');
+  if (!peds.length) {
+    vistaEl.style.display = 'block';
+    vistaEl.innerHTML = `<div class="card">
+      <button class="btn btn-out btn-sm" onclick="pgCerrarVista()" style="margin-bottom:12px">← Volver a Pedidos</button>
+      <div class="ph"><span class="ph-icon">📋</span>Sin pedidos para este día</div>
+    </div>`;
+    return;
+  }
+  const totPorGall = {};
+  peds.forEach(p => (p.lineas||[]).forEach(l => {
+    if (!totPorGall[l.pid]) totPorGall[l.pid] = { nombre: pmNombreGall(l.pid), cant: 0, clientes: [] };
+    totPorGall[l.pid].cant += l.cant;
+    totPorGall[l.pid].clientes.push(p.cli);
+  }));
+  const totalUnid = Object.values(totPorGall).reduce((s,v) => s + v.cant, 0);
+  const rows = Object.entries(totPorGall)
+    .sort((a,b) => b[1].cant - a[1].cant)
+    .map(([pid,v]) => `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:9px 10px;font-weight:600">${v.nombre}</td>
+      <td style="padding:9px 10px;text-align:center;font-family:'DM Mono',monospace;font-weight:700;font-size:16px;color:var(--gold)">${v.cant}</td>
+      <td style="padding:9px 10px;font-size:11px;color:var(--cream2)">${[...new Set(v.clientes)].join(', ')}</td>
+    </tr>`).join('');
+  vistaEl.style.display = 'block';
+  vistaEl.innerHTML = `<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+      <button class="btn btn-out btn-sm" onclick="pgCerrarVista()">← Volver a Pedidos</button>
+      <div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:900;color:var(--cream)">📋 Resumen del día</div>
+      <div style="font-size:12px;color:var(--cream2)">${pmFmtDate(fecha)} · ${peds.length} cliente(s) · ${totalUnid} unidades</div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="border-bottom:2px solid var(--border)">
+        <th style="padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Galleta</th>
+        <th style="padding:8px 10px;text-align:center;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Total unidades</th>
+        <th style="padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Clientes</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr style="border-top:2px solid var(--border)">
+        <td style="padding:9px 10px;font-weight:700">TOTAL</td>
+        <td style="padding:9px 10px;text-align:center;font-family:'DM Mono',monospace;font-weight:900;font-size:18px;color:var(--gold)">${totalUnid}</td>
+        <td></td>
+      </tr></tfoot>
+    </table>
+  </div>`;
+  vistaEl.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+// ── Plan vs Pedidos — galletas ──
+function pgVerPlanVsPedidos() {
+  const fecha   = document.getElementById('pg-fecha').value || pmHoy();
+  const plan    = prodGetPlan(fecha);
+  const peds    = G.pedidosGalletas.filter(p => p.date === fecha);
+  const vistaEl = document.getElementById('pg-vista-extra');
+  const pedPorGall = {};
+  peds.forEach(p => (p.lineas||[]).forEach(l => {
+    pedPorGall[l.pid] = (pedPorGall[l.pid] || 0) + l.cant;
+  }));
+  // Solo galletas — filtrar PIDs que empiezan con G
+  const allPids = [...new Set([
+    ...Object.keys(plan).filter(k => k.startsWith('G')),
+    ...Object.keys(pedPorGall)
+  ])];
+  if (!allPids.length) {
+    vistaEl.style.display = 'block';
+    vistaEl.innerHTML = `<div class="card">
+      <button class="btn btn-out btn-sm" onclick="pgCerrarVista()" style="margin-bottom:12px">← Volver a Pedidos</button>
+      <div class="ph"><span class="ph-icon">🔥</span>Sin plan ni pedidos de galletas para este día</div>
+    </div>`;
+    return;
+  }
+  const rows = allPids.map(pid => {
+    const planCant = plan[pid] || 0;
+    const pedCant  = pedPorGall[pid] || 0;
+    const diff     = planCant - pedCant;
+    const diffColor = diff > 0 ? 'var(--green)' : diff < 0 ? 'var(--red)' : 'var(--cream2)';
+    const diffText  = diff > 0 ? `+${diff} disponible` : diff < 0 ? `${diff} FALTANTE` : '✓ Exacto';
+    return `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:9px 10px;font-weight:600">${pmNombreGall(pid)}</td>
+      <td style="padding:9px 10px;text-align:center;font-family:'DM Mono',monospace;font-weight:700">${planCant}</td>
+      <td style="padding:9px 10px;text-align:center;font-family:'DM Mono',monospace;font-weight:700;color:var(--gold)">${pedCant}</td>
+      <td style="padding:9px 10px;text-align:center;font-family:'DM Mono',monospace;font-weight:700;color:${diffColor}">${diffText}</td>
+    </tr>`;
+  }).join('');
+  vistaEl.style.display = 'block';
+  vistaEl.innerHTML = `<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+      <button class="btn btn-out btn-sm" onclick="pgCerrarVista()">← Volver a Pedidos</button>
+      <div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:900;color:var(--cream)">🔥 Plan vs Pedidos</div>
+      <div style="font-size:12px;color:var(--cream2)">${pmFmtDate(fecha)}</div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="border-bottom:2px solid var(--border)">
+        <th style="padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Galleta</th>
+        <th style="padding:8px 10px;text-align:center;font-size:10px;text-transform:uppercase;letter-spacing:.6px">🔥 Plan</th>
+        <th style="padding:8px 10px;text-align:center;font-size:10px;text-transform:uppercase;letter-spacing:.6px">📋 Pedidos</th>
+        <th style="padding:8px 10px;text-align:center;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Diferencia</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div style="font-size:11px;color:var(--cream2);margin-top:12px">🟢 Verde = disponible · 🔴 Rojo = faltante · ✓ = exacto</div>
+  </div>`;
+  vistaEl.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+function pgCerrarVista() {
+  const v = document.getElementById('pg-vista-extra');
+  v.style.display = 'none';
+  v.innerHTML = '';
+  document.getElementById('pg-list').scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
 function pgAdd() {
   const fecha = document.getElementById('pg-fecha').value || pmHoy();
   const cli = document.getElementById('pg-cli').value.trim();
@@ -2363,13 +2511,43 @@ function pgListo(id) {
   document.getElementById('pg-galletas').scrollTo({ top:0, behavior:'smooth' });
   document.getElementById('pg-cli').focus();
 }
-function pgChgSt(id, st) {
+async function pgChgSt(id, st) {
   const p = G.pedidosGalletas.find(x=>x.id===id);
-  if (p) {
-    p.status=st; pmSave('pedidos'); pgRender();
-    if (pmDB.disponible() && p._sbId) {
-      pmDB.pedidos.cambiarStatus(p._sbId, st)
-        .catch(e => console.warn('[pmDB] pgChgSt error:', e.message));
+  if (!p) return;
+  const prevSt = p.status;
+  p.status = st; pmSave('pedidos'); pgRender();
+  if (pmDB.disponible()) {
+    if (p._sbId) pmDB.pedidos.cambiarStatus(p._sbId, st).catch(e => console.warn('[pmDB] pgChgSt:', e.message));
+    // Crear venta al pagar
+    if ((st === 'Pagado' || st === 'en recepción pagado') && prevSt !== st) {
+      const refId = 'GALL-' + id;
+      const exist = await pmDB.get('ventas', { notas: refId }).catch(()=>[]);
+      if (!exist || !exist.length) {
+        const total = (p.lineas||[]).reduce((s,l) => {
+          const g = G.tiposGalleta.find(x=>x.id===l.pid);
+          return s + (g?.precio||0) * (l.cant||1);
+        }, 0);
+        await pmDB.ventas.crear({
+          fecha_pago:  pmHoy(),
+          total,
+          metodo_pago: 'efectivo',
+          cliente_nom: p.cli,
+          tipo:        'galleta',
+          notas:       refId
+        }).catch(e => console.warn('[pmDB] pgVenta crear:', e.message));
+        pmToast('Venta registrada ✓', 'ok');
+      }
+    }
+    // Anular venta al desmarcar Pagado
+    if (prevSt === 'Pagado' || prevSt === 'en recepción pagado') {
+      if (st !== 'Pagado' && st !== 'en recepción pagado') {
+        const refId = 'GALL-' + id;
+        const exist = await pmDB.get('ventas', { notas: refId }).catch(()=>[]);
+        if (exist && exist.length) {
+          await pmDB.hardDelete('ventas', exist[0].id).catch(e => console.warn('[pmDB] pgVenta anular:', e.message));
+          pmToast('Venta anulada', 'ok');
+        }
+      }
     }
   }
 }
