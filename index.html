@@ -258,7 +258,12 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
       <div class="col"><label>Cliente</label><input type="text" id="pp-cli" placeholder="Nombre del cliente" onkeydown="if(event.key==='Enter')ppAdd()"></div>
       <div class="col xs"><label>&nbsp;</label><button class="btn btn-gold" onclick="ppAdd()">+ Agregar</button></div>
     </div>
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+      <button class="btn btn-out btn-sm" onclick="ppVerResumen()">📋 Resumen del día</button>
+      <button class="btn btn-out btn-sm" onclick="ppVerPlanVsPedidos()">🔥 Plan vs Pedidos</button>
+    </div>
   </div>
+  <div id="pp-vista-extra" style="display:none"></div>
   <div id="pp-list"></div>
 </div>
 
@@ -1787,6 +1792,138 @@ function dashRender() {
 function ppInstOpts(selected='') {
   return '<option value="">— ninguna —</option>' +
     G.instrucciones.map(i=>`<option value="${i}"${i===selected?' selected':''}>${i}</option>`).join('');
+}
+
+// ── Resumen del día — totales por tipo de pan ──
+function ppVerResumen() {
+  const fecha  = document.getElementById('pp-fecha').value || pmHoy();
+  const peds   = G.pedidosPan.filter(p => p.date === fecha);
+  const vistaEl = document.getElementById('pp-vista-extra');
+
+  if (!peds.length) {
+    vistaEl.style.display = 'block';
+    vistaEl.innerHTML = `<div class="card">
+      <button class="btn btn-out btn-sm" onclick="ppCerrarVista()" style="margin-bottom:12px">← Volver a Pedidos</button>
+      <div class="ph"><span class="ph-icon">📋</span>Sin pedidos para este día</div>
+    </div>`;
+    return;
+  }
+
+  // Agrupar por tipo de pan
+  const totPorPan = {};
+  peds.forEach(p => {
+    (p.lineas||[]).forEach(l => {
+      if (!totPorPan[l.pid]) totPorPan[l.pid] = { nombre: pmNombrePan(l.pid), cant: 0, clientes: [] };
+      totPorPan[l.pid].cant += l.cant;
+      totPorPan[l.pid].clientes.push(p.cli);
+    });
+  });
+
+  const totalUnid = Object.values(totPorPan).reduce((s,v) => s + v.cant, 0);
+
+  const rows = Object.entries(totPorPan)
+    .sort((a,b) => b[1].cant - a[1].cant)
+    .map(([pid, v]) => `
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:9px 10px;font-weight:600">${v.nombre}</td>
+        <td style="padding:9px 10px;text-align:center;font-family:'DM Mono',monospace;font-weight:700;font-size:16px;color:var(--gold)">${v.cant}</td>
+        <td style="padding:9px 10px;font-size:11px;color:var(--cream2)">${[...new Set(v.clientes)].join(', ')}</td>
+      </tr>`).join('');
+
+  vistaEl.style.display = 'block';
+  vistaEl.innerHTML = `<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+      <div>
+        <button class="btn btn-out btn-sm" onclick="ppCerrarVista()">← Volver a Pedidos</button>
+      </div>
+      <div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:900;color:var(--cream)">📋 Resumen del día</div>
+      <div style="font-size:12px;color:var(--cream2)">${pmFmtDate(fecha)} · ${peds.length} cliente(s) · ${totalUnid} unidades</div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="border-bottom:2px solid var(--border)">
+        <th style="padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Tipo de pan</th>
+        <th style="padding:8px 10px;text-align:center;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Total unidades</th>
+        <th style="padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Clientes</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr style="border-top:2px solid var(--border)">
+        <td style="padding:9px 10px;font-weight:700">TOTAL</td>
+        <td style="padding:9px 10px;text-align:center;font-family:'DM Mono',monospace;font-weight:900;font-size:18px;color:var(--gold)">${totalUnid}</td>
+        <td></td>
+      </tr></tfoot>
+    </table>
+  </div>`;
+  vistaEl.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+// ── Plan vs Pedidos del día ──
+function ppVerPlanVsPedidos() {
+  const fecha   = document.getElementById('pp-fecha').value || pmHoy();
+  const plan    = prodGetPlan(fecha);
+  const peds    = G.pedidosPan.filter(p => p.date === fecha);
+  const vistaEl = document.getElementById('pp-vista-extra');
+
+  // Unir todos los PIDs del plan y de los pedidos
+  const pedPorPan = {};
+  peds.forEach(p => (p.lineas||[]).forEach(l => {
+    pedPorPan[l.pid] = (pedPorPan[l.pid] || 0) + l.cant;
+  }));
+
+  const allPids = [...new Set([...Object.keys(plan), ...Object.keys(pedPorPan)])];
+
+  if (!allPids.length) {
+    vistaEl.style.display = 'block';
+    vistaEl.innerHTML = `<div class="card">
+      <button class="btn btn-out btn-sm" onclick="ppCerrarVista()" style="margin-bottom:12px">← Volver a Pedidos</button>
+      <div class="ph"><span class="ph-icon">🔥</span>Sin plan ni pedidos para este día</div>
+    </div>`;
+    return;
+  }
+
+  const rows = allPids.map(pid => {
+    const planCant = plan[pid] || 0;
+    const pedCant  = pedPorPan[pid] || 0;
+    const diff     = planCant - pedCant;
+    const nombre   = pmNombrePan(pid);
+    const diffColor = diff > 0 ? 'var(--green)' : diff < 0 ? 'var(--red)' : 'var(--cream2)';
+    const diffText  = diff > 0 ? `+${diff} disponible` : diff < 0 ? `${diff} FALTANTE` : '✓ Exacto';
+    return `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:9px 10px;font-weight:600">${nombre}</td>
+      <td style="padding:9px 10px;text-align:center;font-family:'DM Mono',monospace;font-weight:700">${planCant}</td>
+      <td style="padding:9px 10px;text-align:center;font-family:'DM Mono',monospace;font-weight:700;color:var(--gold)">${pedCant}</td>
+      <td style="padding:9px 10px;text-align:center;font-family:'DM Mono',monospace;font-weight:700;color:${diffColor}">${diffText}</td>
+    </tr>`;
+  }).join('');
+
+  vistaEl.style.display = 'block';
+  vistaEl.innerHTML = `<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+      <button class="btn btn-out btn-sm" onclick="ppCerrarVista()">← Volver a Pedidos</button>
+      <div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:900;color:var(--cream)">🔥 Plan vs Pedidos</div>
+      <div style="font-size:12px;color:var(--cream2)">${pmFmtDate(fecha)}</div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="border-bottom:2px solid var(--border)">
+        <th style="padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Pan</th>
+        <th style="padding:8px 10px;text-align:center;font-size:10px;text-transform:uppercase;letter-spacing:.6px">🔥 Plan</th>
+        <th style="padding:8px 10px;text-align:center;font-size:10px;text-transform:uppercase;letter-spacing:.6px">📋 Pedidos</th>
+        <th style="padding:8px 10px;text-align:center;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Diferencia</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div style="font-size:11px;color:var(--cream2);margin-top:12px">
+      🟢 Verde = disponible · 🔴 Rojo = faltante, hay más pedidos que plan · ✓ = exacto
+    </div>
+  </div>`;
+  vistaEl.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+// ── Cerrar vista extra y volver a pedidos ──
+function ppCerrarVista() {
+  const v = document.getElementById('pp-vista-extra');
+  v.style.display = 'none';
+  v.innerHTML = '';
+  document.getElementById('pp-list').scrollIntoView({ behavior:'smooth', block:'nearest' });
 }
 
 function ppAdd() {
