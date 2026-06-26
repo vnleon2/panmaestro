@@ -4892,6 +4892,42 @@ function mrSubCostPreview(uid) {
   costEl.innerHTML = `🔗 ${ref.name} · ${subMass.toFixed(1)}g → <strong style="color:var(--gold2)">${pmMoney(Math.round(subCost.totalMerma))}</strong> (${pmMoney(Math.round(subCost.perUnit))}/ud base)`;
 }
 
+// ── Guardar receta_items en Supabase ──
+async function _sbSaveRecetaItems(sbRecId, flour, other) {
+  if (!pmDB.disponible() || !sbRecId) return;
+  try {
+    // Eliminar items anteriores
+    const existing = await pmDB.get('receta_items', { receta_id: sbRecId });
+    for (const item of (existing || [])) {
+      await pmDB.hardDelete('receta_items', item.id);
+    }
+    // Insertar nuevos items
+    for (const ing of (flour || [])) {
+      const nom = ing.productName || ing.manualName || '';
+      const ingId = _sbIngMapNom?.[nom] || null;
+      await pmDB.insert('receta_items', {
+        receta_id:      sbRecId,
+        ingrediente_id: ingId,
+        porcentaje:     ing.pct || 0,
+        tipo:           'flour'
+      }, false);
+    }
+    for (const ing of (other || [])) {
+      const nom = ing.productName || ing.manualName || '';
+      const ingId = _sbIngMapNom?.[nom] || null;
+      await pmDB.insert('receta_items', {
+        receta_id:      sbRecId,
+        ingrediente_id: ingId,
+        porcentaje:     ing.pct || 0,
+        tipo:           'other'
+      }, false);
+    }
+    console.log(`[pmDB] ✅ receta_items guardados: ${(flour||[]).length} harinas, ${(other||[]).length} otros`);
+  } catch(e) {
+    console.warn('[pmDB] _sbSaveRecetaItems error:', e.message);
+  }
+}
+
 function recSave() {
   const id    = document.getElementById('mr-id').value;
   const code  = document.getElementById('mr-code').value.trim();
@@ -4979,7 +5015,8 @@ function recSave() {
           pmDB.recetas.editar(cached.sbId, {
             nombre: obj.name, categoria: obj.cat, masa_total_g: obj.totalMass,
             unidades: obj.units, merma_pct: obj.merma, margen_pct: obj.margen, notas: obj.notes
-          }).catch(e => console.warn('[pmDB] recSave gmSource update error:', e.message));
+          }).then(() => _sbSaveRecetaItems(cached.sbId, obj.flour, obj.other))
+            .catch(e => console.warn('[pmDB] recSave gmSource update error:', e.message));
         }
         _sbRecCache = null; // invalidar cache para que recargue
       }
@@ -5002,7 +5039,8 @@ function recSave() {
           pmDB.recetas.editar(cached.sbId, {
             nombre: obj.name, categoria: obj.cat, masa_total_g: obj.totalMass,
             unidades: obj.units, merma_pct: obj.merma, margen_pct: obj.margen, notas: obj.notes
-          }).catch(e => console.warn('[pmDB] recSave edit error:', e.message));
+          }).then(() => _sbSaveRecetaItems(cached.sbId, obj.flour, obj.other))
+            .catch(e => console.warn('[pmDB] recSave edit error:', e.message));
         }
         _sbRecCache = null; // invalidar cache
       }
@@ -5023,8 +5061,9 @@ function recSave() {
         notas: obj.notes, origen: 'propia', activo: true
       }).then(rows => {
         if (rows?.[0]) {
-          newRec.sbId = rows[0].id; // guardar uuid Supabase en el objeto en memoria
+          newRec.sbId = rows[0].id;
           console.log('[pmDB] ✅ Receta creada en Supabase:', newCode);
+          _sbSaveRecetaItems(rows[0].id, obj.flour, obj.other);
         }
       }).catch(e => console.warn('[pmDB] recSave create error:', e.message));
       _sbRecCache = null; // invalidar cache
@@ -6794,12 +6833,9 @@ async function _sbCosteoCargar() {
     _sbIngCache  = {};
     _sbIngMapNom = {};
     (sbIngs || []).forEach(row => {
-      // Construir objeto compatible con G.ingredientes: { price, qty }
-      // precio_ref está en ₡ por qty_base gramos
       _sbIngCache[row.nombre]  = { price: row.precio_ref || 0, qty: row.qty_base || 1000, sbId: row.id, codigo: row.codigo };
       _sbIngMapNom[row.nombre] = row.id;
     });
-    // Mezclar con G.ingredientes (por si hay ingredientes solo en local)
     Object.entries(G.ingredientes || {}).forEach(([k, v]) => {
       if (!_sbIngCache[k]) _sbIngCache[k] = v;
     });
@@ -6807,17 +6843,47 @@ async function _sbCosteoCargar() {
     // ── Recetas ───────────────────────────────────────────────────────────
     const sbRecs = await pmDB.recetas.listar();
     _sbRecMap    = {};
-    // Los datos de fórmula (flour/other/subrecs/addons) están en localStorage (G.recetas).
-    // Creamos un índice por código para buscar rápido.
+
+    // Cargar todos los receta_items de una vez
+    const todosItems = await pmDB.get('receta_items', {}).catch(() => []);
+    // Agrupar items por receta_id
+    const itemsPorReceta = {};
+    (todosItems || []).forEach(item => {
+      if (!itemsPorReceta[item.receta_id]) itemsPorReceta[item.receta_id] = [];
+      itemsPorReceta[item.receta_id].push(item);
+    });
+
+    // Mapa de ingredientes por UUID → nombre
+    const ingPorId = {};
+    Object.entries(_sbIngCache).forEach(([nom, v]) => {
+      if (v.sbId) ingPorId[v.sbId] = nom;
+    });
+
     const gByCode = {};
     (G.recetas || []).forEach(r => { if (r.code) gByCode[r.code] = r; });
 
     _sbRecCache = (sbRecs || []).map(row => {
       const local = gByCode[row.codigo] || {};
-      // Objeto fusionado: datos maestros de Supabase + fórmula de G.recetas
+      const items = itemsPorReceta[row.id] || [];
+
+      // Convertir items de Supabase a formato flour/other
+      let flour = [], other = [];
+      if (items.length) {
+        items.forEach(item => {
+          const nomIng = ingPorId[item.ingrediente_id] || item.ingrediente_id;
+          const entry  = { pct: item.porcentaje || 0, productName: nomIng };
+          if (item.tipo === 'flour' || item.tipo === 'harina') flour.push(entry);
+          else other.push(entry);
+        });
+      } else {
+        // Fallback a localStorage si no hay items en Supabase
+        flour = local.flour || [];
+        other = local.other || [];
+      }
+
       const merged = {
-        id:        local.id   || row.id,   // mantener id local para referencias en-memoria
-        sbId:      row.id,                  // uuid Supabase para escrituras
+        id:        local.id   || row.id,
+        sbId:      row.id,
         code:      row.codigo,
         name:      row.nombre,
         cat:       row.categoria,
@@ -6826,9 +6892,8 @@ async function _sbCosteoCargar() {
         merma:     row.merma_pct     || local.merma     || 0,
         margen:    row.margen_pct    || local.margen,
         notes:     row.notas         || local.notes     || '',
-        // fórmula — solo disponible desde localStorage por ahora
-        flour:   local.flour   || [],
-        other:   local.other   || [],
+        flour,
+        other,
         subrecs: local.subrecs || [],
         addons:  local.addons  || [],
         gmSource: local.gmSource,
@@ -6845,7 +6910,7 @@ async function _sbCosteoCargar() {
       }
     });
 
-    console.log(`[pmDB] ✅ Costeo cache: ${Object.keys(_sbIngCache).length} ingredientes, ${_sbRecCache.length} recetas`);
+    console.log(`[pmDB] ✅ Costeo cache: ${Object.keys(_sbIngCache).length} ingredientes, ${_sbRecCache.length} recetas, ${(todosItems||[]).length} items`);
   } catch(e) {
     console.warn('[pmDB] Costeo cache error — usando localStorage:', e.message);
     _sbRecCache = null;
