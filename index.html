@@ -2103,17 +2103,23 @@ async function ppVincularCliente(pedId) {
   res.innerHTML = '<div style="color:var(--cream2);font-size:12px">⏳ Buscando...</div>';
   mOpen('m-vincular-cli');
   // Buscar clientes con nombre similar
-  const clientes = _sbCliCache || await _sbCliCargar();
-  const q = p.cli.toLowerCase();
-  const coincidencias = clientes.filter(c =>
-    c.nombre.toLowerCase().includes(q) || q.includes(c.nombre.toLowerCase())
-  ).slice(0, 8);
-  if (!coincidencias.length) {
-    res.innerHTML = `<div style="color:var(--cream2);font-size:12px;padding:8px 0">
-      No se encontraron coincidencias para "<b>${p.cli}</b>" en el maestro.
-    </div>`;
+  let clientes = [];
+  try {
+    clientes = _sbCliCache || await _sbCliCargar();
+  } catch(e) {
+    res.innerHTML = `<div style="color:var(--red);font-size:12px;padding:8px 0">Error al cargar clientes: ${e.message}</div>`;
     return;
   }
+  if (!clientes || !clientes.length) {
+    res.innerHTML = `<div style="color:var(--cream2);font-size:12px;padding:8px 0">No hay clientes en el maestro aún.<br>Usá <b>+ Crear cliente nuevo</b> para agregar a <b>${p.cli}</b>.</div>`;
+    return;
+  }
+  const q = p.cli.toLowerCase();
+  let coincidencias = clientes.filter(c =>
+    c.nombre.toLowerCase().includes(q) || q.includes(c.nombre.toLowerCase())
+  ).slice(0, 8);
+  // Si no hay coincidencias exactas, mostrar todos los clientes
+  if (!coincidencias.length) coincidencias = clientes.slice(0, 8);
   res.innerHTML = `
     <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--cream2);margin-bottom:8px">
       Coincidencias encontradas:
