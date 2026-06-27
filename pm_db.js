@@ -289,7 +289,13 @@ const pmDB = (() => {
         `plan_produccion?fecha=gte.${inicio}&fecha=lte.${fin}&select=*`
       );
     },
-    guardar: (datos) => upsert('plan_produccion', datos),
+    guardar: (datos) => {
+      const arr = Array.isArray(datos) ? datos : [datos];
+      return _fetch(
+        'plan_produccion?on_conflict=fecha,producto_id,tipo',
+        { method: 'POST', headers: { 'Prefer': 'resolution=merge-duplicates,return=representation' }, body: JSON.stringify(arr) }
+      );
+    },
     eliminar: (id)   => hardDelete('plan_produccion', id),
   };
 
