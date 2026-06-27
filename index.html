@@ -2072,7 +2072,7 @@ function ppCard(p) {
     <div style="display:flex;justify-content:space-between;align-items:center;background:var(--sf);padding:11px 16px;gap:10px;flex-wrap:wrap;cursor:pointer" onclick="ppToggle(${p.id})">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
         <span style="font-family:'Playfair Display',serif;font-size:15px;color:var(--cream);font-weight:700">👤 ${p.cli}</span>
-        ${p.cliId ? `<span style="font-size:10px;color:var(--green);background:rgba(22,163,74,.1);border:1px solid rgba(22,163,74,.2);border-radius:8px;padding:1px 7px">✓ ${p.cliCod||'vinculado'}</span>` : ''}
+        ${p.cliId ? `<span style="font-size:10px;color:var(--green);background:rgba(22,163,74,.1);border:1px solid rgba(22,163,74,.2);border-radius:8px;padding:1px 7px">✓ ${p.cliCod||''} ${p.cliNom||''}</span>` : ''}
         <span style="font-size:12px;font-weight:600;color:var(--gold)" id="ct-${p.id}">${totCli} unidad(es)</span>
         ${pmBadge(p.status)}
       </div>
@@ -2142,6 +2142,7 @@ function ppConfirmarVinculo(pedId, cliId, cliCod, cliNom) {
   if (!p) return;
   p.cliId  = cliId;
   p.cliCod = cliCod;
+  p.cliNom = cliNom;
   pmSave('pedidos');
   mClose('m-vincular-cli');
   ppRender();
@@ -2153,30 +2154,19 @@ async function ppCrearYVincular() {
   const p     = G.pedidosPan.find(x => x.id === pedId);
   if (!p) return;
   mClose('m-vincular-cli');
-  // Guardar referencia del pedido para vincular después de guardar
   window._ppVincularPedId = pedId;
-  // Ir a Maestros → Clientes y abrir formulario pre-llenado
+  // Ir a Maestros → Clientes
   showTab('app-inner');
   setTimeout(async () => {
     const cliPill = [...document.querySelectorAll('#m-pills .pill')].find(b => b.textContent.includes('Clientes'));
     mTab('clientes', cliPill);
-    await new Promise(r => setTimeout(r, 300));
-    // Pre-llenar formulario
-    const next = await _cliNextCodigo();
-    document.getElementById('cli-cod').value        = next;
-    document.getElementById('cli-nom').value        = p.cli;
-    document.getElementById('cli-tipo').value       = 'regular';
-    document.getElementById('cli-tel').value        = '';
-    document.getElementById('cli-condpago').value   = 'contado';
-    document.getElementById('cli-dias-col').style.display = 'none';
+    // Esperar que cliRender termine
+    await new Promise(r => setTimeout(r, 600));
+    // Abrir formulario nuevo cliente pre-llenado usando cliNuevo()
+    await cliNuevo();
+    // Sobreescribir el nombre con el del pedido
+    document.getElementById('cli-nom').value = p.cli;
     document.getElementById('cli-form-title').textContent = `Nuevo cliente — ${p.cli}`;
-    document.getElementById('cli-edit-id').value    = '';
-    // Sobrescribir cliSave temporalmente para vincular al guardar
-    window._cliSaveOrig = window.cliSaveOrig;
-    const fc = document.getElementById('cli-form-card');
-    fc.style.display = 'block';
-    fc.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    document.getElementById('cli-nom').focus();
     pmToast('Completá los datos y guardá el cliente ✓', 'ok');
   }, 200);
 }
@@ -7276,6 +7266,7 @@ async function cliSave() {
         if (p) {
           p.cliId  = rows[0].id;
           p.cliCod = cod;
+          p.cliNom = nom;
           pmSave('pedidos');
           pmToast(`Vinculado con pedido de ${p.cli} ✓`, 'ok');
         }
