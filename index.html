@@ -483,6 +483,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
     <button class="pill" onclick="repTab('ventas',this)">💳 Ventas</button>
     <button class="pill" onclick="repTab('mensual',this)">📅 Mensual</button>
     <button class="pill" onclick="repTab('documentos',this)">📄 Documentos</button>
+    <button class="pill" onclick="repTab('contable',this)">📊 Contable</button>
   </div>
   <div id="rep-out"></div>
 </div>
@@ -3612,6 +3613,194 @@ function _docAbrir(peds, tipo) {
   win.document.close();
 }
 
+// ─── REPORTE CONTABLE — CONCILIACIÓN PEDIDOS vs VENTAS ───────────────────────
+async function repContable(mes) {
+  if (!pmDB.disponible()) return '<div class="ph"><span class="ph-icon">⚠️</span>Sin conexión a Supabase</div>';
+
+  const [anio, mesN] = mes.split('-');
+
+  // Cargar ventas del mes desde Supabase
+  let ventas = [];
+  try {
+    const todas = await pmDB.get('ventas', {});
+    ventas = (todas||[]).filter(v => {
+      const f = v.fecha_pago || v.created_at?.slice(0,10) || '';
+      return f.startsWith(mes);
+    });
+  } catch(e) {
+    return `<div class="ph"><span class="ph-icon">⚠️</span>Error al cargar ventas: ${e.message}</div>`;
+  }
+
+  // Mapa de ventas por pedido_id para cruce
+  const ventaPorPedido = {};
+  const ventasPorNotas = {};
+  ventas.forEach(v => {
+    if (v.pedido_id) ventaPorPedido[v.pedido_id] = v;
+    if (v.notas) ventasPorNotas[v.notas] = v;
+  });
+
+  // ── Pedidos comerciales pagados del mes (desde Supabase) ──
+  let pedsCom = [];
+  try {
+    const todos = await pmDB.get('pedidos', { tipo: 'comercial' });
+    pedsCom = (todos||[]).filter(p => {
+      const f = p.fecha || p.date || '';
+      const st = (p.status||'').toLowerCase();
+      return f.startsWith(mes) && (st.includes('pagado') || st.includes('recepción'));
+    });
+  } catch(e) { pedsCom = []; }
+
+  // ── Pedidos de pan pagados del mes (desde localStorage) ──
+  const pedsPan = G.pedidosPan.filter(p => {
+    const st = (p.status||'').toLowerCase();
+    return (p.date||'').startsWith(mes) && (st.includes('pagado') || st.includes('recepción'));
+  });
+
+  // ── Pedidos de galleta pagados del mes (desde localStorage) ──
+  const pedsGall = G.pedidosGalletas.filter(p => {
+    const st = (p.status||'').toLowerCase();
+    return (p.date||'').startsWith(mes) && (st.includes('pagado') || st.includes('recepción'));
+  });
+
+  // ── Construir filas de conciliación ──
+  const filas = [];
+
+  // Comerciales
+  pedsCom.forEach(p => {
+    const venta   = ventaPorPedido[p.id];
+    const montoPed = parseFloat(p.total) || 0;
+    const montoVen = parseFloat(venta?.total) || 0;
+    const diff     = montoPed - montoVen;
+    filas.push({
+      tipo:     '🏪 Comercial',
+      ref:      p.numero_pedido || '—',
+      cliente:  p.cliente_nom || '—',
+      fecha:    pmFmtDateShort(p.fecha||p.date),
+      montoPed,
+      montoVen,
+      venta,
+      diff
+    });
+  });
+
+  // Pan
+  pedsPan.forEach(p => {
+    const refId  = 'PAN-' + p.id;
+    const venta  = ventasPorNotas[refId];
+    const montoPed = pmTotalPan(p);
+    const montoVen = parseFloat(venta?.total) || 0;
+    filas.push({
+      tipo:     '🍞 Pan',
+      ref:      refId,
+      cliente:  p.cli,
+      fecha:    pmFmtDateShort(p.date),
+      montoPed,
+      montoVen,
+      venta,
+      diff: montoPed - montoVen
+    });
+  });
+
+  // Galleta
+  pedsGall.forEach(p => {
+    const refId  = 'GALL-' + p.id;
+    const venta  = ventasPorNotas[refId];
+    const montoPed = pmTotalGall(p);
+    const montoVen = parseFloat(venta?.total) || 0;
+    filas.push({
+      tipo:     '🍪 Galleta',
+      ref:      refId,
+      cliente:  p.cli,
+      fecha:    pmFmtDateShort(p.date),
+      montoPed,
+      montoVen,
+      venta,
+      diff: montoPed - montoVen
+    });
+  });
+
+  // Ordenar por fecha
+  filas.sort((a,b) => a.fecha.localeCompare(b.fecha));
+
+  // Totales
+  const totalPeds  = filas.reduce((s,f) => s + f.montoPed, 0);
+  const totalVents = filas.reduce((s,f) => s + f.montoVen, 0);
+  const totalDiff  = totalPeds - totalVents;
+  const sinVenta   = filas.filter(f => !f.venta).length;
+  const conDiff    = filas.filter(f => f.venta && Math.abs(f.diff) > 1).length;
+
+  if (!filas.length) {
+    return `<div class="card">
+      <div class="ctitle">📊 Conciliación Contable</div>
+      <div class="ph"><span class="ph-icon">📊</span>Sin pedidos pagados en ${mes}</div>
+    </div>`;
+  }
+
+  const rows = filas.map(f => {
+    const estado = !f.venta
+      ? `<span style="color:var(--red);font-weight:700">❌ Sin venta</span>`
+      : Math.abs(f.diff) > 1
+        ? `<span style="color:var(--amber);font-weight:700">⚠️ Dif. ₡${pmMoney(Math.abs(f.diff))}</span>`
+        : `<span style="color:var(--green);font-weight:700">✓</span>`;
+    return `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:8px 10px;font-size:11px;color:var(--cream2)">${f.fecha}</td>
+      <td style="padding:8px 10px;font-size:11px">${f.tipo}</td>
+      <td style="padding:8px 10px;font-weight:600">${f.cliente}</td>
+      <td style="padding:8px 10px;font-size:10px;color:var(--cream2);font-family:'DM Mono',monospace">${f.ref}</td>
+      <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace;font-weight:700">₡${pmMoney(f.montoPed)}</td>
+      <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace">${f.venta ? '₡'+pmMoney(f.montoVen) : '—'}</td>
+      <td style="padding:8px 10px;text-align:center">${estado}</td>
+    </tr>`;
+  }).join('');
+
+  const alertas = sinVenta > 0 || conDiff > 0 ? `
+    <div style="background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.2);border-radius:10px;padding:12px 16px;margin-bottom:16px;display:flex;gap:16px;flex-wrap:wrap">
+      ${sinVenta > 0 ? `<span style="color:var(--red);font-size:13px">❌ ${sinVenta} pedido(s) sin venta registrada</span>` : ''}
+      ${conDiff > 0 ? `<span style="color:var(--amber);font-size:13px">⚠️ ${conDiff} venta(s) con diferencia de monto</span>` : ''}
+    </div>` : `
+    <div style="background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.2);border-radius:10px;padding:12px 16px;margin-bottom:16px">
+      <span style="color:var(--green);font-size:13px">✓ Conciliación completa — todos los pedidos tienen venta registrada</span>
+    </div>`;
+
+  return `<div class="card" id="rep-contable-inner">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+      <div>
+        <div style="font-family:'Playfair Display',serif;font-size:20px;font-weight:900;color:var(--cream)">📊 Conciliación Contable</div>
+        <div style="font-size:12px;color:var(--cream2);margin-top:2px">${mes} · ${filas.length} pedido(s) pagado(s)</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        ${repStatBox('Pedidos', '₡'+pmMoney(totalPeds))}
+        ${repStatBox('Ventas', '₡'+pmMoney(totalVents))}
+        ${repStatBox('Diferencia', '₡'+pmMoney(Math.abs(totalDiff)))}
+        <button class="btn btn-gold btn-sm no-print" onclick="repPrintSection('rep-contable-inner')">🖨 Imprimir</button>
+      </div>
+    </div>
+    ${alertas}
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="border-bottom:2px solid var(--border);background:rgba(200,146,42,.06)">
+          <th style="padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Fecha</th>
+          <th style="padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Tipo</th>
+          <th style="padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Cliente</th>
+          <th style="padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Referencia</th>
+          <th style="padding:8px 10px;text-align:right;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Pedido</th>
+          <th style="padding:8px 10px;text-align:right;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Venta</th>
+          <th style="padding:8px 10px;text-align:center;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Estado</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr style="border-top:2px solid var(--border);background:rgba(200,146,42,.08)">
+          <td colspan="4" style="padding:10px;font-weight:700">TOTAL</td>
+          <td style="padding:10px;text-align:right;font-family:'DM Mono',monospace;font-weight:900;color:var(--gold)">₡${pmMoney(totalPeds)}</td>
+          <td style="padding:10px;text-align:right;font-family:'DM Mono',monospace;font-weight:900;color:var(--gold)">₡${pmMoney(totalVents)}</td>
+          <td style="padding:10px;text-align:center;font-weight:700;color:${Math.abs(totalDiff)<1?'var(--green)':'var(--red)'}">
+            ${Math.abs(totalDiff)<1?'✓ Cuadrado':'⚠️ Dif. ₡'+pmMoney(Math.abs(totalDiff))}
+          </td>
+        </tr></tfoot>
+      </table>
+    </div>
+  </div>`;
+}
+
 let repCurrentTab = 'pan';
 function repTab(tab, btn) {
   repCurrentTab = tab;
@@ -3640,6 +3829,7 @@ async function repRender() {
     else if (repCurrentTab === 'ventas')      html = await repVentas(mes);
     else if (repCurrentTab === 'mensual')     html = await repMensual(mes);
     else if (repCurrentTab === 'documentos')  html = await repDocumentosRender();
+    else if (repCurrentTab === 'contable')    html = await repContable(mes);
     else html = '<div style="padding:20px;color:var(--cream)">Tab: ' + repCurrentTab + ' — no reconocido</div>';
     out.innerHTML = html;
   } catch(e) {
