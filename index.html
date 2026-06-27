@@ -2975,7 +2975,13 @@ async function prodCargarDesdeSb(fecha) {
     if (!G.planProduccion[fecha]) G.planProduccion[fecha] = {};
     rows.forEach(row => {
       const cod = _sbProdMapInv?.[row.producto_id] || '';
-      if (cod) G.planProduccion[fecha][cod] = row.cantidad || 0;
+      if (cod) {
+        if (!G.planProduccion[fecha][cod]) G.planProduccion[fecha][cod] = {};
+        if (row.tipo === 'pedido' || row.tipo === 'libre') {
+          G.planProduccion[fecha][cod].prod = row.cantidad || 0;
+          G.planProduccion[fecha][cod].nota = row.nota || '';
+        }
+      }
     });
     pmSave('sistema');
   } catch(e) {
