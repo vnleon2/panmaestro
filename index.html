@@ -1862,17 +1862,32 @@ function ppVerResumen() {
 }
 
 // ── Plan vs Pedidos del día ──
-function ppVerPlanVsPedidos() {
+async function ppVerPlanVsPedidos() {
   const fecha   = document.getElementById('pp-fecha').value || pmHoy();
   const plan    = prodGetPlan(fecha);
   const peds    = G.pedidosPan.filter(p => p.date === fecha);
   const vistaEl = document.getElementById('pp-vista-extra');
 
-  // Unir todos los PIDs del plan y de los pedidos
+  // Pedidos de pan regulares
   const pedPorPan = {};
   peds.forEach(p => (p.lineas||[]).forEach(l => {
     pedPorPan[l.pid] = (pedPorPan[l.pid] || 0) + l.cant;
   }));
+
+  // Sumar pedidos comerciales del día
+  if (pmDB.disponible()) {
+    try {
+      await _sbProdEnsureMap();
+      const todos  = _sbPedComCache || await _sbPedComCargar();
+      const comHoy = todos.filter(p => (p.fecha||p.date) === fecha && _docEstaAbierto(p));
+      comHoy.forEach(p => {
+        (p._lineasSb||[]).forEach(l => {
+          const cod = _sbProdMapInv?.[l.producto_id] || '';
+          if (cod) pedPorPan[cod] = (pedPorPan[cod]||0) + (l.cantidad||1);
+        });
+      });
+    } catch(e) { console.warn('[ppVerPlanVsPedidos] com:', e.message); }
+  }
 
   const allPids = [...new Set([...Object.keys(plan), ...Object.keys(pedPorPan)])];
 
@@ -1886,7 +1901,9 @@ function ppVerPlanVsPedidos() {
   }
 
   const rows = allPids.map(pid => {
-    const planCant = plan[pid] || 0;
+    // plan[pid] puede ser {prod:5, nota:''} o número directo (formato viejo)
+    const planObj  = plan[pid];
+    const planCant = typeof planObj === 'object' ? (planObj?.prod || 0) : (planObj || 0);
     const pedCant  = pedPorPan[pid] || 0;
     const diff     = planCant - pedCant;
     const nombre   = pmNombrePan(pid);
@@ -1917,7 +1934,7 @@ function ppVerPlanVsPedidos() {
       <tbody>${rows}</tbody>
     </table>
     <div style="font-size:11px;color:var(--cream2);margin-top:12px">
-      🟢 Verde = disponible · 🔴 Rojo = faltante, hay más pedidos que plan · ✓ = exacto
+      🟢 Verde = disponible · 🔴 Rojo = faltante · ✓ = exacto · 🏪 incluye pedidos comerciales
     </div>
   </div>`;
   vistaEl.scrollIntoView({ behavior:'smooth', block:'nearest' });
@@ -3925,7 +3942,7 @@ function repProduccion(fecha) {
   const peds = G.pedidosPan.filter(p => p.date === fecha);
   const plan = (G.planProduccion && G.planProduccion[fecha]) ? G.planProduccion[fecha] : {};
 
-  // Aggregate pedidos by product
+  // Aggregate pedidos de pan regulares
   const byProd = {};
   peds.forEach(p => {
     p.lineas.forEach(l => {
@@ -3934,6 +3951,20 @@ function repProduccion(fecha) {
       byProd[l.pid].clientes.push({ cli:p.cli, cant:l.cant||1, inst:l.inst||'', status:p.status });
     });
   });
+
+  // Sumar pedidos comerciales del día desde cache
+  if (_sbPedComCache) {
+    const comHoy = _sbPedComCache.filter(p => (p.fecha||p.date) === fecha && _docEstaAbierto(p));
+    comHoy.forEach(p => {
+      (p._lineasSb||[]).forEach(l => {
+        const cod = _sbProdMapInv?.[l.producto_id] || '';
+        if (!cod) return;
+        if (!byProd[cod]) byProd[cod] = { pedido:0, clientes:[] };
+        byProd[cod].pedido += (l.cantidad||1);
+        byProd[cod].clientes.push({ cli: p.cliente_nom + ' 🏪', cant: l.cantidad||1, inst: '', status: p.status });
+      });
+    });
+  }
 
   // All pids: from orders + from plan
   const allPids = new Set([...Object.keys(byProd), ...Object.keys(plan)]);
