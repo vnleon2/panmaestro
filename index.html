@@ -2123,7 +2123,7 @@ async function ppVincularCliente(pedId) {
           <span style="font-weight:600;margin-left:8px">${c.nombre}</span>
           <span style="font-size:10px;color:var(--cream2);margin-left:6px">${c.tipo||'regular'}</span>
         </div>
-        <button class="btn btn-gold btn-sm" onclick="ppConfirmarVinculo(${document.getElementById('vincular-ped-id').value},'${c.id}','${c.codigo}','${c.nombre.replace(/'/g,"\\'")}')">
+        <button class="btn btn-gold btn-sm" onclick="ppConfirmarVinculo(${pedId},'${c.id}','${c.codigo}','${c.nombre.replace(/'/g,"\\'")}')">
           Vincular
         </button>
       </div>`).join('')}`;
@@ -2150,7 +2150,8 @@ async function ppCrearYVincular() {
   // Ir a Maestros → Clientes y abrir formulario pre-llenado
   showTab('pg-maestros');
   setTimeout(async () => {
-    mTab('clientes', document.querySelector('#m-pills .pill:nth-child(4)'));
+    const cliPill = [...document.querySelectorAll('#m-pills .pill')].find(b => b.textContent.includes('Clientes'));
+    mTab('clientes', cliPill);
     await new Promise(r => setTimeout(r, 300));
     // Pre-llenar formulario
     const next = await _cliNextCodigo();
