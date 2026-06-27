@@ -618,7 +618,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
         <div style="display:flex;align-items:center;gap:6px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px">
           <label style="font-size:11px;color:var(--cream2);white-space:nowrap">Margen default:</label>
           <input type="number" id="mro-margen-default" min="0" max="99"
-            value="${G.margenDefault||40}"
+            value="40"
             oninput="G.margenDefault=parseInt(this.value)||40;pmSave('sistema');cvMaestroRender()"
             style="width:54px;padding:4px 6px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--gold);font-size:13px;font-weight:700;text-align:center">
           <span style="font-size:11px;color:var(--cream2)">%</span>
@@ -1714,7 +1714,7 @@ function showTab(id) {
     'pg-prod':    () => { document.getElementById('prod-date').value = pmHoy(); prodRenderConSb(); _sbLotesCargar(); },
     'pg-rep':     () => { const rf=document.getElementById('r-fecha'); const rm=document.getElementById('r-mes'); if(rf&&!rf.value)rf.value=pmHoy(); if(rm&&!rm.value)rm.value=pmHoy().slice(0,7); repCurrentTab=repCurrentTab||'pan'; repRender(); },
     'pg-gastos':  () => { document.getElementById('g-fecha').value = pmHoy(); document.getElementById('g-mes').value = pmHoy().slice(0,7); gastoRender(); },
-    'pg-costeo':  () => { _sbCosteoCargar(); },
+    'pg-costeo':  () => { _sbCosteoCargar(); const el = document.getElementById('mro-margen-default'); if(el) el.value = G.margenDefault||40; },
     'pg-hid':     () => { hidCalc(); },
     'app-inner':  () => { currentTab = currentTab||'pan'; if(currentTab==='sync') pmSyncUIRefresh(); },
     'pg-rec':     () => { recetarioRender(); },
