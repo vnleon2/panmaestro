@@ -2080,9 +2080,11 @@ function ppCard(p) {
         ${locked?`<button class="btn btn-out btn-sm" onclick="ppDesbloquear(${p.id})">🔓</button>`:`<select style="font-size:11px;padding:4px 6px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--cream)" onchange="ppChgStatus(${p.id},this.value)">${estOpts}</select>`}
         ${locked?'':`<button class="btn btn-out btn-sm" onclick="ppToggleForm(${p.id})">＋ Producto</button>`}
         ${locked?'':`<button class="btn btn-gold btn-sm" onclick="ppListo(${p.id})">✓ Listo</button>`}
-        <button class="btn btn-out btn-sm" onclick="event.stopPropagation();ppVincularCliente(${p.id})" title="Vincular con maestro de clientes">🔗</button>
         <button class="btn btn-red btn-sm" onclick="ppDel(${p.id})">✕</button>
       </div>
+    </div>
+    <div style="padding:4px 16px 8px;background:var(--sf);border-top:1px solid var(--border)">
+      <button class="btn btn-out btn-sm" onclick="ppVincularCliente(${p.id})" style="font-size:11px">🔗 Vincular cliente</button>
     </div>
     <div id="pb-${p.id}" style="display:none">
       ${subform}
