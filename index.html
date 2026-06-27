@@ -2156,7 +2156,7 @@ async function ppCrearYVincular() {
   // Guardar referencia del pedido para vincular después de guardar
   window._ppVincularPedId = pedId;
   // Ir a Maestros → Clientes y abrir formulario pre-llenado
-  showTab('pg-maestros');
+  showTab('app-inner');
   setTimeout(async () => {
     const cliPill = [...document.querySelectorAll('#m-pills .pill')].find(b => b.textContent.includes('Clientes'));
     mTab('clientes', cliPill);
