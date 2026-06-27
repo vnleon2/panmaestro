@@ -267,6 +267,23 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
   <div id="pp-list"></div>
 </div>
 
+<!-- Modal vincular cliente -->
+<div class="modal-bg" id="m-vincular-cli" style="display:none">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-title">🔗 Vincular con cliente</div>
+    <input type="hidden" id="vincular-ped-id">
+    <div id="vincular-ped-nom" style="font-size:13px;color:var(--cream2);margin-bottom:14px"></div>
+    <div id="vincular-resultados"></div>
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+      <div style="font-size:11px;color:var(--cream2);margin-bottom:8px">¿No existe? Crealo directamente:</div>
+      <button class="btn btn-gold btn-sm" onclick="ppCrearYVincular()">+ Crear cliente nuevo</button>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-out" onclick="mClose('m-vincular-cli')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══ 🍪 Galletas ═══ -->
 <div class="page" id="pg-galletas">
   <div class="pg-title">Pedidos de Galletas</div>
@@ -2055,6 +2072,7 @@ function ppCard(p) {
     <div style="display:flex;justify-content:space-between;align-items:center;background:var(--sf);padding:11px 16px;gap:10px;flex-wrap:wrap;cursor:pointer" onclick="ppToggle(${p.id})">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
         <span style="font-family:'Playfair Display',serif;font-size:15px;color:var(--cream);font-weight:700">👤 ${p.cli}</span>
+        ${p.cliId ? `<span style="font-size:10px;color:var(--green);background:rgba(22,163,74,.1);border:1px solid rgba(22,163,74,.2);border-radius:8px;padding:1px 7px">✓ ${p.cliCod||'vinculado'}</span>` : ''}
         <span style="font-size:12px;font-weight:600;color:var(--gold)" id="ct-${p.id}">${totCli} unidad(es)</span>
         ${pmBadge(p.status)}
       </div>
@@ -2062,6 +2080,7 @@ function ppCard(p) {
         ${locked?`<button class="btn btn-out btn-sm" onclick="ppDesbloquear(${p.id})">🔓</button>`:`<select style="font-size:11px;padding:4px 6px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--cream)" onchange="ppChgStatus(${p.id},this.value)">${estOpts}</select>`}
         ${locked?'':`<button class="btn btn-out btn-sm" onclick="ppToggleForm(${p.id})">＋ Producto</button>`}
         ${locked?'':`<button class="btn btn-gold btn-sm" onclick="ppListo(${p.id})">✓ Listo</button>`}
+        <button class="btn btn-out btn-sm" onclick="ppVincularCliente(${p.id})" title="Vincular con maestro de clientes">🔗</button>
         <button class="btn btn-red btn-sm" onclick="ppDel(${p.id})">✕</button>
       </div>
     </div>
@@ -2070,6 +2089,87 @@ function ppCard(p) {
       ${lineasHtml}
     </div>
   </div>`;
+}
+
+// ── Vincular pedido de pan con cliente del maestro ──
+async function ppVincularCliente(pedId) {
+  const p = G.pedidosPan.find(x => x.id === pedId);
+  if (!p) return;
+  document.getElementById('vincular-ped-id').value = pedId;
+  document.getElementById('vincular-ped-nom').textContent = `Pedido de: ${p.cli}`;
+  const res = document.getElementById('vincular-resultados');
+  res.innerHTML = '<div style="color:var(--cream2);font-size:12px">⏳ Buscando...</div>';
+  mOpen('m-vincular-cli');
+  // Buscar clientes con nombre similar
+  const clientes = _sbCliCache || await _sbCliCargar();
+  const q = p.cli.toLowerCase();
+  const coincidencias = clientes.filter(c =>
+    c.nombre.toLowerCase().includes(q) || q.includes(c.nombre.toLowerCase())
+  ).slice(0, 8);
+  if (!coincidencias.length) {
+    res.innerHTML = `<div style="color:var(--cream2);font-size:12px;padding:8px 0">
+      No se encontraron coincidencias para "<b>${p.cli}</b>" en el maestro.
+    </div>`;
+    return;
+  }
+  res.innerHTML = `
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--cream2);margin-bottom:8px">
+      Coincidencias encontradas:
+    </div>
+    ${coincidencias.map(c => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;background:var(--sf);border-radius:8px;margin-bottom:6px;border:1px solid var(--border)">
+        <div>
+          <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--cream2)">${c.codigo}</span>
+          <span style="font-weight:600;margin-left:8px">${c.nombre}</span>
+          <span style="font-size:10px;color:var(--cream2);margin-left:6px">${c.tipo||'regular'}</span>
+        </div>
+        <button class="btn btn-gold btn-sm" onclick="ppConfirmarVinculo(${document.getElementById('vincular-ped-id').value},'${c.id}','${c.codigo}','${c.nombre.replace(/'/g,"\\'")}')">
+          Vincular
+        </button>
+      </div>`).join('')}`;
+}
+
+function ppConfirmarVinculo(pedId, cliId, cliCod, cliNom) {
+  const p = G.pedidosPan.find(x => x.id === pedId);
+  if (!p) return;
+  p.cliId  = cliId;
+  p.cliCod = cliCod;
+  pmSave('pedidos');
+  mClose('m-vincular-cli');
+  ppRender();
+  pmToast(`Vinculado con ${cliNom} ✓`, 'ok');
+}
+
+async function ppCrearYVincular() {
+  const pedId = parseInt(document.getElementById('vincular-ped-id').value);
+  const p     = G.pedidosPan.find(x => x.id === pedId);
+  if (!p) return;
+  mClose('m-vincular-cli');
+  // Guardar referencia del pedido para vincular después de guardar
+  window._ppVincularPedId = pedId;
+  // Ir a Maestros → Clientes y abrir formulario pre-llenado
+  showTab('pg-maestros');
+  setTimeout(async () => {
+    mTab('clientes', document.querySelector('#m-pills .pill:nth-child(4)'));
+    await new Promise(r => setTimeout(r, 300));
+    // Pre-llenar formulario
+    const next = await _cliNextCodigo();
+    document.getElementById('cli-cod').value        = next;
+    document.getElementById('cli-nom').value        = p.cli;
+    document.getElementById('cli-tipo').value       = 'regular';
+    document.getElementById('cli-tel').value        = '';
+    document.getElementById('cli-condpago').value   = 'contado';
+    document.getElementById('cli-dias-col').style.display = 'none';
+    document.getElementById('cli-form-title').textContent = `Nuevo cliente — ${p.cli}`;
+    document.getElementById('cli-edit-id').value    = '';
+    // Sobrescribir cliSave temporalmente para vincular al guardar
+    window._cliSaveOrig = window.cliSaveOrig;
+    const fc = document.getElementById('cli-form-card');
+    fc.style.display = 'block';
+    fc.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    document.getElementById('cli-nom').focus();
+    pmToast('Completá los datos y guardá el cliente ✓', 'ok');
+  }, 200);
 }
 
 function ppToggle(id) {
@@ -7158,8 +7258,20 @@ async function cliSave() {
       await pmDB.clientes.editar(editId, datos);
       pmToast('Cliente actualizado ✓', 'ok');
     } else {
-      await pmDB.clientes.crear({ ...datos, activo: true });
+      const rows = await pmDB.clientes.crear({ ...datos, activo: true });
       pmToast('Cliente agregado ✓', 'ok');
+      // Si hay un pedido de pan esperando vinculación, vincular automáticamente
+      if (window._ppVincularPedId && rows?.[0]) {
+        const pedId = window._ppVincularPedId;
+        const p     = G.pedidosPan.find(x => x.id === pedId);
+        if (p) {
+          p.cliId  = rows[0].id;
+          p.cliCod = cod;
+          pmSave('pedidos');
+          pmToast(`Vinculado con pedido de ${p.cli} ✓`, 'ok');
+        }
+        window._ppVincularPedId = null;
+      }
     }
     cliCancelarEdicion();
     _sbCliCache = null;
