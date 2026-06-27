@@ -289,12 +289,21 @@ const pmDB = (() => {
         `plan_produccion?fecha=gte.${inicio}&fecha=lte.${fin}&select=*`
       );
     },
-    guardar: (datos) => {
+    guardar: async (datos) => {
       const arr = Array.isArray(datos) ? datos : [datos];
-      return _fetch(
-        'plan_produccion?on_conflict=fecha,producto_id,tipo',
-        { method: 'POST', headers: { 'Prefer': 'resolution=merge-duplicates,return=representation' }, body: JSON.stringify(arr) }
-      );
+      if (!arr.length) return;
+      // Eliminar registros existentes para esa fecha/tipo antes de insertar
+      const fecha = arr[0].fecha;
+      const tipo  = arr[0].tipo;
+      try {
+        await _fetch(`plan_produccion?fecha=eq.${fecha}&tipo=eq.${tipo}`, { method: 'DELETE' });
+      } catch(e) { /* ignorar si no hay nada que borrar */ }
+      // Insertar nuevos
+      return _fetch('plan_produccion', {
+        method: 'POST',
+        headers: { 'Prefer': 'return=representation' },
+        body: JSON.stringify(arr)
+      });
     },
     eliminar: (id)   => hardDelete('plan_produccion', id),
   };
