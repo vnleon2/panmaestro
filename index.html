@@ -2072,7 +2072,10 @@ function ppCard(p) {
     <div style="display:flex;justify-content:space-between;align-items:center;background:var(--sf);padding:11px 16px;gap:10px;flex-wrap:wrap;cursor:pointer" onclick="ppToggle(${p.id})">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
         <span style="font-family:'Playfair Display',serif;font-size:15px;color:var(--cream);font-weight:700">👤 ${p.cli}</span>
-        ${p.cliId ? `<span style="font-size:10px;color:var(--green);background:rgba(22,163,74,.1);border:1px solid rgba(22,163,74,.2);border-radius:8px;padding:1px 7px">✓ ${p.cliCod||''} ${p.cliNom||''}</span>` : ''}
+        ${p.cliId ? (() => {
+          const nomCli = p.cliNom || (_sbCliCache||[]).find(c=>c.id===p.cliId)?.nombre || '';
+          return `<span style="font-size:10px;color:var(--green);background:rgba(22,163,74,.1);border:1px solid rgba(22,163,74,.2);border-radius:8px;padding:1px 7px">✓ ${p.cliCod||''} ${nomCli}</span>`;
+        })() : ''}
         <span style="font-size:12px;font-weight:600;color:var(--gold)" id="ct-${p.id}">${totCli} unidad(es)</span>
         ${pmBadge(p.status)}
       </div>
