@@ -2969,12 +2969,14 @@ async function prodCargarDesdeSb(fecha) {
   if (!pmDB.disponible()) return;
   try {
     const rows = await pmDB.get('plan_produccion', { fecha });
+    console.log('[prodCargarDesdeSb] rows:', JSON.stringify(rows));
     if (!rows || !rows.length) return;
     await _sbProdEnsureMap();
     if (!G.planProduccion) G.planProduccion = {};
     if (!G.planProduccion[fecha]) G.planProduccion[fecha] = {};
     rows.forEach(row => {
       const cod = _sbProdMapInv?.[row.producto_id] || '';
+      console.log('[prodCargarDesdeSb] row:', row.producto_id, '→ cod:', cod, 'cant:', row.cantidad);
       if (cod) {
         if (!G.planProduccion[fecha][cod]) G.planProduccion[fecha][cod] = {};
         if (row.tipo === 'pedido' || row.tipo === 'libre') {
@@ -2983,6 +2985,7 @@ async function prodCargarDesdeSb(fecha) {
         }
       }
     });
+    console.log('[prodCargarDesdeSb] plan cargado:', JSON.stringify(G.planProduccion[fecha]));
     pmSave('sistema');
   } catch(e) {
     console.warn('[prodCargarDesdeSb]', e.message);
