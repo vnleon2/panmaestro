@@ -2999,21 +2999,41 @@ function prodGetPlan(fecha) {
 async function prodRenderConSb() {
   const fecha = document.getElementById('prod-date').value || pmHoy();
   await prodCargarDesdeSb(fecha);
-  prodRender();
+  // Cargar pedidos comerciales del día desde Supabase
+  let pedsCom = [];
+  if (pmDB.disponible()) {
+    try {
+      await _sbProdEnsureMap();
+      const todos  = _sbPedComCache || await _sbPedComCargar();
+      pedsCom = todos.filter(p => (p.fecha||p.date) === fecha && _docEstaAbierto(p));
+    } catch(e) { console.warn('[prodRenderConSb] pedsCom:', e.message); }
+  }
+  prodRender(pedsCom);
 }
 
-function prodRender() {
+function prodRender(pedsCom = []) {
   const fecha = document.getElementById('prod-date').value || pmHoy();
   const peds  = G.pedidosPan.filter(p => p.date === fecha);
   const plan  = prodGetPlan(fecha);
 
-  // Aggregate pedidos by product
+  // Aggregate pedidos de pan por producto
   const byProd = {};
   peds.forEach(p => {
     p.lineas.forEach(l => {
       if (!byProd[l.pid]) byProd[l.pid] = { pedido:0, clientes:[] };
       byProd[l.pid].pedido += (l.cant||1);
       byProd[l.pid].clientes.push({ cli:p.cli, cant:l.cant||1, inst:l.inst||'' });
+    });
+  });
+
+  // Sumar pedidos comerciales del día
+  pedsCom.forEach(p => {
+    (p._lineasSb || []).forEach(l => {
+      const cod = _sbProdMapInv?.[l.producto_id] || '';
+      if (!cod) return;
+      if (!byProd[cod]) byProd[cod] = { pedido:0, clientes:[] };
+      byProd[cod].pedido += (l.cantidad||1);
+      byProd[cod].clientes.push({ cli: p.cliente_nom + ' 🏪', cant: l.cantidad||1, inst: '' });
     });
   });
 
