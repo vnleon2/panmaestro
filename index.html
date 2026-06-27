@@ -7131,11 +7131,15 @@ async function _sbCosteoCargar() {
       let flour = [], other = [];
       if (items.length) {
         items.forEach(item => {
-          const nomIng = ingPorId[item.ingrediente_id] || item.ingrediente_id;
+          // Nombre del ingrediente: etiqueta > nombre_manual > ingrediente via cache
+          const nomIng = item.etiqueta || item.nombre_manual || ingPorId[item.ingrediente_id] || item.ingrediente_id || '';
           const entry  = { pct: item.porcentaje || 0, productName: nomIng };
-          if (item.tipo === 'flour' || item.tipo === 'harina') flour.push(entry);
+          if (item.es_harina) flour.push(entry);
           else other.push(entry);
         });
+        // Ordenar por campo orden si existe
+        flour.sort((a,b) => 0);
+        other.sort((a,b) => 0);
       } else {
         // Fallback a localStorage si no hay items en Supabase
         flour = local.flour || [];
