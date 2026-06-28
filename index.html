@@ -1580,8 +1580,14 @@ function pmTotalGall(ped) {
 }
 
 function pmTotalCom(ped) {
+  // Pedidos Supabase usan _lineasSb con precio_applied
+  if (ped._lineasSb) {
+    return (ped._lineasSb||[]).reduce((s,l) => s + (l.precio_applied||0) * (l.cantidad||1), 0);
+  }
+  // Pedidos localStorage usan lineas con precioAplicado o precio full con descuento
   return (ped.lineas||[]).reduce((s,l) => {
-    return s + pmPrecioPan(l.pid) * (1-(l.desc||0)/100) * (l.cant||1);
+    const pr = l.precioAplicado || (pmPrecioPan(l.pid) * (1-(l.desc||0)/100));
+    return s + pr * (l.cant||1);
   }, 0);
 }
 
