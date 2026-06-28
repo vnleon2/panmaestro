@@ -4160,12 +4160,12 @@ async function repCom(fecha) {
       const prod   = getProd(l.producto_id);
       const pr     = l.precio_applied || 0;
       const subtot = pr * (l.cantidad||1);
+      const descLabel = l.descuento_pct ? `<span style="font-size:10px;color:var(--red)"> −${l.descuento_pct}%</span>` : '';
       return `<tr>
-        <td>${prod.nombre}</td>
-        <td style="text-align:center;font-family:'DM Mono',monospace;font-weight:700">${l.cantidad}</td>
-        <td style="text-align:right;color:var(--cream2);font-family:'DM Mono',monospace">${l.descuento_pct||0}%</td>
-        <td style="text-align:right;font-family:'DM Mono',monospace">₡${pmMoney(pr)}</td>
-        <td style="text-align:right;font-family:'DM Mono',monospace;font-weight:700;color:var(--gold)">₡${pmMoney(subtot)}</td>
+        <td style="padding:8px 10px;font-weight:600">${prod.nombre}${descLabel}</td>
+        <td style="padding:8px 10px;text-align:center;font-family:'DM Mono',monospace;font-weight:700">${l.cantidad}</td>
+        <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace">₡${pmMoney(pr)}</td>
+        <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace;font-weight:700;color:var(--gold)">₡${pmMoney(subtot)}</td>
       </tr>`;
     }).join('');
 
@@ -4181,16 +4181,15 @@ async function repCom(fecha) {
       </div>
       <table style="width:100%;border-collapse:collapse;font-size:13px">
         <thead><tr style="border-bottom:1px solid var(--border)">
-          <th style="padding:6px 8px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Producto</th>
-          <th style="padding:6px 8px;text-align:center;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Cant.</th>
-          <th style="padding:6px 8px;text-align:right;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Desc.</th>
-          <th style="padding:6px 8px;text-align:right;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Precio unit.</th>
-          <th style="padding:6px 8px;text-align:right;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Subtotal</th>
+          <th style="padding:6px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Producto</th>
+          <th style="padding:6px 10px;text-align:center;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Cant.</th>
+          <th style="padding:6px 10px;text-align:right;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Precio unit.</th>
+          <th style="padding:6px 10px;text-align:right;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Subtotal</th>
         </tr></thead>
         <tbody>${rows}</tbody>
         <tfoot><tr style="border-top:2px solid var(--border)">
-          <td colspan="4" style="padding:8px;font-weight:700">Total ${p.cliente_nom}</td>
-          <td style="padding:8px;text-align:right;font-family:'DM Mono',monospace;font-weight:900;color:var(--gold)">₡${pmMoney(tot)}</td>
+          <td colspan="3" style="padding:8px 10px;font-weight:700">Total ${p.cliente_nom}</td>
+          <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace;font-weight:900;color:var(--gold)">₡${pmMoney(tot)}</td>
         </tr></tfoot>
       </table>
     </div>`;
