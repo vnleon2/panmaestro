@@ -851,6 +851,28 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
         </div>
       </div>
 
+      <!-- Fila 3: email -->
+      <div class="row" style="margin-bottom:8px">
+        <div class="col">
+          <label>Email</label>
+          <input type="email" id="cli-email" placeholder="correo@ejemplo.com">
+        </div>
+      </div>
+
+      <!-- Fila 4: direcciones -->
+      <div class="row" style="margin-bottom:8px">
+        <div class="col">
+          <label>Dirección de facturación</label>
+          <input type="text" id="cli-dir-fact" placeholder="Dirección, ciudad, provincia">
+        </div>
+      </div>
+      <div class="row" style="margin-bottom:8px">
+        <div class="col">
+          <label>Dirección de envío</label>
+          <input type="text" id="cli-dir-env" placeholder="Igual a facturación si es la misma">
+        </div>
+      </div>
+
       <div style="display:flex;justify-content:flex-end;margin-top:4px">
         <button class="btn btn-gold" id="cli-save-btn" onclick="cliSave()">💾 Guardar cliente</button>
       </div>
@@ -7445,6 +7467,9 @@ async function cliNuevo() {
   document.getElementById('cli-dias').value     = '7';
   document.getElementById('cli-dias-col').style.display = 'none';
   document.getElementById('cli-form-title').textContent = 'Nuevo cliente';
+  document.getElementById('cli-email').value    = '';
+  document.getElementById('cli-dir-fact').value = '';
+  document.getElementById('cli-dir-env').value  = '';
   const next = await _cliNextCodigo();
   document.getElementById('cli-cod').value = next;
   const fc = document.getElementById('cli-form-card');
@@ -7498,7 +7523,9 @@ async function cliRender() {
         '</div>' +
         '<div style="font-size:11px;color:var(--cream2);margin-top:3px;display:flex;gap:10px;flex-wrap:wrap">' +
           (c.telefono ? '<span>📞 ' + c.telefono + '</span>' : '') +
+          (c.email ? '<span>✉️ ' + c.email + '</span>' : '') +
           condBadge(c) +
+          (c.direccion_facturacion ? '<span style="font-size:10px">📍 ' + c.direccion_facturacion + '</span>' : '') +
         '</div>' +
       '</div>' +
       '<div style="display:flex;gap:5px;flex-shrink:0">' +
@@ -7520,12 +7547,15 @@ async function cliSave() {
   const tel    = document.getElementById('cli-tel').value.trim();
   const cond   = document.getElementById('cli-condpago').value;
   const dias   = cond === 'credito' ? (parseInt(document.getElementById('cli-dias').value) || 7) : null;
+  const email  = document.getElementById('cli-email').value.trim() || null;
+  const dirFact = document.getElementById('cli-dir-fact').value.trim() || null;
+  const dirEnv  = document.getElementById('cli-dir-env').value.trim() || null;
   if (!nom) { pmToast('Completá el nombre', 'err'); return; }
   if (!cod) { pmToast('El código es requerido', 'err'); return; }
   const clientes = _sbCliCache || await _sbCliCargar();
   const dup = clientes.find(c => c.codigo === cod && c.id !== editId);
   if (dup) { pmToast('Código ' + cod + ' ya existe — ' + dup.nombre, 'err'); return; }
-  const datos = { codigo: cod, nombre: nom, tipo, telefono: tel || null, condicion_pago: cond, dias_credito: dias };
+  const datos = { codigo: cod, nombre: nom, tipo, telefono: tel || null, condicion_pago: cond, dias_credito: dias, email, direccion_facturacion: dirFact, direccion_envio: dirEnv };
   try {
     if (editId) {
       await pmDB.clientes.editar(editId, datos);
@@ -7580,6 +7610,9 @@ function cliEditar(id) {
   document.getElementById('cli-condpago').value   = c.condicion_pago || 'contado';
   document.getElementById('cli-dias').value       = c.dias_credito || 7;
   document.getElementById('cli-dias-col').style.display = (c.condicion_pago === 'credito') ? 'block' : 'none';
+  document.getElementById('cli-email').value      = c.email || '';
+  document.getElementById('cli-dir-fact').value   = c.direccion_facturacion || '';
+  document.getElementById('cli-dir-env').value    = c.direccion_envio || '';
   document.getElementById('cli-form-title').textContent = 'Editar — ' + c.nombre;
   const fc = document.getElementById('cli-form-card');
   fc.style.display = 'block';
