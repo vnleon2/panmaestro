@@ -900,17 +900,10 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
           <!-- Producto -->
           <div style="margin-bottom:8px">
             <label style="font-size:11px;color:var(--cream2);display:block;margin-bottom:3px">Producto</label>
-            <select id="cp-prod" onchange="cpProdChange()" style="width:100%;padding:8px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--cream);font-size:13px"></select>
+            <select id="cp-prod" style="width:100%;padding:8px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--cream);font-size:13px"></select>
           </div>
 
-          <!-- Precio full (solo lectura) -->
-          <div style="margin-bottom:8px;background:rgba(37,99,235,.06);border-radius:8px;padding:8px 12px;display:flex;justify-content:space-between;align-items:center">
-            <span style="font-size:11px;color:var(--cream2)">Precio full del maestro</span>
-            <span id="cp-precio-full-display" style="font-family:'DM Mono',monospace;font-weight:700;color:var(--cream2)">—</span>
-          </div>
-          <input type="hidden" id="cp-precio-full">
-
-          <!-- Escala + Precio especial + Descuento -->
+          <!-- Escala + Precio + Descuento en fila -->
           <div class="row" style="gap:8px;margin-bottom:8px">
             <div class="col xs">
               <label style="font-size:11px;color:var(--cream2)">Escala</label>
@@ -922,20 +915,15 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
               </select>
             </div>
             <div class="col xs">
-              <label style="font-size:11px;color:var(--cream2)">Precio especial ₡</label>
-              <input type="number" id="cp-precio" min="0" placeholder="0" oninput="cpCalcularFact()" style="width:100%;padding:7px 9px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--cream);font-size:13px">
+              <label style="font-size:11px;color:var(--cream2)">Precio ₡</label>
+              <input type="number" id="cp-precio" min="0" placeholder="0" style="width:100%;padding:7px 9px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--cream);font-size:13px">
             </div>
             <div class="col xs">
               <label style="font-size:11px;color:var(--cream2)">Desc.%</label>
-              <input type="number" id="cp-desc" min="0" max="100" value="0" oninput="cpCalcularFact()" style="width:100%;padding:7px 9px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--cream);font-size:13px">
+              <input type="number" id="cp-desc" min="0" max="100" value="0" style="width:100%;padding:7px 9px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--cream);font-size:13px">
             </div>
           </div>
-
-          <!-- Precio de facturación calculado -->
-          <div id="cp-precio-fact" style="margin-bottom:10px;padding:8px 12px;background:rgba(200,146,42,.1);border-radius:8px;border:1px solid rgba(200,146,42,.3);display:none">
-            <div style="font-size:10px;color:var(--cream2);text-transform:uppercase;letter-spacing:.6px">Precio de facturación</div>
-            <div id="cp-precio-fact-val" style="font-family:'DM Mono',monospace;font-size:16px;font-weight:900;color:var(--gold)">₡0</div>
-          </div>
+          <div style="font-size:10px;color:var(--cream2);margin-bottom:10px">Precio ₡ = precio fijo. Desc.% = descuento sobre precio normal. Si usás ambos, aplica el precio fijo.</div>
 
           <div style="display:flex;gap:8px">
             <button class="btn btn-gold btn-sm" id="cp-save-btn" onclick="cpGuardar()">+ Agregar</button>
@@ -1592,14 +1580,8 @@ function pmTotalGall(ped) {
 }
 
 function pmTotalCom(ped) {
-  // Pedidos Supabase usan _lineasSb con precio_applied
-  if (ped._lineasSb) {
-    return (ped._lineasSb||[]).reduce((s,l) => s + (l.precio_applied||0) * (l.cantidad||1), 0);
-  }
-  // Pedidos localStorage usan lineas con precioAplicado o precio full con descuento
   return (ped.lineas||[]).reduce((s,l) => {
-    const pr = l.precioAplicado || (pmPrecioPan(l.pid) * (1-(l.desc||0)/100));
-    return s + pr * (l.cant||1);
+    return s + pmPrecioPan(l.pid) * (1-(l.desc||0)/100) * (l.cant||1);
   }, 0);
 }
 
@@ -3100,8 +3082,7 @@ async function pcOpenLinea(sbId, cliId, cliNom) {
           const cod  = _sbProdMapInv?.[r.producto_id] || '';
           const prod = prods.find(x => x.id === cod);
           if (!prod) return null;
-          const precioBase = r.precio_especial || prod.precio;
-          const precioEf   = precioBase * (1 - (r.descuento_pct||0) / 100);
+          const precioEf = r.precio_especial || (prod.precio * (1-(r.descuento_pct||0)/100));
           return { id: prod.id, sbId: r.producto_id, nombre: prod.nombre,
             precioFull: prod.precio, descPct: r.descuento_pct||0, precioEfectivo: precioEf };
         }).filter(Boolean);
@@ -3778,19 +3759,28 @@ async function repContable(mes) {
   }
 
   const rows = filas.map(f => {
+    const tieneDiff = f.venta && Math.abs(f.diff) > 1;
     const estado = !f.venta
       ? `<span style="color:var(--red);font-weight:700">❌ Sin venta</span>`
-      : Math.abs(f.diff) > 1
+      : tieneDiff
         ? `<span style="color:var(--amber);font-weight:700">⚠️ Dif. ₡${pmMoney(Math.abs(f.diff))}</span>`
         : `<span style="color:var(--green);font-weight:700">✓</span>`;
+    const ventaCell = f.venta
+      ? `<span id="vc-val-${f.venta.id}" style="font-family:'DM Mono',monospace">₡${pmMoney(f.montoVen)}</span>`
+      : '—';
+    const editBtn = tieneDiff
+      ? `<button class="btn btn-out btn-xs no-print" style="margin-left:6px;font-size:10px" onclick="contableEditVenta('${f.venta.id}',${f.montoVen})">✏️</button>`
+      : '';
     return `<tr style="border-bottom:1px solid var(--border)">
       <td style="padding:8px 10px;font-size:11px;color:var(--cream2)">${f.fecha}</td>
       <td style="padding:8px 10px;font-size:11px">${f.tipo}</td>
       <td style="padding:8px 10px;font-weight:600">${f.cliente}</td>
       <td style="padding:8px 10px;font-size:10px;color:var(--cream2);font-family:'DM Mono',monospace">${f.ref}</td>
       <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace;font-weight:700">₡${pmMoney(f.montoPed)}</td>
-      <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace">${f.venta ? '₡'+pmMoney(f.montoVen) : '—'}</td>
-      <td style="padding:8px 10px;text-align:center">${estado}</td>
+      <td style="padding:8px 10px;text-align:right" id="vc-cell-${f.venta?.id||''}">
+        ${ventaCell}${editBtn}
+      </td>
+      <td style="padding:8px 10px;text-align:center" id="vc-estado-${f.venta?.id||''}">${estado}</td>
     </tr>`;
   }).join('');
 
@@ -3840,6 +3830,32 @@ async function repContable(mes) {
       </table>
     </div>
   </div>`;
+}
+
+// ── Edición directa de venta en conciliación contable ──
+function contableEditVenta(ventaId, montoActual) {
+  const cell = document.getElementById('vc-cell-' + ventaId);
+  if (!cell) return;
+  cell.innerHTML = `
+    <input type="number" id="vc-input-${ventaId}" value="${montoActual}" min="0" step="1"
+      style="width:110px;padding:4px 7px;background:var(--sf);border:1px solid var(--gold);border-radius:6px;color:var(--cream);font-size:12px;font-family:'DM Mono',monospace;text-align:right">
+    <button class="btn btn-gold btn-xs no-print" style="margin-left:4px;font-size:10px" onclick="contableGuardarVenta('${ventaId}')">💾</button>
+    <button class="btn btn-out btn-xs no-print" style="margin-left:2px;font-size:10px" onclick="repRender()">✕</button>`;
+  document.getElementById('vc-input-' + ventaId)?.focus();
+}
+
+async function contableGuardarVenta(ventaId) {
+  const input = document.getElementById('vc-input-' + ventaId);
+  if (!input) return;
+  const nuevoTotal = parseFloat(input.value);
+  if (isNaN(nuevoTotal) || nuevoTotal < 0) { pmToast('Monto inválido', 'err'); return; }
+  try {
+    await pmDB.update('ventas', ventaId, { total: nuevoTotal });
+    pmToast('Venta actualizada ✓');
+    repRender();
+  } catch(e) {
+    pmToast('Error al guardar: ' + e.message, 'err');
+  }
 }
 
 let repCurrentTab = 'pan';
@@ -4160,12 +4176,12 @@ async function repCom(fecha) {
       const prod   = getProd(l.producto_id);
       const pr     = l.precio_applied || 0;
       const subtot = pr * (l.cantidad||1);
-      const descLabel = l.descuento_pct ? `<span style="font-size:10px;color:var(--red)"> −${l.descuento_pct}%</span>` : '';
       return `<tr>
-        <td style="padding:8px 10px;font-weight:600">${prod.nombre}${descLabel}</td>
-        <td style="padding:8px 10px;text-align:center;font-family:'DM Mono',monospace;font-weight:700">${l.cantidad}</td>
-        <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace">₡${pmMoney(pr)}</td>
-        <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace;font-weight:700;color:var(--gold)">₡${pmMoney(subtot)}</td>
+        <td>${prod.nombre}</td>
+        <td style="text-align:center;font-family:'DM Mono',monospace;font-weight:700">${l.cantidad}</td>
+        <td style="text-align:right;color:var(--cream2);font-family:'DM Mono',monospace">${l.descuento_pct||0}%</td>
+        <td style="text-align:right;font-family:'DM Mono',monospace">₡${pmMoney(pr)}</td>
+        <td style="text-align:right;font-family:'DM Mono',monospace;font-weight:700;color:var(--gold)">₡${pmMoney(subtot)}</td>
       </tr>`;
     }).join('');
 
@@ -4181,15 +4197,16 @@ async function repCom(fecha) {
       </div>
       <table style="width:100%;border-collapse:collapse;font-size:13px">
         <thead><tr style="border-bottom:1px solid var(--border)">
-          <th style="padding:6px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Producto</th>
-          <th style="padding:6px 10px;text-align:center;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Cant.</th>
-          <th style="padding:6px 10px;text-align:right;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Precio unit.</th>
-          <th style="padding:6px 10px;text-align:right;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Subtotal</th>
+          <th style="padding:6px 8px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Producto</th>
+          <th style="padding:6px 8px;text-align:center;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Cant.</th>
+          <th style="padding:6px 8px;text-align:right;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Desc.</th>
+          <th style="padding:6px 8px;text-align:right;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Precio unit.</th>
+          <th style="padding:6px 8px;text-align:right;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Subtotal</th>
         </tr></thead>
         <tbody>${rows}</tbody>
         <tfoot><tr style="border-top:2px solid var(--border)">
-          <td colspan="3" style="padding:8px 10px;font-weight:700">Total ${p.cliente_nom}</td>
-          <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace;font-weight:900;color:var(--gold)">₡${pmMoney(tot)}</td>
+          <td colspan="4" style="padding:8px;font-weight:700">Total ${p.cliente_nom}</td>
+          <td style="padding:8px;text-align:right;font-family:'DM Mono',monospace;font-weight:900;color:var(--gold)">₡${pmMoney(tot)}</td>
         </tr></tfoot>
       </table>
     </div>`;
@@ -7722,45 +7739,6 @@ async function cpListarPrecios(clienteId) {
 }
 
 // ── Guardar precio (nuevo o edición) ──
-// ── Al cambiar producto en portafolio — mostrar precio full y pre-llenar precio especial ──
-function cpProdChange() {
-  const sel  = document.getElementById('cp-prod');
-  const opt  = sel.options[sel.selectedIndex];
-  if (!opt || !opt.value) {
-    document.getElementById('cp-precio-full-display').textContent = '—';
-    document.getElementById('cp-precio-full').value = '';
-    document.getElementById('cp-precio').value = '';
-    document.getElementById('cp-precio-fact').style.display = 'none';
-    return;
-  }
-  // opt.value es el UUID del producto en Supabase
-  const prodUuid = opt.value;
-  const cod      = _sbProdMapInv?.[prodUuid] || '';
-  const prods    = [...(G.tiposPan||[]), ...(G.tiposGalleta||[])];
-  const prod     = prods.find(p => p.id === cod) || { precio: 0 };
-  const full     = prod.precio || 0;
-  document.getElementById('cp-precio-full-display').textContent = full ? '₡' + pmMoney(full) : '—';
-  document.getElementById('cp-precio-full').value = full;
-  document.getElementById('cp-precio').value = full;
-  document.getElementById('cp-desc').value   = 0;
-  cpCalcularFact();
-}
-
-// ── Calcular precio de facturación en tiempo real ──
-function cpCalcularFact() {
-  const precio = parseFloat(document.getElementById('cp-precio').value) || 0;
-  const desc   = parseFloat(document.getElementById('cp-desc').value) || 0;
-  const fact   = precio * (1 - desc/100);
-  const el     = document.getElementById('cp-precio-fact');
-  const elVal  = document.getElementById('cp-precio-fact-val');
-  if (precio > 0) {
-    el.style.display = 'block';
-    elVal.textContent = '₡' + pmMoney(Math.round(fact)) + (desc > 0 ? ` (₡${pmMoney(precio)} − ${desc}%)` : '');
-  } else {
-    el.style.display = 'none';
-  }
-}
-
 async function cpGuardar() {
   const clienteId    = document.getElementById('cli-precios-id').value;
   const editPrecioId = document.getElementById('cp-edit-id').value;
