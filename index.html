@@ -3082,7 +3082,8 @@ async function pcOpenLinea(sbId, cliId, cliNom) {
           const cod  = _sbProdMapInv?.[r.producto_id] || '';
           const prod = prods.find(x => x.id === cod);
           if (!prod) return null;
-          const precioEf = r.precio_especial || (prod.precio * (1-(r.descuento_pct||0)/100));
+          const precioBase = (r.precio_especial != null) ? r.precio_especial : prod.precio;
+          const precioEf   = Math.round(precioBase * (1 - (r.descuento_pct||0) / 100));
           return { id: prod.id, sbId: r.producto_id, nombre: prod.nombre,
             precioFull: prod.precio, descPct: r.descuento_pct||0, precioEfectivo: precioEf };
         }).filter(Boolean);
