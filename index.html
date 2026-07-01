@@ -1741,7 +1741,7 @@ function showTab(id) {
     'pg-gastos':  () => { document.getElementById('g-fecha').value = pmHoy(); document.getElementById('g-mes').value = pmHoy().slice(0,7); gastoRender(); },
     'pg-costeo':  () => { _sbCosteoCargar(); const el = document.getElementById('mro-margen-default'); if(el) el.value = G.margenDefault||40; },
     'pg-hid':     () => { hidCalc(); },
-    'app-inner':  () => { currentTab = currentTab||'pan'; if(currentTab==='sync') pmSyncUIRefresh(); panRecetaPopulate(); },
+    'app-inner':  () => { currentTab = currentTab||'pan'; if(currentTab==='sync') pmSyncUIRefresh(); panRecetaPopulate(); ingCargarSb(); },
     'pg-rec':     () => { recetarioRender(); },
     'pg-gmrec':   () => { gmRecetarioRender(); },
   };
@@ -6661,7 +6661,7 @@ function mTab(tab, btn) {
   });
   document.querySelectorAll('#m-pills .pill').forEach(p => p.classList.remove('on'));
   if (btn) btn.classList.add('on');
-  const renders = {pan:panRender, galleta:gallRender, ing:ingRender, clientes:() => { _sbCliCache = null; cliRender(); }, estados:estRender};
+  const renders = {pan:panRender, galleta:gallRender, ing:ingCargarSb, clientes:() => { _sbCliCache = null; cliRender(); }, estados:estRender};
   if (renders[tab]) renders[tab]();
   if (tab === 'sync') pmSyncUIRefresh();
 }
@@ -6921,6 +6921,25 @@ async function _sbIngEnsureMap() {
     _sbIngMap = {};
     (rows||[]).forEach(r => { _sbIngMap[r.nombre] = r.id; });
   } catch(e) { _sbIngMap = {}; }
+}
+
+// ── Carga ingredientes desde Supabase (fuente primaria) ──
+async function ingCargarSb() {
+  if (pmDB.disponible()) {
+    try {
+      const rows = await pmDB.ingredientes.listar();
+      if (rows && rows.length) {
+        if (!_sbIngMap) _sbIngMap = {};
+        rows.forEach(r => {
+          _sbIngMap[r.nombre] = r.id;
+          // Sincronizar en G.ingredientes — SB es fuente primaria
+          G.ingredientes[r.nombre] = { price: r.precio_ref||0, qty: r.qty_base||1000 };
+        });
+        pmSave('maestros');
+      }
+    } catch(e) { console.warn('[ingCargarSb]', e.message); }
+  }
+  ingRender();
 }
 
 function ingAdd() {
