@@ -1741,7 +1741,7 @@ function showTab(id) {
     'pg-gastos':  () => { document.getElementById('g-fecha').value = pmHoy(); document.getElementById('g-mes').value = pmHoy().slice(0,7); gastoRender(); },
     'pg-costeo':  () => { _sbCosteoCargar(); const el = document.getElementById('mro-margen-default'); if(el) el.value = G.margenDefault||40; },
     'pg-hid':     () => { hidCalc(); },
-    'app-inner':  () => { currentTab = currentTab||'pan'; if(currentTab==='sync') pmSyncUIRefresh(); panRecetaPopulate(); ingCargarSb(); },
+    'app-inner':  () => { currentTab = currentTab||'pan'; if(currentTab==='sync') pmSyncUIRefresh(); panRecetaPopulate(); panCargarSb(); ingCargarSb(); },
     'pg-rec':     () => { recetarioRender(); },
     'pg-gmrec':   () => { gmRecetarioRender(); },
   };
@@ -6661,7 +6661,7 @@ function mTab(tab, btn) {
   });
   document.querySelectorAll('#m-pills .pill').forEach(p => p.classList.remove('on'));
   if (btn) btn.classList.add('on');
-  const renders = {pan:panRender, galleta:gallRender, ing:ingCargarSb, clientes:() => { _sbCliCache = null; cliRender(); }, estados:estRender};
+  const renders = {pan:panCargarSb, galleta:gallCargarSb, ing:ingCargarSb, clientes:() => { _sbCliCache = null; cliRender(); }, estados:estRender};
   if (renders[tab]) renders[tab]();
   if (tab === 'sync') pmSyncUIRefresh();
 }
@@ -6705,6 +6705,60 @@ function panAdd() {
       .then(rows => { if (rows?.[0]) { if(!_sbProdMap)_sbProdMap={}; _sbProdMap[newId]=rows[0].id; } })
       .catch(e => console.warn('[pmDB] panAdd sync error:', e.message));
   }
+}
+
+// ── Carga tipos de pan desde Supabase (fuente primaria) ──
+async function panCargarSb() {
+  if (pmDB.disponible()) {
+    try {
+      await _sbProdEnsureMap();
+      const rows = await pmDB.productos.listarPanes();
+      if (rows && rows.length) {
+        // Reconstruir G.tiposPan desde SB manteniendo orden y campos locales
+        const sbPanes = rows.map(r => {
+          const local = G.tiposPan.find(p => p.id === r.codigo);
+          return {
+            id: r.codigo,
+            nombre: r.nombre,
+            precio: r.precio_full || r.precio || 0,
+            peso: r.peso_g || local?.peso || 0,
+            recetaCod: r.receta_cod || local?.recetaCod || ''
+          };
+        });
+        // Mantener panes locales que no estén en SB (offline)
+        const offline = G.tiposPan.filter(p => !sbPanes.find(s => s.id === p.id));
+        G.tiposPan = [...sbPanes, ...offline];
+        pmSave('sistema');
+      }
+    } catch(e) { console.warn('[panCargarSb]', e.message); }
+  }
+  panRender();
+}
+
+// ── Carga tipos de galleta desde Supabase (fuente primaria) ──
+async function gallCargarSb() {
+  if (pmDB.disponible()) {
+    try {
+      await _sbProdEnsureMap();
+      const rows = await pmDB.productos.listarGalletas();
+      if (rows && rows.length) {
+        const sbGalletas = rows.map(r => {
+          const local = G.tiposGalleta.find(p => p.id === r.codigo);
+          return {
+            id: r.codigo,
+            nombre: r.nombre,
+            precio: r.precio_full || r.precio || 0,
+            peso: r.peso_g || local?.peso || 0,
+            recetaCod: r.receta_cod || local?.recetaCod || ''
+          };
+        });
+        const offline = G.tiposGalleta.filter(p => !sbGalletas.find(s => s.id === p.id));
+        G.tiposGalleta = [...sbGalletas, ...offline];
+        pmSave('sistema');
+      }
+    } catch(e) { console.warn('[gallCargarSb]', e.message); }
+  }
+  gallRender();
 }
 
 function panRender() {
