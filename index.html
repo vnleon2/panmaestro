@@ -5117,7 +5117,7 @@ function recCard(r) {
         ${addonLines.length?`<div class="cpill">🎂 Rellenos: <span>${pmMoney(Math.round(costAddons))}</span></div>`:''}
         ${merma?`<div class="cpill">Merma: <span>${merma}%</span></div>`:''}
         <div class="cpill" style="background:rgba(200,146,42,.15)">Total: <span style="color:var(--gold2)">${pmMoney(Math.round(costTotal))}</span></div>
-        <div class="cpill">Por ud: <span>${pmMoney(Math.round(c.perUnit))}</span></div>
+        <div class="cpill">Costo mat./ud: <span>${pmMoney(Math.round(c.perUnit))}</span></div>
         ${(() => {
           const ps = pmPrecioSugerido(r);
           const cpg = c.totalMerma && r.totalMass ? c.totalMerma / r.totalMass : null;
@@ -6032,7 +6032,7 @@ function cvMaestroRender() {
         ${hasCost ? pmMoney(Math.round(c.totalMerma)) : '<span style="font-size:11px">sin costo</span>'}
       </td>
       <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--cream2)">
-        ${hasCost ? pmMoney(Math.round(c.perUnit))+'/ud' : '—'}
+        ${hasCost ? 'Costo: '+pmMoney(Math.round(c.perUnit)) : '—'}
       </td>
       <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace;font-size:13px;color:var(--green);font-weight:600">
         ${(() => { const ps = pmPrecioSugerido(r); return ps ? pmMoney(Math.round(ps)) : '—'; })()}
