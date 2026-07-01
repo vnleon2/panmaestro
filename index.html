@@ -254,7 +254,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
   <div class="card">
     <div class="ctitle">Nuevo pedido <span id="pp-tot-badge" style="font-size:12px;font-weight:400;color:var(--gold);margin-left:8px"></span></div>
     <div class="row">
-      <div class="col sm"><label>Fecha</label><input type="date" id="pp-fecha" onchange="ppRender()"></div>
+      <div class="col sm"><label>Fecha</label><input type="date" id="pp-fecha" onchange="ppCargarSb()"></div>
       <div class="col"><label>Cliente</label><input type="text" id="pp-cli" placeholder="Nombre del cliente" onkeydown="if(event.key==='Enter')ppAdd()"></div>
       <div class="col xs"><label>&nbsp;</label><button class="btn btn-gold" onclick="ppAdd()">+ Agregar</button></div>
     </div>
@@ -291,7 +291,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
   <div class="card">
     <div class="ctitle">Nuevo pedido <span id="pg-tot-badge" style="font-size:12px;font-weight:400;color:var(--gold);margin-left:8px"></span></div>
     <div class="row">
-      <div class="col sm"><label>Fecha</label><input type="date" id="pg-fecha" onchange="pgRender()"></div>
+      <div class="col sm"><label>Fecha</label><input type="date" id="pg-fecha" onchange="pgCargarSb()"></div>
       <div class="col"><label>Cliente</label><input type="text" id="pg-cli" placeholder="Nombre del cliente" onkeydown="if(event.key==='Enter')pgAdd()"></div>
       <div class="col xs"><label>&nbsp;</label><button class="btn btn-gold" onclick="pgAdd()">+ Agregar</button></div>
     </div>
@@ -745,7 +745,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
         <div class="col sm"><label>Nombre</label><input type="text" id="pan-nom" placeholder="Pan masa madre 1kg"></div>
         <div class="col xs"><label>Precio ₡</label><input type="number" id="pan-pr" placeholder="3000"></div>
         <div class="col xs"><label>Peso g</label><input type="number" id="pan-peso" placeholder="1000"></div>
-        <div class="col xs"><label>Receta</label><input type="text" id="pan-rec" placeholder="R-0001" style="font-family:'DM Mono',monospace"></div>
+        <div class="col xs"><label>Receta</label><select id="pan-rec" style="font-family:'DM Mono',monospace;font-size:12px;padding:4px 6px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream);width:100%"><option value="">— Sin receta —</option></select></div>
         <div class="col xs"><label>&nbsp;</label><button class="btn btn-gold" onclick="panAdd()">+ Agregar</button></div>
       </div>
     </div>
@@ -1730,15 +1730,15 @@ function showTab(id) {
   if (modEl) modEl.textContent = labels[id] || 'PANMAESTRO';
   const inits = {
     'pg-dash':    () => { document.getElementById('dash-date').value = pmHoy(); dashRender(); },
-    'pg-pedidos': () => { document.getElementById('pp-fecha').value = pmHoy(); ppRender(); },
-    'pg-galletas':() => { document.getElementById('pg-fecha').value = pmHoy(); pgRender(); },
+    'pg-pedidos': () => { document.getElementById('pp-fecha').value = pmHoy(); ppCargarSb(); },
+    'pg-galletas':() => { document.getElementById('pg-fecha').value = pmHoy(); pgCargarSb(); },
     'pg-com':     () => { document.getElementById('pc-fecha').value = pmHoy(); pcCargarClientes(); pcRender(); },
     'pg-prod':    () => { document.getElementById('prod-date').value = pmHoy(); prodRenderConSb(); _sbLotesCargar(); },
     'pg-rep':     () => { const rf=document.getElementById('r-fecha'); const rm=document.getElementById('r-mes'); if(rf&&!rf.value)rf.value=pmHoy(); if(rm&&!rm.value)rm.value=pmHoy().slice(0,7); repCurrentTab=repCurrentTab||'pan'; repRender(); },
     'pg-gastos':  () => { document.getElementById('g-fecha').value = pmHoy(); document.getElementById('g-mes').value = pmHoy().slice(0,7); gastoRender(); },
     'pg-costeo':  () => { _sbCosteoCargar(); const el = document.getElementById('mro-margen-default'); if(el) el.value = G.margenDefault||40; },
     'pg-hid':     () => { hidCalc(); },
-    'app-inner':  () => { currentTab = currentTab||'pan'; if(currentTab==='sync') pmSyncUIRefresh(); },
+    'app-inner':  () => { currentTab = currentTab||'pan'; if(currentTab==='sync') pmSyncUIRefresh(); panRecetaPopulate(); },
     'pg-rec':     () => { recetarioRender(); },
     'pg-gmrec':   () => { gmRecetarioRender(); },
   };
@@ -2010,6 +2010,43 @@ function ppAdd() {
       .then(rows => { if (rows?.[0]) newPed._sbId = rows[0].id; })
       .catch(e => console.warn('[pmDB] ppAdd error:', e.message));
   }
+}
+
+// ── Carga pedidos de pan desde Supabase y mezcla con localStorage ──
+async function ppCargarSb() {
+  if (pmDB.disponible()) {
+    try {
+      const fecha = document.getElementById('pp-fecha').value || pmHoy();
+      const rows = await pmDB.get('pedidos', { tipo: 'pan', fecha }, '*');
+      if (rows && rows.length) {
+        for (const sb of rows) {
+          // Verificar si ya existe en G.pedidosPan por _sbId o por coincidencia de fecha+cliente
+          const existe = G.pedidosPan.find(p => p._sbId === sb.id || (p.date === sb.fecha && p.cli === sb.cliente_nom && !p._sbId));
+          if (existe) {
+            // Actualizar _sbId si no lo tenía
+            if (!existe._sbId) existe._sbId = sb.id;
+          } else {
+            // Cargar líneas desde SB
+            let lineas = [];
+            try {
+              await _sbProdEnsureMap();
+              const lins = await pmDB.get('pedido_lineas', { pedido_id: sb.id }, '*');
+              lineas = (lins||[]).map(l => {
+                const pid = _sbProdMapInv?.[l.producto_id] || '';
+                return { lid: pmId(), pid, cant: l.cantidad||1, inst: l.instruccion||'' };
+              }).filter(l => l.pid);
+            } catch(e) { console.warn('[ppCargarSb] lineas:', e.message); }
+            G.pedidosPan.push({
+              id: pmId(), date: sb.fecha, cli: sb.cliente_nom,
+              status: sb.status, lineas, _sbId: sb.id
+            });
+          }
+        }
+        pmSave('pedidos');
+      }
+    } catch(e) { console.warn('[ppCargarSb]', e.message); }
+  }
+  ppRender();
 }
 
 function ppRender() {
@@ -2540,6 +2577,40 @@ function pgAdd() {
       .then(rows => { if (rows?.[0]) newPed._sbId = rows[0].id; })
       .catch(e => console.warn('[pmDB] pgAdd error:', e.message));
   }
+}
+
+// ── Carga pedidos de galleta desde Supabase y mezcla con localStorage ──
+async function pgCargarSb() {
+  if (pmDB.disponible()) {
+    try {
+      const fecha = document.getElementById('pg-fecha').value || pmHoy();
+      const rows = await pmDB.get('pedidos', { tipo: 'galleta', fecha }, '*');
+      if (rows && rows.length) {
+        for (const sb of rows) {
+          const existe = G.pedidosGalletas.find(p => p._sbId === sb.id || (p.date === sb.fecha && p.cli === sb.cliente_nom && !p._sbId));
+          if (existe) {
+            if (!existe._sbId) existe._sbId = sb.id;
+          } else {
+            let lineas = [];
+            try {
+              await _sbProdEnsureMap();
+              const lins = await pmDB.get('pedido_lineas', { pedido_id: sb.id }, '*');
+              lineas = (lins||[]).map(l => {
+                const pid = _sbProdMapInv?.[l.producto_id] || '';
+                return { lid: pmId(), pid, cant: l.cantidad||1, inst: l.instruccion||'' };
+              }).filter(l => l.pid);
+            } catch(e) { console.warn('[pgCargarSb] lineas:', e.message); }
+            G.pedidosGalletas.push({
+              id: pmId(), date: sb.fecha, cli: sb.cliente_nom,
+              status: sb.status, lineas, _sbId: sb.id
+            });
+          }
+        }
+        pmSave('pedidos');
+      }
+    } catch(e) { console.warn('[pgCargarSb]', e.message); }
+  }
+  pgRender();
 }
 
 function pgRender() {
@@ -6522,6 +6593,16 @@ function panRender() {
         <button class="btn btn-red btn-xs" onclick="panDel('${p.id}')">✕</button>
       </div>
     </div>`).join('') || '<div class="ph"><span class="ph-icon">🍞</span>Sin tipos de pan</div>';
+}
+
+// ── Poblar dropdown de recetas en formulario de tipos de pan ──
+function panRecetaPopulate() {
+  const sel = document.getElementById('pan-rec');
+  if (!sel) return;
+  const recetas = (G.recetas||[]).filter(r => !String(r.id).startsWith('gm-'));
+  const current = sel.value;
+  sel.innerHTML = '<option value="">— Sin receta —</option>' +
+    recetas.map(r => `<option value="${r.code}"${r.code===current?' selected':''}>${r.code} · ${r.name}</option>`).join('');
 }
 
 function panEdit(id) {
