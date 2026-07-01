@@ -788,6 +788,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
     </div>
     <div class="sec"><h2 id="ing-count">Ingredientes</h2>
       <div class="srch" style="width:160px"><input type="text" id="ing-search" placeholder="Buscar..." oninput="ingRender()"></div>
+      <button class="btn btn-out btn-sm" id="ing-vista-btn" onclick="ingToggleVista()" title="Alternar vista">📋 Por código</button>
     </div>
     <div id="ing-list"></div>
   </div>
@@ -6987,9 +6988,10 @@ async function ingCargarSb() {
       const rows = await pmDB.ingredientes.listar();
       if (rows && rows.length) {
         if (!_sbIngMap) _sbIngMap = {};
+        if (!_sbIngCache) _sbIngCache = {};
         rows.forEach(r => {
           _sbIngMap[r.nombre] = r.id;
-          // Sincronizar en G.ingredientes — SB es fuente primaria
+          _sbIngCache[r.nombre] = r; // guardar objeto completo para acceder a codigo
           G.ingredientes[r.nombre] = { price: r.precio_ref||0, qty: r.qty_base||1000 };
         });
         pmSave('maestros');
@@ -7028,14 +7030,78 @@ function ingAdd() {
   }
 }
 
+// ── Vista tabla de ingredientes por código ──
+let _ingVistaTabla = false;
+
+function ingToggleVista() {
+  _ingVistaTabla = !_ingVistaTabla;
+  const btn = document.getElementById('ing-vista-btn');
+  if (btn) btn.textContent = _ingVistaTabla ? '✏️ Vista normal' : '📋 Por código';
+  ingRender();
+}
+
+function ingRenderTabla(keys, sbCodMap) {
+  const rows = keys
+    .map(k => ({ k, cod: sbCodMap[k] || '' }))
+    .sort((a,b) => a.cod.localeCompare(b.cod) || a.k.localeCompare(b.k));
+
+  return `<table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead>
+      <tr style="background:rgba(200,146,42,.1);text-align:left">
+        <th style="padding:7px 10px;font-weight:600;letter-spacing:.5px">Código</th>
+        <th style="padding:7px 10px;font-weight:600">Ingrediente</th>
+        <th style="padding:7px 10px;font-weight:600;text-align:right">Precio</th>
+        <th style="padding:7px 10px;font-weight:600;text-align:right">Base g</th>
+        <th style="padding:7px 10px;font-weight:600;text-align:right">₡/g</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows.map(({k, cod}) => {
+        const ing = G.ingredientes[k];
+        const cpg = ing.price && ing.qty ? (ing.price/ing.qty).toFixed(2) : '—';
+        return `<tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:6px 10px;font-family:'DM Mono',monospace;font-size:10px;color:var(--gold3)">${cod||'—'}</td>
+          <td style="padding:6px 10px;font-weight:500">${k}</td>
+          <td style="padding:6px 10px;text-align:right;font-family:'DM Mono',monospace">₡${pmMoney(ing.price)}</td>
+          <td style="padding:6px 10px;text-align:right;font-family:'DM Mono',monospace">${ing.qty}g</td>
+          <td style="padding:6px 10px;text-align:right;font-family:'DM Mono',monospace;color:var(--gold2)">₡${cpg}</td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table>`;
+}
+
 function ingRender() {
   const q = (document.getElementById('ing-search')?.value||'').toLowerCase();
-  const keys = Object.keys(G.ingredientes).filter(k => !q || k.toLowerCase().includes(q)).sort();
+  // Construir lista con código desde _sbIngMap invertido
+  const sbCodMap = {}; // nombre → codigo
+  if (_sbIngMap) {
+    // _sbIngMap = { nombre → uuid }, necesitamos el codigo
+    // Lo tenemos en _sbIngCache si está cargado
+    (_sbIngCache ? Object.values(_sbIngCache) : []).forEach(r => {
+      if (r && r.nombre && r.codigo) sbCodMap[r.nombre] = r.codigo;
+    });
+  }
+  const keys = Object.keys(G.ingredientes)
+    .filter(k => !q || k.toLowerCase().includes(q))
+    .sort((a,b) => {
+      const ca = sbCodMap[a] || 'ZZZ';
+      const cb = sbCodMap[b] || 'ZZZ';
+      return ca.localeCompare(cb);
+    });
   document.getElementById('ing-count').textContent = `Ingredientes (${keys.length})`;
+  if (_ingVistaTabla) {
+    document.getElementById('ing-list').innerHTML = keys.length
+      ? ingRenderTabla(keys, sbCodMap)
+      : '<div class="ph"><span class="ph-icon">🌾</span>Sin ingredientes</div>';
+    return;
+  }
   document.getElementById('ing-list').innerHTML = keys.map(k => {
     const ing = G.ingredientes[k];
     const cpg = ing.price && ing.qty ? (ing.price/ing.qty).toFixed(2) : '—';
+    const cod = sbCodMap[k] ? `<span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--gold3);min-width:60px">${sbCodMap[k]}</span>` : '';
     return `<div class="item-row">
+      ${cod}
       <div class="item-name">${k}</div>
       <div class="item-meta">${pmMoney(ing.price)} / ${ing.qty}g · <span style="color:var(--gold2)">₡${cpg}/g</span></div>
       <div style="display:flex;gap:4px">
