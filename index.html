@@ -229,6 +229,10 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
       <button onclick="dashNav(1)">›</button>
     </div>
   </div>
+  <div style="margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <button class="btn btn-gold btn-sm" onclick="syncGeneral()" id="sync-btn">☁️ Sincronizar todo</button>
+    <span id="sync-status" style="font-size:11px;color:var(--cream2)"></span>
+  </div>
   <div class="stats" id="dash-stats"></div>
   <div class="sec" style="margin-bottom:10px">
     <h2>Pedidos de hoy</h2>
@@ -1791,6 +1795,33 @@ function dashNav(d) {
   dt.setDate(dt.getDate()+d);
   document.getElementById('dash-date').value = dt.toISOString().slice(0,10);
   dashRender();
+}
+
+// ── Sincronización general desde Supabase ──
+async function syncGeneral() {
+  if (!pmDB.disponible()) { pmToast('Sin conexión a Supabase','err'); return; }
+  const btn = document.getElementById('sync-btn');
+  const st  = document.getElementById('sync-status');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Sincronizando...'; }
+  if (st) st.textContent = '';
+  const t0 = Date.now();
+  try {
+    await Promise.all([
+      panCargarSb().catch(e => console.warn('sync pan:', e.message)),
+      gallCargarSb().catch(e => console.warn('sync gall:', e.message)),
+      ingCargarSb().catch(e => console.warn('sync ing:', e.message)),
+      _sbCosteoCargar().catch(e => console.warn('sync costeo:', e.message)),
+      _sbCliCargar().catch(e => console.warn('sync cli:', e.message)),
+    ]);
+    const seg = ((Date.now() - t0) / 1000).toFixed(1);
+    if (st) st.textContent = `✓ Sincronizado en ${seg}s`;
+    pmToast('Sincronización completa ✓');
+  } catch(e) {
+    if (st) st.textContent = 'Error en sincronización';
+    pmToast('Error al sincronizar','err');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '☁️ Sincronizar todo'; }
+  }
 }
 
 function dashRender() {
