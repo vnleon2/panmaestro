@@ -788,7 +788,11 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
     </div>
     <div class="sec"><h2 id="ing-count">Ingredientes</h2>
       <div class="srch" style="width:160px"><input type="text" id="ing-search" placeholder="Buscar..." oninput="ingRender()"></div>
-      <button class="btn btn-out btn-sm" id="ing-vista-btn" onclick="ingToggleVista()" title="Alternar vista">📋 Por código</button>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:10px">
+      <button class="btn btn-sm" id="ing-tab-alfa" onclick="ingSetVista(false)"
+        style="background:rgba(200,146,42,.15);border:1px solid var(--gold);color:var(--gold)">A→Z</button>
+      <button class="btn btn-out btn-sm" id="ing-tab-cod" onclick="ingSetVista(true)">📋 Por código</button>
     </div>
     <div id="ing-list"></div>
   </div>
@@ -7033,10 +7037,23 @@ function ingAdd() {
 // ── Vista tabla de ingredientes por código ──
 let _ingVistaTabla = false;
 
-function ingToggleVista() {
-  _ingVistaTabla = !_ingVistaTabla;
-  const btn = document.getElementById('ing-vista-btn');
-  if (btn) btn.textContent = _ingVistaTabla ? '✏️ Vista normal' : '📋 Por código';
+function ingSetVista(codigosMode) {
+  _ingVistaTabla = codigosMode;
+  const tabAlfa = document.getElementById('ing-tab-alfa');
+  const tabCod  = document.getElementById('ing-tab-cod');
+  if (tabAlfa && tabCod) {
+    if (codigosMode) {
+      tabAlfa.style.cssText = '';
+      tabAlfa.className = 'btn btn-out btn-sm';
+      tabCod.style.cssText = 'background:rgba(200,146,42,.15);border:1px solid var(--gold);color:var(--gold)';
+      tabCod.className = 'btn btn-sm';
+    } else {
+      tabAlfa.style.cssText = 'background:rgba(200,146,42,.15);border:1px solid var(--gold);color:var(--gold)';
+      tabAlfa.className = 'btn btn-sm';
+      tabCod.style.cssText = '';
+      tabCod.className = 'btn btn-out btn-sm';
+    }
+  }
   ingRender();
 }
 
@@ -7084,11 +7101,7 @@ function ingRender() {
   }
   const keys = Object.keys(G.ingredientes)
     .filter(k => !q || k.toLowerCase().includes(q))
-    .sort((a,b) => {
-      const ca = sbCodMap[a] || 'ZZZ';
-      const cb = sbCodMap[b] || 'ZZZ';
-      return ca.localeCompare(cb);
-    });
+    .sort((a,b) => a.localeCompare(b, 'es'));
   document.getElementById('ing-count').textContent = `Ingredientes (${keys.length})`;
   if (_ingVistaTabla) {
     document.getElementById('ing-list').innerHTML = keys.length
