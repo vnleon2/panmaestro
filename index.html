@@ -524,7 +524,6 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
         <button class="btn btn-out btn-sm" onclick="cvMostrar('cv-maestro');cvMaestroRender()">📋 Maestro</button>
         <button class="btn btn-out btn-sm" onclick="cvMostrar('cv-gm');gmRenderList()">🌾 Gluten Morgen</button>
         <button class="btn btn-gold" onclick="cvMostrar('cv-nueva');recNuevo()">+ Nueva receta</button>
-        <button class="btn btn-out btn-sm" onclick="recSincronizarToSb()" title="Sincronizar recetas locales a Supabase">☁️ Sincronizar</button>
       </div>
     </div>
     <!-- Escalado rápido -->
@@ -1742,7 +1741,7 @@ function showTab(id) {
     'pg-costeo':  () => { _sbCosteoCargar(); const el = document.getElementById('mro-margen-default'); if(el) el.value = G.margenDefault||40; },
     'pg-hid':     () => { hidCalc(); },
     'app-inner':  () => { currentTab = currentTab||'pan'; if(currentTab==='sync') pmSyncUIRefresh(); panRecetaPopulate(); },
-    'pg-rec':     () => { _sbCosteoCargar().then(() => recetarioRender()); },
+    'pg-rec':     () => { recetarioRender(); },
     'pg-gmrec':   () => { gmRecetarioRender(); },
   };
   if (inits[id]) inits[id]();
@@ -5052,7 +5051,10 @@ function recCard(r) {
   const ggPct  = r.ggPct  !== undefined ? r.ggPct  : 45;
   const costMOD = costMatTotal * modPct / 100;
   const costGG  = costMatTotal * ggPct  / 100;
-  const costTotal = costMatTotal + costMOD + costGG;
+  const costTotal    = costMatTotal + costMOD + costGG;
+  const units        = r.units || 1;
+  const costTotalUd  = costTotal / units;                          // costo total / unidades
+  const costTotalG   = r.totalMass ? costTotal / r.totalMass : 0; // costo total / gramos totales
 
   function tblRow(l) {
     const costCell = l.cost > 0 ? pmMoney(Math.round(l.cost)) : '—';
@@ -5108,7 +5110,7 @@ function recCard(r) {
       <span class="rec-meta">${mass}g · ${r.units||1} ud</span>
       <div style="text-align:right">
         <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--gold2);font-weight:700">${pmMoney(Math.round(costTotal))}</div>
-        <div style="font-size:10px;color:var(--cream2)">${pmMoney(Math.round(c.perUnit))}/ud</div>
+        <div style="font-size:10px;color:var(--cream2)">${pmMoney(Math.round(costTotalUd))}/ud</div>
       </div>
     </div>
     <div class="rec-body">
@@ -5118,15 +5120,14 @@ function recCard(r) {
         ${addonLines.length?`<div class="cpill">🎂 Rellenos: <span>${pmMoney(Math.round(costAddons))}</span></div>`:''}
         ${merma?`<div class="cpill">Merma: <span>${merma}%</span></div>`:''}
         <div class="cpill" style="background:rgba(200,146,42,.15)">Total: <span style="color:var(--gold2)">${pmMoney(Math.round(costTotal))}</span></div>
-        <div class="cpill">Costo mat./ud: <span>${pmMoney(Math.round(c.perUnit))}</span></div>
+        <div class="cpill">💰 Costo/ud: <span style="color:var(--gold2)">${pmMoney(Math.round(costTotalUd))}</span></div>
+        <div class="cpill">₡/g: <span>${costTotalG.toFixed(2)}</span></div>
         ${(() => {
-          const ps = pmPrecioSugerido(r);
-          const cpg = c.totalMerma && r.totalMass ? c.totalMerma / r.totalMass : null;
-          const pills = [];
-          if (ps) pills.push(`<div class="cpill" style="background:rgba(74,144,96,.15);border-color:rgba(74,144,96,.3)">💰 Precio/ud: <span style="color:var(--green)">${pmMoney(Math.round(ps))}</span><span style="font-size:9px;color:var(--cream2)"> (${r.margen||G.margenDefault||40}% mg)</span></div>`);
-          const pesoUd = r.totalMass && r.units ? r.totalMass / r.units : r.totalMass;
-          if (pesoUd && costTotal) pills.push(`<div class="cpill">₡/g: <span>${(costTotal/pesoUd).toFixed(2)}</span></div>`);
-          return pills.join('');
+          const margen = (r.margen !== undefined ? r.margen : (G.margenDefault || 40));
+          const m = margen / 100;
+          const ps = m < 1 ? costTotalUd / (1 - m) : null;
+          if (!ps) return '';
+          return `<div class="cpill" style="background:rgba(74,144,96,.15);border-color:rgba(74,144,96,.3)">🏷 Precio/ud: <span style="color:var(--green)">${pmMoney(Math.round(ps))}</span><span style="font-size:9px;color:var(--cream2)"> (${margen}% mg)</span></div>`;
         })()}
       </div>
       <table class="ing-tbl" style="width:100%;border-collapse:collapse;font-size:12px">
@@ -5141,6 +5142,10 @@ function recCard(r) {
           ${subSection}
           ${addonSection}
           ${mermaRow}
+          <tr style="background:rgba(200,146,42,.08);font-weight:600;border-top:2px solid rgba(200,146,42,.3)">
+            <td style="padding:6px 8px;font-size:12px" colspan="3">📦 Total costo materiales</td>
+            <td style="padding:6px 8px;text-align:right;font-family:'DM Mono',monospace;color:var(--gold2)">${pmMoney(Math.round(costMatTotal))}</td>
+          </tr>
           <tr style="background:rgba(74,128,192,.06);border-top:1px solid var(--border)">
             <td style="padding:5px 8px;font-size:11px">👷 Mano de obra
               <input type="number" value="${modPct}" min="0" max="999" step="1"
@@ -5162,9 +5167,27 @@ function recCard(r) {
             <td style="padding:5px 8px;text-align:right;font-family:'DM Mono',monospace;color:var(--blue)">${pmMoney(Math.round(costGG))}</td>
           </tr>
           <tr style="background:rgba(200,146,42,.12);font-weight:700;border-top:2px solid var(--gold)">
-            <td style="padding:6px 8px" colspan="3">COSTO TOTAL</td>
+            <td style="padding:6px 8px" colspan="3">COSTO TOTAL (${units} ud · ${r.totalMass||0}g)</td>
             <td style="padding:6px 8px;text-align:right;font-family:'DM Mono',monospace;color:var(--gold2)">${pmMoney(Math.round(costTotal))}</td>
           </tr>
+          <tr style="border-top:1px solid var(--border)">
+            <td style="padding:5px 8px;font-size:11px;color:var(--cream2)" colspan="3">💰 Costo por unidad (÷ ${units} ud)</td>
+            <td style="padding:5px 8px;text-align:right;font-family:'DM Mono',monospace;font-weight:600;color:var(--gold2)">${pmMoney(Math.round(costTotalUd))}</td>
+          </tr>
+          <tr style="border-top:1px solid var(--border)">
+            <td style="padding:5px 8px;font-size:11px;color:var(--cream2)" colspan="3">₡/g (÷ ${r.totalMass||0}g)</td>
+            <td style="padding:5px 8px;text-align:right;font-family:'DM Mono',monospace;font-size:11px;color:var(--cream2)">${costTotalG.toFixed(2)}</td>
+          </tr>
+          ${(() => {
+            const margen = (r.margen !== undefined ? r.margen : (G.margenDefault || 40));
+            const m = margen / 100;
+            const ps = m < 1 ? costTotalUd / (1 - m) : null;
+            if (!ps) return '';
+            return `<tr style="background:rgba(74,144,96,.1);border-top:2px solid rgba(74,144,96,.3);font-weight:700">
+              <td style="padding:6px 8px;color:var(--green)" colspan="3">🏷 Precio sugerido/ud (${margen}% margen)</td>
+              <td style="padding:6px 8px;text-align:right;font-family:'DM Mono',monospace;color:var(--green)">${pmMoney(Math.round(ps))}</td>
+            </tr>`;
+          })()}
         </tbody>
       </table>
       ${r.notes?`<div style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:11px;color:var(--cream2);white-space:pre-wrap;margin-top:8px">${r.notes}</div>`:''}
@@ -5667,26 +5690,8 @@ function recSave() {
     } else {
       const nextNum = _sbRecLista().filter(r=>r.code&&r.code.startsWith('R-')).length + 1;
       const newCode = 'R-' + String(nextNum).padStart(4,'0');
-      const newRec = { id: String(Date.now()), code: newCode, gmSource, ...obj };
-      G.recetas.push(newRec);
+      G.recetas.push({ id: String(Date.now()), code: newCode, gmSource, ...obj });
       pmToast(newCode + ' · "' + obj.name + '" guardada ✓');
-      // Supabase dual write — crear receta nueva desde GM
-      if (pmDB.disponible()) {
-        pmDB.recetas.crear({
-          codigo: newCode, nombre: obj.name, categoria: obj.cat,
-          masa_total_g: obj.totalMass, unidades: obj.units,
-          merma_pct: obj.merma, margen_pct: obj.margen || null,
-          notas: obj.notes, origen: 'gluten_morgen', activo: true
-        }).then(rows => {
-          if (rows?.[0]) {
-            newRec.sbId = rows[0].id;
-            console.log('[pmDB] ✅ Receta GM creada en Supabase:', newCode);
-            _sbSaveRecetaItems(rows[0].id, obj.flour, obj.other);
-            pmSave('costeo'); // actualizar localStorage con sbId
-          }
-        }).catch(e => console.warn('[pmDB] recSave gmSource create error:', e.message));
-        _sbRecCache = null;
-      }
     }
   } else if (realId) {
     // Editing existing recipe
@@ -5735,37 +5740,6 @@ function recSave() {
   pmSave('costeo');
   fillRscSel();
   cvMostrar('cv-lista');
-  recRender();
-}
-
-// ── Sincronizar recetas locales sin sbId hacia Supabase ──
-async function recSincronizarToSb() {
-  if (!pmDB.disponible()) { pmToast('Sin conexión a Supabase','err'); return; }
-  const pendientes = (G.recetas||[]).filter(r => !r.sbId && r.code && r.code.startsWith('R-'));
-  if (!pendientes.length) { pmToast('Todas las recetas ya están en Supabase ✓'); return; }
-  pmToast(`Sincronizando ${pendientes.length} receta(s)...`);
-  let ok = 0, err = 0;
-  for (const r of pendientes) {
-    try {
-      const rows = await pmDB.recetas.crear({
-        codigo: r.code, nombre: r.name, categoria: r.cat||'pan',
-        masa_total_g: r.totalMass||1000, unidades: r.units||1,
-        merma_pct: r.merma||0, margen_pct: r.margen||null,
-        notas: r.notes||null, origen: r.gmSource ? 'gluten_morgen' : 'propia', activo: true
-      });
-      if (rows?.[0]) {
-        r.sbId = rows[0].id;
-        await _sbSaveRecetaItems(rows[0].id, r.flour||[], r.other||[]);
-        ok++;
-      }
-    } catch(e) {
-      console.warn('[recSincronizarToSb] error:', r.code, e.message);
-      err++;
-    }
-  }
-  pmSave('costeo');
-  _sbRecCache = null;
-  pmToast(`Sincronizadas: ${ok} ✓${err ? ' · Errores: '+err : ''}`);
   recRender();
 }
 
