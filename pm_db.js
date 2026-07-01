@@ -86,11 +86,12 @@ const pmDB = (() => {
    * @param {string} select — ej: 'id,nombre,precio' (default: '*')
    * @returns {Array}
    */
-  async function get(tabla, filtros = {}, select = '*') {
+  async function get(tabla, filtros = {}, select = '*', order = null) {
     let query = `${tabla}?select=${select}`;
     for (const [k, v] of Object.entries(filtros)) {
       query += `&${k}=eq.${v}`;
     }
+    if (order) query += `&order=${order}`;
     return await _fetch(query);
   }
 
@@ -190,7 +191,7 @@ const pmDB = (() => {
 
   // ── INGREDIENTES ──────────────────────────────────────────────────────────
   const ingredientes = {
-    listar:   ()       => get('ingredientes', { activo: true }),
+    listar:   ()       => get('ingredientes', { activo: true }, '*', 'codigo.asc'),
     obtener:  (id)     => getById('ingredientes', id),
     crear:    (datos)  => insert('ingredientes', datos),
     editar:   (id, d)  => update('ingredientes', id, d),
@@ -200,8 +201,8 @@ const pmDB = (() => {
   // ── PRODUCTOS TERMINADOS ──────────────────────────────────────────────────
   const productos = {
     listar:       ()     => get('productos_terminados', { activo: true }),
-    listarPanes:  ()     => get('productos_terminados', { activo: true, tipo: 'pan' }),
-    listarGalletas: ()   => get('productos_terminados', { activo: true, tipo: 'galleta' }),
+    listarPanes:  ()     => get('productos_terminados', { activo: true, tipo: 'pan' }, '*', 'codigo.asc'),
+    listarGalletas: ()   => get('productos_terminados', { activo: true, tipo: 'galleta' }, '*', 'codigo.asc'),
     obtener:      (id)   => getById('productos_terminados', id),
     crear:        (d)    => insert('productos_terminados', d),
     editar:       (id,d) => update('productos_terminados', id, d),
@@ -210,7 +211,7 @@ const pmDB = (() => {
 
   // ── RECETAS ───────────────────────────────────────────────────────────────
   const recetas = {
-    listar:   ()       => get('recetas', { activo: true }),
+    listar:   ()       => get('recetas', { activo: true }, '*', 'codigo.asc'),
     obtener:  (id)     => getById('recetas', id),
     crear:    (datos)  => insert('recetas', datos),
     editar:   (id, d)  => update('recetas', id, d),
@@ -289,22 +290,7 @@ const pmDB = (() => {
         `plan_produccion?fecha=gte.${inicio}&fecha=lte.${fin}&select=*`
       );
     },
-    guardar: async (datos) => {
-      const arr = Array.isArray(datos) ? datos : [datos];
-      if (!arr.length) return;
-      // Eliminar registros existentes para esa fecha/tipo antes de insertar
-      const fecha = arr[0].fecha;
-      const tipo  = arr[0].tipo;
-      try {
-        await _fetch(`plan_produccion?fecha=eq.${fecha}&tipo=eq.${tipo}`, { method: 'DELETE' });
-      } catch(e) { /* ignorar si no hay nada que borrar */ }
-      // Insertar nuevos
-      return _fetch('plan_produccion', {
-        method: 'POST',
-        headers: { 'Prefer': 'return=representation' },
-        body: JSON.stringify(arr)
-      });
-    },
+    guardar: (datos) => upsert('plan_produccion', datos),
     eliminar: (id)   => hardDelete('plan_produccion', id),
   };
 

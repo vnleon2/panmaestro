@@ -544,6 +544,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
         <select id="rec-cat" onchange="recRender()">
           <option value="">Todas</option>
           <option value="pan">🍞 Pan</option>
+          <option value="pan_mm">🌾 Pan masa madre</option>
           <option value="galleta">🍪 Galletas</option>
           <option value="masa">🌾 Masas</option>
           <option value="otro">📦 Otros</option>
@@ -579,6 +580,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
         <div class="col sm"><label>Categoría</label>
           <select id="mr-cat">
             <option value="pan">🍞 Pan</option>
+            <option value="pan_mm">🌾 Pan masa madre</option>
             <option value="galleta">🍪 Galleta</option>
             <option value="masa">🌾 Masa base</option>
             <option value="otro">📦 Otro</option>
@@ -1074,8 +1076,9 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
         <select id="rec-sel-cat" onchange="recetarioFiltrar()" style="width:100%">
           <option value="">Todas</option>
           <option value="pan">🍞 Pan</option>
+          <option value="pan_mm">🌾 Pan masa madre</option>
           <option value="galleta">🍪 Galleta</option>
-          <option value="masa">🌾 Masa</option>
+          <option value="masa">🫧 Masa</option>
           <option value="otro">📦 Otro</option>
         </select>
       </div>
@@ -5071,7 +5074,7 @@ function recRender() {
   el.innerHTML = list.map(r => recCard(r)).join('');
 }
 
-const CAT_ICON = {pan:'🍞',galleta:'🍪',masa:'🌾',otro:'📦'};
+const CAT_ICON = {pan:'🍞',pan_mm:'🌾',galleta:'🍪',masa:'🫧',otro:'📦'};
 
 function recCard(r) {
   const c = pmCostoReceta(r);
@@ -6068,7 +6071,7 @@ function cvMaestroRender() {
     return;
   }
 
-  const CAT_ICON = {pan:'🍞', galleta:'🍪', masa:'🌾', otro:'📦'};
+  const CAT_ICON = {pan:'🍞', pan_mm:'🌾', galleta:'🍪', masa:'🫧', otro:'📦'};
 
   const rows = list.map(r => {
     const c = pmCostoReceta(r);
@@ -6194,7 +6197,7 @@ function recetarioFiltrar() {
 
   el.innerHTML = list.map(r => {
     const c = pmCostoReceta(r);
-    const CAT = {pan:'🍞',galleta:'🍪',masa:'🌾',otro:'📦'};
+    const CAT = {pan:'🍞',pan_mm:'🌾',galleta:'🍪',masa:'🫧',otro:'📦'};
     const icon = CAT[r.cat||'otro']||'📦';
     const active = _recetarioActual === r.id;
     return `<button onclick="recetarioSeleccionar('${r.id}')"
@@ -6247,7 +6250,7 @@ function recetarioEscalar() {
 
   // Escalar: pmCostoReceta a masaTotal
   const c    = pmCostoReceta(r, masaTotal);
-  const CAT  = {pan:'🍞', galleta:'🍪', masa:'🌾', otro:'📦'};
+  const CAT  = {pan:'🍞', pan_mm:'🌾', galleta:'🍪', masa:'🫧', otro:'📦'};
   const icon = CAT[r.cat||'otro']||'📦';
 
   // Separate line types
