@@ -5118,7 +5118,15 @@ function recCard(r) {
         ${merma?`<div class="cpill">Merma: <span>${merma}%</span></div>`:''}
         <div class="cpill" style="background:rgba(200,146,42,.15)">Total: <span style="color:var(--gold2)">${pmMoney(Math.round(costTotal))}</span></div>
         <div class="cpill">Por ud: <span>${pmMoney(Math.round(c.perUnit))}</span></div>
-        ${(() => { const ps = pmPrecioSugerido(r, 200); return ps ? `<div class="cpill" style="background:rgba(74,144,96,.15);border-color:rgba(74,144,96,.3)">💰 200g: <span style="color:var(--green)">${pmMoney(Math.round(ps))}</span><span style="font-size:9px;color:var(--cream2)"> (${r.margen||G.margenDefault||40}% mg)</span></div>` : ''; })()}
+        ${(() => {
+          const ps = pmPrecioSugerido(r);
+          const cpg = c.totalMerma && r.totalMass ? c.totalMerma / r.totalMass : null;
+          const pills = [];
+          if (ps) pills.push(`<div class="cpill" style="background:rgba(74,144,96,.15);border-color:rgba(74,144,96,.3)">💰 Precio/ud: <span style="color:var(--green)">${pmMoney(Math.round(ps))}</span><span style="font-size:9px;color:var(--cream2)"> (${r.margen||G.margenDefault||40}% mg)</span></div>`);
+          const pesoUd = r.totalMass && r.units ? r.totalMass / r.units : r.totalMass;
+          if (pesoUd && costTotal) pills.push(`<div class="cpill">₡/g: <span>${(costTotal/pesoUd).toFixed(2)}</span></div>`);
+          return pills.join('');
+        })()}
       </div>
       <table class="ing-tbl" style="width:100%;border-collapse:collapse;font-size:12px">
         <thead><tr style="background:rgba(200,146,42,.08)">
@@ -6027,7 +6035,10 @@ function cvMaestroRender() {
         ${hasCost ? pmMoney(Math.round(c.perUnit))+'/ud' : '—'}
       </td>
       <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace;font-size:13px;color:var(--green);font-weight:600">
-        ${(() => { const ps = pmPrecioSugerido(r, 200); return ps ? pmMoney(Math.round(ps)) : '—'; })()}
+        ${(() => { const ps = pmPrecioSugerido(r); return ps ? pmMoney(Math.round(ps)) : '—'; })()}
+      </td>
+      <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace;font-size:11px;color:var(--cream2)">
+        ${hasCost && r.totalMass ? (() => { const modP = r.modPct!==undefined?r.modPct:80; const ggP = r.ggPct!==undefined?r.ggPct:45; const ct = c.totalMerma*(1+(modP+ggP)/100); const pu = r.totalMass/(r.units||1); return (ct/pu).toFixed(2); })() : '—'}
       </td>
     </tr>`;
   }).join('');
@@ -6048,7 +6059,8 @@ function cvMaestroRender() {
             <th style="padding:8px 10px;text-align:center;font-size:11px;text-transform:uppercase;letter-spacing:.6px">Cat.</th>
             <th style="padding:8px 10px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:.6px">Costo total</th>
             <th style="padding:8px 10px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:.6px">Por unidad</th>
-            <th style="padding:8px 10px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--green)">Precio/200g</th>
+            <th style="padding:8px 10px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--green)">Precio/ud</th>
+            <th style="padding:8px 10px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--cream2)">₡/g</th>
           </tr>
         </thead>
         <tbody id="mro-tbody">${rows}</tbody>
@@ -6086,15 +6098,13 @@ function cvMaestroPrint() {
 
 
 // ── PRECIO SUGERIDO ──────────────────────────────────────────
-function pmPrecioSugerido(r, unidadG) {
+function pmPrecioSugerido(r) {
+  // Precio sugerido por unidad: costo/ud (con MOD y GG) + margen
   const c = pmCostoReceta(r);
-  const baseMasa = r.totalMass || 1000;
-  if (!c.totalMerma || !baseMasa) return null;
-  const cpg     = c.totalMerma / baseMasa;
-  const costoUd = cpg * (unidadG || 200);
-  const margen  = (r.margen !== undefined ? r.margen : (G.margenDefault || 40)) / 100;
+  if (!c.perUnit) return null;
+  const margen = (r.margen !== undefined ? r.margen : (G.margenDefault || 40)) / 100;
   if (margen >= 1) return null;
-  return costoUd / (1 - margen);
+  return c.perUnit / (1 - margen);
 }
 
 
