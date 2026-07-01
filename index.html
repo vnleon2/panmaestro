@@ -524,6 +524,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
         <button class="btn btn-out btn-sm" onclick="cvMostrar('cv-maestro');cvMaestroRender()">📋 Maestro</button>
         <button class="btn btn-out btn-sm" onclick="cvMostrar('cv-gm');gmRenderList()">🌾 Gluten Morgen</button>
         <button class="btn btn-gold" onclick="cvMostrar('cv-nueva');recNuevo()">+ Nueva receta</button>
+        <button class="btn btn-out btn-sm" onclick="recSincronizarToSb()" title="Sincronizar recetas locales a Supabase">☁️ Sincronizar</button>
       </div>
     </div>
     <!-- Escalado rápido -->
@@ -1741,7 +1742,7 @@ function showTab(id) {
     'pg-costeo':  () => { _sbCosteoCargar(); const el = document.getElementById('mro-margen-default'); if(el) el.value = G.margenDefault||40; },
     'pg-hid':     () => { hidCalc(); },
     'app-inner':  () => { currentTab = currentTab||'pan'; if(currentTab==='sync') pmSyncUIRefresh(); panRecetaPopulate(); },
-    'pg-rec':     () => { recetarioRender(); },
+    'pg-rec':     () => { _sbCosteoCargar().then(() => recetarioRender()); },
     'pg-gmrec':   () => { gmRecetarioRender(); },
   };
   if (inits[id]) inits[id]();
@@ -5666,8 +5667,26 @@ function recSave() {
     } else {
       const nextNum = _sbRecLista().filter(r=>r.code&&r.code.startsWith('R-')).length + 1;
       const newCode = 'R-' + String(nextNum).padStart(4,'0');
-      G.recetas.push({ id: String(Date.now()), code: newCode, gmSource, ...obj });
+      const newRec = { id: String(Date.now()), code: newCode, gmSource, ...obj };
+      G.recetas.push(newRec);
       pmToast(newCode + ' · "' + obj.name + '" guardada ✓');
+      // Supabase dual write — crear receta nueva desde GM
+      if (pmDB.disponible()) {
+        pmDB.recetas.crear({
+          codigo: newCode, nombre: obj.name, categoria: obj.cat,
+          masa_total_g: obj.totalMass, unidades: obj.units,
+          merma_pct: obj.merma, margen_pct: obj.margen || null,
+          notas: obj.notes, origen: 'gluten_morgen', activo: true
+        }).then(rows => {
+          if (rows?.[0]) {
+            newRec.sbId = rows[0].id;
+            console.log('[pmDB] ✅ Receta GM creada en Supabase:', newCode);
+            _sbSaveRecetaItems(rows[0].id, obj.flour, obj.other);
+            pmSave('costeo'); // actualizar localStorage con sbId
+          }
+        }).catch(e => console.warn('[pmDB] recSave gmSource create error:', e.message));
+        _sbRecCache = null;
+      }
     }
   } else if (realId) {
     // Editing existing recipe
@@ -5716,6 +5735,37 @@ function recSave() {
   pmSave('costeo');
   fillRscSel();
   cvMostrar('cv-lista');
+  recRender();
+}
+
+// ── Sincronizar recetas locales sin sbId hacia Supabase ──
+async function recSincronizarToSb() {
+  if (!pmDB.disponible()) { pmToast('Sin conexión a Supabase','err'); return; }
+  const pendientes = (G.recetas||[]).filter(r => !r.sbId && r.code && r.code.startsWith('R-'));
+  if (!pendientes.length) { pmToast('Todas las recetas ya están en Supabase ✓'); return; }
+  pmToast(`Sincronizando ${pendientes.length} receta(s)...`);
+  let ok = 0, err = 0;
+  for (const r of pendientes) {
+    try {
+      const rows = await pmDB.recetas.crear({
+        codigo: r.code, nombre: r.name, categoria: r.cat||'pan',
+        masa_total_g: r.totalMass||1000, unidades: r.units||1,
+        merma_pct: r.merma||0, margen_pct: r.margen||null,
+        notas: r.notes||null, origen: r.gmSource ? 'gluten_morgen' : 'propia', activo: true
+      });
+      if (rows?.[0]) {
+        r.sbId = rows[0].id;
+        await _sbSaveRecetaItems(rows[0].id, r.flour||[], r.other||[]);
+        ok++;
+      }
+    } catch(e) {
+      console.warn('[recSincronizarToSb] error:', r.code, e.message);
+      err++;
+    }
+  }
+  pmSave('costeo');
+  _sbRecCache = null;
+  pmToast(`Sincronizadas: ${ok} ✓${err ? ' · Errores: '+err : ''}`);
   recRender();
 }
 
