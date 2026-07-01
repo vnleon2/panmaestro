@@ -261,6 +261,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
     <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
       <button class="btn btn-out btn-sm" onclick="ppVerResumen()">📋 Resumen del día</button>
       <button class="btn btn-out btn-sm" onclick="ppVerPlanVsPedidos()">🔥 Plan vs Pedidos</button>
+      <button class="btn btn-out btn-sm" onclick="pedSincronizarToSb()" title="Subir pedidos locales a Supabase">☁️ Sync</button>
     </div>
   </div>
   <div id="pp-vista-extra" style="display:none"></div>
@@ -1903,6 +1904,43 @@ function ppVerResumen() {
   vistaEl.scrollIntoView({ behavior:'smooth', block:'nearest' });
 }
 
+// ── Sincronizar pedidos locales sin _sbId a Supabase ──
+async function pedSincronizarToSb() {
+  if (!pmDB.disponible()) { pmToast('Sin conexión a Supabase','err'); return; }
+  await _sbProdEnsureMap();
+  const todos = [
+    ...G.pedidosPan.filter(p => !p._sbId).map(p => ({...p, tipo:'pan'})),
+    ...G.pedidosGalletas.filter(p => !p._sbId).map(p => ({...p, tipo:'galleta'}))
+  ];
+  if (!todos.length) { pmToast('Todos los pedidos ya están en Supabase ✓'); return; }
+  pmToast(`Sincronizando ${todos.length} pedido(s)...`);
+  let ok = 0, err = 0;
+  for (const ped of todos) {
+    try {
+      const rows = await pmDB.pedidos.crear({ fecha:ped.date, cliente_nom:ped.cli, tipo:ped.tipo, status:ped.status, total:0 });
+      if (rows?.[0]) {
+        const sbId = rows[0].id;
+        // Buscar y actualizar el objeto local
+        const local = ped.tipo === 'pan'
+          ? G.pedidosPan.find(p => p.id === ped.id)
+          : G.pedidosGalletas.find(p => p.id === ped.id);
+        if (local) local._sbId = sbId;
+        // Sync líneas
+        for (const l of ped.lineas||[]) {
+          const prodUuid = _sbProdMap?.[l.pid];
+          const precio = (ped.tipo==='pan' ? G.tiposPan : G.tiposGalleta).find(x=>x.id===l.pid)?.precio || 0;
+          if (prodUuid) {
+            await pmDB.pedidos.lineas.agregar({ pedido_id:sbId, producto_id:prodUuid, cantidad:l.cant, precio_applied:precio, instruccion:l.inst||null });
+          }
+        }
+        ok++;
+      }
+    } catch(e) { console.warn('[pedSincronizarToSb]', e.message); err++; }
+  }
+  pmSave('pedidos');
+  pmToast(`Sincronizados: ${ok} ✓${err ? ' · Errores: '+err : ''}`);
+}
+
 // ── Plan vs Pedidos del día ──
 async function ppVerPlanVsPedidos() {
   const fecha   = document.getElementById('pp-fecha').value || pmHoy();
@@ -2014,36 +2052,37 @@ function ppAdd() {
   }
 }
 
-// ── Carga pedidos de pan desde Supabase y mezcla con localStorage ──
+// ── Carga pedidos de pan desde Supabase (fuente primaria) ──
 async function ppCargarSb() {
   if (pmDB.disponible()) {
     try {
       const fecha = document.getElementById('pp-fecha').value || pmHoy();
+      await _sbProdEnsureMap();
       const rows = await pmDB.get('pedidos', { tipo: 'pan', fecha }, '*');
-      if (rows && rows.length) {
+      if (rows) {
+        // Construir lista desde SB — fuente primaria
+        const sbPeds = [];
         for (const sb of rows) {
-          // Verificar si ya existe en G.pedidosPan por _sbId o por coincidencia de fecha+cliente
-          const existe = G.pedidosPan.find(p => p._sbId === sb.id || (p.date === sb.fecha && p.cli === sb.cliente_nom && !p._sbId));
-          if (existe) {
-            // Actualizar _sbId si no lo tenía
-            if (!existe._sbId) existe._sbId = sb.id;
-          } else {
-            // Cargar líneas desde SB
-            let lineas = [];
-            try {
-              await _sbProdEnsureMap();
-              const lins = await pmDB.get('pedido_lineas', { pedido_id: sb.id }, '*');
-              lineas = (lins||[]).map(l => {
-                const pid = _sbProdMapInv?.[l.producto_id] || '';
-                return { lid: pmId(), pid, cant: l.cantidad||1, inst: l.instruccion||'' };
-              }).filter(l => l.pid);
-            } catch(e) { console.warn('[ppCargarSb] lineas:', e.message); }
-            G.pedidosPan.push({
-              id: pmId(), date: sb.fecha, cli: sb.cliente_nom,
-              status: sb.status, lineas, _sbId: sb.id
-            });
-          }
+          let lineas = [];
+          try {
+            const lins = await pmDB.get('pedido_lineas', { pedido_id: sb.id }, '*');
+            lineas = (lins||[]).map(l => {
+              const pid = _sbProdMapInv?.[l.producto_id] || '';
+              return { lid: l.id, pid, cant: l.cantidad||1, inst: l.instruccion||'' };
+            }).filter(l => l.pid);
+          } catch(e) { console.warn('[ppCargarSb] lineas:', e.message); }
+          // Preservar id local si ya existía
+          const local = G.pedidosPan.find(p => p._sbId === sb.id);
+          sbPeds.push({
+            id: local?.id || pmId(),
+            date: sb.fecha, cli: sb.cliente_nom,
+            status: sb.status, lineas, _sbId: sb.id
+          });
         }
+        // Mantener pedidos locales sin _sbId (creados offline) + pedidos de otras fechas
+        const otrosFechas = G.pedidosPan.filter(p => p.date !== fecha);
+        const offline     = G.pedidosPan.filter(p => p.date === fecha && !p._sbId);
+        G.pedidosPan = [...otrosFechas, ...sbPeds, ...offline];
         pmSave('pedidos');
       }
     } catch(e) { console.warn('[ppCargarSb]', e.message); }
@@ -2581,33 +2620,34 @@ function pgAdd() {
   }
 }
 
-// ── Carga pedidos de galleta desde Supabase y mezcla con localStorage ──
+// ── Carga pedidos de galleta desde Supabase (fuente primaria) ──
 async function pgCargarSb() {
   if (pmDB.disponible()) {
     try {
       const fecha = document.getElementById('pg-fecha').value || pmHoy();
+      await _sbProdEnsureMap();
       const rows = await pmDB.get('pedidos', { tipo: 'galleta', fecha }, '*');
-      if (rows && rows.length) {
+      if (rows) {
+        const sbPeds = [];
         for (const sb of rows) {
-          const existe = G.pedidosGalletas.find(p => p._sbId === sb.id || (p.date === sb.fecha && p.cli === sb.cliente_nom && !p._sbId));
-          if (existe) {
-            if (!existe._sbId) existe._sbId = sb.id;
-          } else {
-            let lineas = [];
-            try {
-              await _sbProdEnsureMap();
-              const lins = await pmDB.get('pedido_lineas', { pedido_id: sb.id }, '*');
-              lineas = (lins||[]).map(l => {
-                const pid = _sbProdMapInv?.[l.producto_id] || '';
-                return { lid: pmId(), pid, cant: l.cantidad||1, inst: l.instruccion||'' };
-              }).filter(l => l.pid);
-            } catch(e) { console.warn('[pgCargarSb] lineas:', e.message); }
-            G.pedidosGalletas.push({
-              id: pmId(), date: sb.fecha, cli: sb.cliente_nom,
-              status: sb.status, lineas, _sbId: sb.id
-            });
-          }
+          let lineas = [];
+          try {
+            const lins = await pmDB.get('pedido_lineas', { pedido_id: sb.id }, '*');
+            lineas = (lins||[]).map(l => {
+              const pid = _sbProdMapInv?.[l.producto_id] || '';
+              return { lid: l.id, pid, cant: l.cantidad||1, inst: l.instruccion||'' };
+            }).filter(l => l.pid);
+          } catch(e) { console.warn('[pgCargarSb] lineas:', e.message); }
+          const local = G.pedidosGalletas.find(p => p._sbId === sb.id);
+          sbPeds.push({
+            id: local?.id || pmId(),
+            date: sb.fecha, cli: sb.cliente_nom,
+            status: sb.status, lineas, _sbId: sb.id
+          });
         }
+        const otrosFechas = G.pedidosGalletas.filter(p => p.date !== fecha);
+        const offline     = G.pedidosGalletas.filter(p => p.date === fecha && !p._sbId);
+        G.pedidosGalletas = [...otrosFechas, ...sbPeds, ...offline];
         pmSave('pedidos');
       }
     } catch(e) { console.warn('[pgCargarSb]', e.message); }
