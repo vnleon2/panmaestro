@@ -573,6 +573,8 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
         <div class="col xs"><label>Unidades</label><input type="number" id="mr-units" placeholder="1" value="1"></div>
         <div class="col xs"><label>Merma %</label><input type="number" id="mr-merma" placeholder="0" value="0"></div>
         <div class="col xs"><label>Margen %</label><input type="number" id="mr-margen" placeholder="40" min="0" max="99" step="1"></div>
+        <div class="col xs"><label>M.O. %</label><input type="number" id="mr-mod" placeholder="80" min="0" max="999" step="1" title="Mano de obra como % del costo de materiales"></div>
+        <div class="col xs"><label>G.G. %</label><input type="number" id="mr-gg" placeholder="45" min="0" max="999" step="1" title="Gastos generales como % del costo de materiales"></div>
         <div class="col sm"><label>Categoría</label>
           <select id="mr-cat">
             <option value="pan">🍞 Pan</option>
@@ -5044,7 +5046,12 @@ function recCard(r) {
   const costIng  = ingLines.reduce((s,l)=>s+l.cost,0);
   const costSubs = subLines.reduce((s,l)=>s+l.cost,0);
   const merma    = r.merma || 0;
-  const costTotal= (costIng + costSubs) * (1 + merma/100);
+  const costMatTotal = (costIng + costSubs) * (1 + merma/100);
+  const modPct = r.modPct !== undefined ? r.modPct : 80;
+  const ggPct  = r.ggPct  !== undefined ? r.ggPct  : 45;
+  const costMOD = costMatTotal * modPct / 100;
+  const costGG  = costMatTotal * ggPct  / 100;
+  const costTotal = costMatTotal + costMOD + costGG;
 
   function tblRow(l) {
     const costCell = l.cost > 0 ? pmMoney(Math.round(l.cost)) : '—';
@@ -5125,6 +5132,31 @@ function recCard(r) {
           ${subSection}
           ${addonSection}
           ${mermaRow}
+          <tr style="background:rgba(74,128,192,.06);border-top:1px solid var(--border)">
+            <td style="padding:5px 8px;font-size:11px">👷 Mano de obra
+              <input type="number" value="${modPct}" min="0" max="999" step="1"
+                style="width:45px;margin-left:6px;padding:2px 4px;background:var(--sf);border:1px solid var(--border);border-radius:4px;color:var(--cream);font-size:11px;text-align:right"
+                onchange="cvActualizarMOD('${r.id}', this.value)"> %
+            </td>
+            <td style="padding:5px 8px;text-align:right;font-size:11px;color:var(--cream2)">${modPct}%</td>
+            <td style="padding:5px 8px;text-align:right;font-family:'DM Mono',monospace;font-size:11px">—</td>
+            <td style="padding:5px 8px;text-align:right;font-family:'DM Mono',monospace;color:var(--blue)">${pmMoney(Math.round(costMOD))}</td>
+          </tr>
+          <tr style="background:rgba(74,128,192,.04);border-top:1px solid var(--border)">
+            <td style="padding:5px 8px;font-size:11px">🏭 Gastos generales
+              <input type="number" value="${ggPct}" min="0" max="999" step="1"
+                style="width:45px;margin-left:6px;padding:2px 4px;background:var(--sf);border:1px solid var(--border);border-radius:4px;color:var(--cream);font-size:11px;text-align:right"
+                onchange="cvActualizarGG('${r.id}', this.value)"> %
+            </td>
+            <td style="padding:5px 8px;text-align:right;font-size:11px;color:var(--cream2)">${ggPct}%</td>
+            <td style="padding:5px 8px;text-align:right;font-family:'DM Mono',monospace;font-size:11px">—</td>
+            <td style="padding:5px 8px;text-align:right;font-family:'DM Mono',monospace;color:var(--blue)">${pmMoney(Math.round(costGG))}</td>
+          </tr>
+          <tr style="background:rgba(200,146,42,.06);font-weight:600;border-top:1px solid var(--border)">
+            <td style="padding:5px 8px;font-size:11px;color:var(--cream2)" colspan="3">Subtotal materiales</td>
+            <td style="padding:5px 8px;text-align:right;font-family:'DM Mono',monospace;color:var(--cream2)">${pmMoney(Math.round(costMatTotal))}</td>
+          </tr>
+          ${mermaRow}
           <tr style="background:rgba(200,146,42,.12);font-weight:700;border-top:2px solid var(--gold)">
             <td style="padding:6px 8px" colspan="3">COSTO TOTAL</td>
             <td style="padding:6px 8px;text-align:right;font-family:'DM Mono',monospace;color:var(--gold2)">${pmMoney(Math.round(costTotal))}</td>
@@ -5140,6 +5172,22 @@ function recCard(r) {
   </div>`;
 }
 
+// ── Actualizar MOD% y GG% directamente desde el costeo ──
+function cvActualizarMOD(recId, val) {
+  const r = _sbGetRec(recId) || G.recetas.find(x => x.id===recId);
+  if (!r) return;
+  r.modPct = parseFloat(val) || 0;
+  pmSave('costeo');
+  cvMaestroRender();
+}
+function cvActualizarGG(recId, val) {
+  const r = _sbGetRec(recId) || G.recetas.find(x => x.id===recId);
+  if (!r) return;
+  r.ggPct = parseFloat(val) || 0;
+  pmSave('costeo');
+  cvMaestroRender();
+}
+
 let mrIngCount = 0, mrSubCount = 0;
 
 function recNuevo() {
@@ -5150,6 +5198,8 @@ function recNuevo() {
   document.getElementById('mr-masa').value = 1000;
   document.getElementById('mr-units').value = 1;
   document.getElementById('mr-merma').value = 0;
+  document.getElementById('mr-mod') && (document.getElementById('mr-mod').value = '');
+  document.getElementById('mr-gg')  && (document.getElementById('mr-gg').value  = '');
   document.getElementById('mr-notes').value = '';
   document.getElementById('mr-cat').value = 'pan';
   document.getElementById('mr-ing-list').innerHTML = '';
@@ -5171,6 +5221,8 @@ function recEditar(id) {
   document.getElementById('mr-units').value = r.units||1;
   document.getElementById('mr-merma').value = r.merma||0;
   document.getElementById('mr-margen').value = r.margen!==undefined ? r.margen : '';
+  document.getElementById('mr-mod') && (document.getElementById('mr-mod').value = r.modPct!==undefined ? r.modPct : '');
+  document.getElementById('mr-gg')  && (document.getElementById('mr-gg').value  = r.ggPct!==undefined  ? r.ggPct  : '');
   document.getElementById('mr-notes').value = r.notes||'';
   document.getElementById('mr-cat').value = r.cat||'pan';
   document.getElementById('mr-ing-list').innerHTML = '';
@@ -5570,7 +5622,15 @@ function recSave() {
 
   const margenVal = document.getElementById('mr-margen').value;
   const margen = margenVal !== '' ? parseFloat(margenVal) : undefined;
-  const obj = {code, name, cat, totalMass:masa, units, merma, ...(margen!==undefined?{margen}:{}), notes, flour, other, subrecs, addons};
+  const modPctVal = document.getElementById('mr-mod')?.value;
+  const ggPctVal  = document.getElementById('mr-gg')?.value;
+  const modPct = modPctVal !== '' && modPctVal !== undefined ? parseFloat(modPctVal) : undefined;
+  const ggPct  = ggPctVal  !== '' && ggPctVal  !== undefined ? parseFloat(ggPctVal)  : undefined;
+  const obj = {code, name, cat, totalMass:masa, units, merma,
+    ...(margen!==undefined?{margen}:{}),
+    ...(modPct!==undefined?{modPct}:{}),
+    ...(ggPct!==undefined?{ggPct}:{}),
+    notes, flour, other, subrecs, addons};
 
   if (!G.recetas) G.recetas = [];
   // Parse id — may carry gmsource marker
@@ -6583,7 +6643,7 @@ function panRender() {
   const list = G.tiposPan.filter(p => !q || p.nombre.toLowerCase().includes(q) || p.id.toLowerCase().includes(q));
   document.getElementById('pan-count').textContent = `Tipos de pan (${list.length})`;
   document.getElementById('pan-list').innerHTML = list.map(p => `
-    <div class="item-row" id="pan-row-${p.id}">
+    <div class="item-row">
       <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--gold3);min-width:44px">${p.id}</div>
       <div class="item-name">${p.nombre}</div>
       <div class="item-meta">${pmMoney(p.precio)} · ${p.peso}g</div>
@@ -6608,57 +6668,12 @@ function panRecetaPopulate() {
 function panEdit(id) {
   const p = G.tiposPan.find(x => x.id===id);
   if (!p) return;
-  // Cerrar cualquier edición abierta
-  document.querySelectorAll('.pan-edit-form').forEach(el => el.remove());
-  const row = document.getElementById('pan-row-' + id);
-  if (!row) { panRender(); return; }
-  const recetas = (G.recetas||[]).filter(r => !String(r.id).startsWith('gm-'));
-  const recOpts = '<option value="">— Sin receta —</option>' +
-    recetas.map(r => `<option value="${r.code}"${r.code===(p.recetaCod||'')?' selected':''}>${r.code} · ${r.name}</option>`).join('');
-  const form = document.createElement('div');
-  form.className = 'pan-edit-form';
-  form.style.cssText = 'padding:10px 12px;background:rgba(200,146,42,.06);border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end';
-  form.innerHTML = `
-    <div style="display:flex;flex-direction:column;gap:2px;flex:2;min-width:140px">
-      <label style="font-size:11px;color:var(--cream2)">Nombre</label>
-      <input id="pe-nom-${id}" type="text" value="${p.nombre.replace(/"/g,'&quot;')}" style="font-size:12px;padding:4px 7px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream)">
-    </div>
-    <div style="display:flex;flex-direction:column;gap:2px;min-width:80px">
-      <label style="font-size:11px;color:var(--cream2)">Precio ₡</label>
-      <input id="pe-pr-${id}" type="number" value="${p.precio||0}" style="font-size:12px;padding:4px 7px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream);width:80px">
-    </div>
-    <div style="display:flex;flex-direction:column;gap:2px;min-width:70px">
-      <label style="font-size:11px;color:var(--cream2)">Peso g</label>
-      <input id="pe-peso-${id}" type="number" value="${p.peso||0}" style="font-size:12px;padding:4px 7px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream);width:70px">
-    </div>
-    <div style="display:flex;flex-direction:column;gap:2px;flex:2;min-width:160px">
-      <label style="font-size:11px;color:var(--cream2)">Receta</label>
-      <select id="pe-rec-${id}" style="font-size:12px;padding:4px 7px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream)">${recOpts}</select>
-    </div>
-    <div style="display:flex;gap:4px;padding-bottom:1px">
-      <button class="btn btn-gold btn-sm" onclick="panEditSave('${id}')">💾 Guardar</button>
-      <button class="btn btn-out btn-sm" onclick="panEditCancelar('${id}')">✕</button>
-    </div>`;
-  row.after(form);
-  document.getElementById('pe-nom-' + id)?.focus();
-}
-
-function panEditCancelar(id) {
-  document.querySelectorAll('.pan-edit-form').forEach(el => el.remove());
-}
-
-function panEditSave(id) {
-  const p = G.tiposPan.find(x => x.id===id);
-  if (!p) return;
-  const nom  = document.getElementById('pe-nom-'  + id)?.value.trim();
-  const pr   = parseFloat(document.getElementById('pe-pr-'   + id)?.value)||0;
-  const peso = parseFloat(document.getElementById('pe-peso-' + id)?.value)||0;
-  const rec  = document.getElementById('pe-rec-'  + id)?.value || '';
-  if (!nom) { pmToast('El nombre no puede estar vacío','err'); return; }
-  p.nombre = nom; p.precio = pr; p.peso = peso; p.recetaCod = rec;
-  pmSave('sistema');
-  panRender();
-  pmToast('Actualizado ✓');
+  const nom = prompt('Nombre:', p.nombre); if (nom===null) return;
+  const pr  = prompt('Precio (₡):', p.precio); if (pr===null) return;
+  const peso= prompt('Peso (g):', p.peso); if (peso===null) return;
+  const rec = prompt('Código de receta (ej: R-0001):', p.recetaCod||''); if (rec===null) return;
+  p.nombre=nom.trim(); p.precio=parseFloat(pr)||p.precio; p.peso=parseFloat(peso)||p.peso; p.recetaCod=rec.trim();
+  pmSave('sistema'); panRender(); pmToast('Actualizado ✓');
   // Supabase — dual write
   if (pmDB.disponible()) {
     _sbProdEnsureMap().then(() => {
