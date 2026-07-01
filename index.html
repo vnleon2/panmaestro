@@ -6647,17 +6647,48 @@ function panRender() {
   const q = (document.getElementById('pan-search')?.value||'').toLowerCase();
   const list = G.tiposPan.filter(p => !q || p.nombre.toLowerCase().includes(q) || p.id.toLowerCase().includes(q));
   document.getElementById('pan-count').textContent = `Tipos de pan (${list.length})`;
-  document.getElementById('pan-list').innerHTML = list.map(p => `
-    <div class="item-row">
+  document.getElementById('pan-list').innerHTML = list.map(p => {
+    // Calcular costo desde receta vinculada
+    let cpgRec = null, costoTipoPan = null, margenReal = null;
+    if (p.recetaCod && p.peso) {
+      const rec = (G.recetas||[]).find(r => r.code === p.recetaCod);
+      if (rec) {
+        const c = pmCostoReceta(rec);
+        if (c.totalMerma && rec.totalMass) {
+          const modPct = rec.modPct !== undefined ? rec.modPct : 80;
+          const ggPct  = rec.ggPct  !== undefined ? rec.ggPct  : 45;
+          const costTotal = c.totalMerma * (1 + (modPct + ggPct) / 100);
+          cpgRec = costTotal / rec.totalMass;
+          costoTipoPan = cpgRec * p.peso;
+          if (p.precio > 0) margenReal = (p.precio - costoTipoPan) / p.precio * 100;
+        }
+      }
+    }
+    const cpgCell = cpgRec !== null
+      ? `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--cream2)">₡${cpgRec.toFixed(2)}/g</div>`
+      : `<div style="font-size:10px;color:var(--cream2);opacity:.4">—</div>`;
+    const costoCell = costoTipoPan !== null
+      ? `<div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--gold2);font-weight:600">${pmMoney(Math.round(costoTipoPan))}</div>`
+      : `<div style="font-size:10px;color:var(--cream2);opacity:.4">—</div>`;
+    const margenColor = margenReal === null ? 'var(--cream2)' : margenReal >= 40 ? 'var(--green)' : margenReal >= 20 ? 'var(--amber)' : 'var(--red)';
+    const margenCell = margenReal !== null
+      ? `<div style="font-family:'DM Mono',monospace;font-size:11px;color:${margenColor};font-weight:600">${margenReal.toFixed(1)}%</div>`
+      : `<div style="font-size:10px;color:var(--cream2);opacity:.4">—</div>`;
+    return `
+    <div class="item-row" id="pan-row-${p.id}">
       <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--gold3);min-width:44px">${p.id}</div>
       <div class="item-name">${p.nombre}</div>
       <div class="item-meta">${pmMoney(p.precio)} · ${p.peso}g</div>
       ${p.recetaCod ? `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--blue);background:rgba(74,128,192,.12);padding:2px 7px;border-radius:10px;border:1px solid rgba(74,128,192,.3)">${p.recetaCod}</div>` : `<div style="font-size:10px;color:var(--cream2);opacity:.4">—</div>`}
+      ${cpgCell}
+      ${costoCell}
+      ${margenCell}
       <div style="display:flex;gap:4px">
         <button class="btn btn-out btn-xs" onclick="panEdit('${p.id}')">✏️</button>
         <button class="btn btn-red btn-xs" onclick="panDel('${p.id}')">✕</button>
       </div>
-    </div>`).join('') || '<div class="ph"><span class="ph-icon">🍞</span>Sin tipos de pan</div>';
+    </div>`;
+  }).join('') || '<div class="ph"><span class="ph-icon">🍞</span>Sin tipos de pan</div>';
 }
 
 // ── Poblar dropdown de recetas en formulario de tipos de pan ──
