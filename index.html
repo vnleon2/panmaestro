@@ -6728,18 +6728,61 @@ function panRecetaPopulate() {
 function panEdit(id) {
   const p = G.tiposPan.find(x => x.id===id);
   if (!p) return;
-  const nom = prompt('Nombre:', p.nombre); if (nom===null) return;
-  const pr  = prompt('Precio (₡):', p.precio); if (pr===null) return;
-  const peso= prompt('Peso (g):', p.peso); if (peso===null) return;
-  const rec = prompt('Código de receta (ej: R-0001):', p.recetaCod||''); if (rec===null) return;
-  p.nombre=nom.trim(); p.precio=parseFloat(pr)||p.precio; p.peso=parseFloat(peso)||p.peso; p.recetaCod=rec.trim();
-  pmSave('sistema'); panRender(); pmToast('Actualizado ✓');
-  // Supabase — dual write
+  document.querySelectorAll('.pan-edit-form').forEach(el => el.remove());
+  const row = document.getElementById('pan-row-' + id);
+  if (!row) { panRender(); return; }
+  const recetas = (G.recetas||[]).filter(r => !String(r.id).startsWith('gm-'));
+  const recOpts = '<option value="">— Sin receta —</option>' +
+    recetas.map(r => `<option value="${r.code}"${r.code===(p.recetaCod||'')?' selected':''}>${r.code} · ${r.name}</option>`).join('');
+  const form = document.createElement('div');
+  form.className = 'pan-edit-form';
+  form.style.cssText = 'padding:10px 12px;background:rgba(200,146,42,.06);border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end';
+  form.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:2px;flex:2;min-width:140px">
+      <label style="font-size:11px;color:var(--cream2)">Nombre</label>
+      <input id="pe-nom-${id}" type="text" value="${p.nombre.replace(/"/g,'&quot;')}" style="font-size:12px;padding:4px 7px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream)">
+    </div>
+    <div style="display:flex;flex-direction:column;gap:2px;min-width:80px">
+      <label style="font-size:11px;color:var(--cream2)">Precio ₡</label>
+      <input id="pe-pr-${id}" type="number" value="${p.precio||0}" style="font-size:12px;padding:4px 7px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream);width:80px">
+    </div>
+    <div style="display:flex;flex-direction:column;gap:2px;min-width:70px">
+      <label style="font-size:11px;color:var(--cream2)">Peso g</label>
+      <input id="pe-peso-${id}" type="number" value="${p.peso||0}" style="font-size:12px;padding:4px 7px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream);width:70px">
+    </div>
+    <div style="display:flex;flex-direction:column;gap:2px;flex:2;min-width:160px">
+      <label style="font-size:11px;color:var(--cream2)">Receta</label>
+      <select id="pe-rec-${id}" style="font-size:12px;padding:4px 7px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream)">${recOpts}</select>
+    </div>
+    <div style="display:flex;gap:4px;padding-bottom:1px">
+      <button class="btn btn-gold btn-sm" onclick="panEditSave('${id}')">💾 Guardar</button>
+      <button class="btn btn-out btn-sm" onclick="panEditCancelar()">✕</button>
+    </div>`;
+  row.after(form);
+  document.getElementById('pe-nom-' + id)?.focus();
+}
+
+function panEditCancelar() {
+  document.querySelectorAll('.pan-edit-form').forEach(el => el.remove());
+}
+
+function panEditSave(id) {
+  const p = G.tiposPan.find(x => x.id===id);
+  if (!p) return;
+  const nom  = document.getElementById('pe-nom-'  + id)?.value.trim();
+  const pr   = parseFloat(document.getElementById('pe-pr-'   + id)?.value)||0;
+  const peso = parseFloat(document.getElementById('pe-peso-' + id)?.value)||0;
+  const rec  = document.getElementById('pe-rec-'  + id)?.value || '';
+  if (!nom) { pmToast('El nombre no puede estar vacío','err'); return; }
+  p.nombre = nom; p.precio = pr; p.peso = peso; p.recetaCod = rec;
+  pmSave('sistema');
+  panRender();
+  pmToast('Actualizado ✓');
   if (pmDB.disponible()) {
     _sbProdEnsureMap().then(() => {
       const uuid = _sbProdMap?.[id];
       if (uuid) pmDB.productos.editar(uuid, { nombre:p.nombre, precio_full:p.precio, peso_g:p.peso||null, receta_cod:p.recetaCod||null })
-        .catch(e => console.warn('[pmDB] panEdit sync error:', e.message));
+        .catch(e => console.warn('[pmDB] panEditSave sync error:', e.message));
     });
   }
 }
