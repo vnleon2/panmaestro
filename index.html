@@ -5052,7 +5052,7 @@ function recRender() {
   });
 
   if (cat) list = list.filter(r => r.cat === cat);
-  list = list.sort((a,b) => (a.name||'').localeCompare(b.name||'', 'es'));
+  list = list.sort((a,b) => (a.code||'').localeCompare(b.code||''));
 
   const el = document.getElementById('rec-list');
   if (!el) return;
@@ -6766,7 +6766,7 @@ async function gallCargarSb() {
 
 function panRender() {
   const q = (document.getElementById('pan-search')?.value||'').toLowerCase();
-  const list = G.tiposPan.filter(p => !q || p.nombre.toLowerCase().includes(q) || p.id.toLowerCase().includes(q));
+  const list = G.tiposPan.filter(p => !q || p.nombre.toLowerCase().includes(q) || p.id.toLowerCase().includes(q)).sort((a,b) => (a.id||'').localeCompare(b.id||''));
   document.getElementById('pan-count').textContent = `Tipos de pan (${list.length})`;
   document.getElementById('pan-list').innerHTML = list.map(p => {
     // Calcular costo desde receta vinculada
