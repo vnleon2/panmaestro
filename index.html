@@ -6637,7 +6637,7 @@ function panAdd() {
   pmToast('Tipo de pan agregado ✓');
   // Supabase — dual write
   if (pmDB.disponible()) {
-    pmDB.productos.crear({ codigo:newId, nombre:nom, tipo:'pan', presentacion:'unidad', peso_g:peso||null, precio_full:pr, activo:true })
+    pmDB.productos.crear({ codigo:newId, nombre:nom, tipo:'pan', presentacion:'unidad', peso_g:peso||null, precio_full:pr, receta_cod:rec||null, activo:true })
       .then(rows => { if (rows?.[0]) { if(!_sbProdMap)_sbProdMap={}; _sbProdMap[newId]=rows[0].id; } })
       .catch(e => console.warn('[pmDB] panAdd sync error:', e.message));
   }
@@ -6683,7 +6683,7 @@ function panEdit(id) {
   if (pmDB.disponible()) {
     _sbProdEnsureMap().then(() => {
       const uuid = _sbProdMap?.[id];
-      if (uuid) pmDB.productos.editar(uuid, { nombre:p.nombre, precio_full:p.precio, peso_g:p.peso||null })
+      if (uuid) pmDB.productos.editar(uuid, { nombre:p.nombre, precio_full:p.precio, peso_g:p.peso||null, receta_cod:p.recetaCod||null })
         .catch(e => console.warn('[pmDB] panEdit sync error:', e.message));
     });
   }
