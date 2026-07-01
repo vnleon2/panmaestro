@@ -5043,18 +5043,19 @@ function recCard(r) {
   const subLines   = c.lines.filter(l => l.isSub);
   const addonLines = c.lines.filter(l => l.isAddon);
 
-  const costIng  = ingLines.reduce((s,l)=>s+l.cost,0);
-  const costSubs = subLines.reduce((s,l)=>s+l.cost,0);
-  const merma    = r.merma || 0;
-  const costMatTotal = (costIng + costSubs) * (1 + merma/100);
+  const costIng    = ingLines.reduce((s,l)=>s+l.cost,0);
+  const costSubs   = subLines.reduce((s,l)=>s+l.cost,0);
+  const costAddons = addonLines.reduce((s,l)=>s+l.cost,0);
+  const merma      = r.merma || 0;
+  const costMatTotal = (costIng + costSubs + costAddons) * (1 + merma/100);
   const modPct = r.modPct !== undefined ? r.modPct : 80;
   const ggPct  = r.ggPct  !== undefined ? r.ggPct  : 45;
   const costMOD = costMatTotal * modPct / 100;
   const costGG  = costMatTotal * ggPct  / 100;
-  const costTotal    = costMatTotal + costMOD + costGG;
-  const units        = r.units || 1;
-  const costTotalUd  = costTotal / units;                          // costo total / unidades
-  const costTotalG   = r.totalMass ? costTotal / r.totalMass : 0; // costo total / gramos totales
+  const costTotal   = costMatTotal + costMOD + costGG;
+  const units       = r.units || 1;
+  const costTotalUd = costTotal / units;
+  const costTotalG  = r.totalMass ? costTotal / r.totalMass : 0;
 
   function tblRow(l) {
     const costCell = l.cost > 0 ? pmMoney(Math.round(l.cost)) : '—';
@@ -5083,7 +5084,6 @@ function recCard(r) {
       <td style="padding:5px 8px;text-align:right;font-family:'DM Mono',monospace;color:var(--blue)">${pmMoney(Math.round(costSubs))}</td>
     </tr>` : '';
 
-  const costAddons = addonLines.reduce((s,l)=>s+l.cost,0);
   const addonSection = addonLines.length ? `
     <div style="font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--red);padding:6px 8px 2px;background:rgba(192,64,64,.05)">Rellenos / Coberturas</div>
     ${addonLines.map(l=>`<tr style="border-bottom:1px solid var(--border)">
