@@ -7074,7 +7074,7 @@ async function ingCargarSb() {
   ingRender();
 }
 
-function ingAdd() {
+async function ingAdd() {
   const nom = document.getElementById('ing-nom').value.trim();
   const pr  = parseFloat(document.getElementById('ing-pr').value)||0;
   const qty = parseFloat(document.getElementById('ing-qty').value)||1000;
@@ -7085,21 +7085,34 @@ function ingAdd() {
   document.getElementById('ing-nom').value='';
   document.getElementById('ing-pr').value='';
   document.getElementById('ing-qty').value='';
-  ingRender(); pmToast('Ingrediente guardado ✓');
+  ingRender(); pmToast('Guardando en Supabase...');
   // Supabase — dual write
-  if (pmDB.disponible()) {
-    _sbIngEnsureMap().then(() => {
-      const existing = _sbIngMap?.[key];
-      const codigo = `ING-${String(Object.keys(G.ingredientes).length).padStart(3,'0')}`;
-      if (existing) {
-        pmDB.ingredientes.editar(existing, { precio_ref:pr, qty_base:qty })
-          .catch(e => console.warn('[pmDB] ingAdd update error:', e.message));
-      } else {
-        pmDB.ingredientes.crear({ codigo, nombre:key, unidad:'g', precio_ref:pr, qty_base:qty, activo:true })
-          .then(rows => { if(rows?.[0]){ if(!_sbIngMap)_sbIngMap={}; _sbIngMap[key]=rows[0].id; }})
-          .catch(e => console.warn('[pmDB] ingAdd create error:', e.message));
+  try {
+    await _sbIngEnsureMap();
+    const existing = _sbIngMap?.[key];
+    if (existing) {
+      await pmDB.ingredientes.editar(existing, { precio_ref:pr, qty_base:qty });
+      pmToast(key + ' actualizado ✓');
+    } else {
+      // Calcular siguiente código desde SB
+      const codigosExistentes = Object.values(_sbIngCache||{})
+        .map(r => r?.codigo||'').filter(c => c.startsWith('ING-'))
+        .map(c => parseInt(c.replace('ING-',''))||0);
+      const nextNum = codigosExistentes.length ? Math.max(...codigosExistentes) + 1 : 1;
+      const codigo = `ING-${String(nextNum).padStart(3,'0')}`;
+      const rows = await pmDB.ingredientes.crear({ codigo, nombre:key, unidad:'g', precio_ref:pr, qty_base:qty, activo:true });
+      if (rows?.[0]) {
+        if (!_sbIngMap) _sbIngMap = {};
+        if (!_sbIngCache) _sbIngCache = {};
+        _sbIngMap[key] = rows[0].id;
+        _sbIngCache[key] = rows[0];
+        pmToast(`${key} guardado ✓ (${codigo})`);
       }
-    });
+    }
+    ingCargarSb();
+  } catch(e) {
+    pmToast('Error en Supabase: ' + e.message, 'err');
+    console.warn('[ingAdd]', e.message);
   }
 }
 
