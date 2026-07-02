@@ -3554,11 +3554,20 @@ async function prodGuardar() {
   if (rows.length) {
     try {
       await pmDB.planProduccion.guardar(rows);
-    } catch(e) { console.warn('[pmDB] plan_produccion upsert:', e.message); }
+      pmToast(`Plan guardado en Supabase ✓ (${rows.length} productos)`);
+    } catch(e) {
+      pmToast('Error al guardar en Supabase: ' + e.message, 'err');
+      console.warn('[pmDB] plan_produccion upsert:', e.message);
+    }
+  } else {
+    pmToast('⚠️ Sin productos para guardar en Supabase — mapa de productos vacío', 'err');
   }
   await prodRenderConSb();
   const semCard = document.getElementById('prod-semana-card');
-  if (semCard && semCard.style.display !== 'none') await prodSemanaVer();
+  if (semCard && semCard.style.display !== 'none') {
+    await new Promise(r => setTimeout(r, 500));
+    await prodSemanaVer();
+  }
 }
 
 function prodAgregarExtra() {
