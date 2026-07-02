@@ -293,14 +293,8 @@ const pmDB = (() => {
       if (!datos || !datos.length) return;
       const fecha = datos[0].fecha;
       const tipo  = datos[0].tipo;
-      // Delete existing rows — use raw fetch to avoid json parse on 204
-      const token = await _getToken();
-      const delUrl = `${URL}/rest/v1/plan_produccion?fecha=eq.${fecha}&tipo=eq.${tipo}`;
-      await fetch(delUrl, {
-        method: 'DELETE',
-        headers: headers(token, { 'Prefer': 'return=minimal' })
-      });
-      // Insert fresh
+      // Delete existing rows for this fecha+tipo, then insert fresh
+      await _fetch(`plan_produccion?fecha=eq.${fecha}&tipo=eq.${tipo}`, { method: 'DELETE', headers: { 'Prefer': 'return=minimal' } });
       return await insert('plan_produccion', datos, false);
     },
     eliminar: (id)   => hardDelete('plan_produccion', id),

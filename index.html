@@ -3534,13 +3534,15 @@ async function prodGuardar() {
   const plan  = prodGetPlan(fecha);
   document.querySelectorAll('[id^="prod-val-"]').forEach(el => {
     const pid = el.id.replace('prod-val-','');
-    if (!plan[pid]) plan[pid] = {};
-    plan[pid].prod = parseInt(el.value)||0;
+    if (plan[pid] !== undefined) {  // solo actualizar si NO fue borrado
+      plan[pid].prod = parseInt(el.value)||0;
+    }
   });
   document.querySelectorAll('[id^="prod-nota-"]').forEach(el => {
     const pid = el.id.replace('prod-nota-','');
-    if (!plan[pid]) plan[pid] = {};
-    plan[pid].nota = el.value;
+    if (plan[pid] !== undefined) {  // solo actualizar si NO fue borrado
+      plan[pid].nota = el.value;
+    }
   });
   pmSave('produccion');
   pmToast('Plan guardado ✓');
