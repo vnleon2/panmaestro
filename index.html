@@ -3551,6 +3551,7 @@ async function prodGuardar() {
   const rows = Object.entries(plan).map(([pid, v]) => {
     const sbId = _sbProdMap?.[pid];
     if (!sbId) return null;
+    if ((v.prod || 0) === 0 && !v.nota) return null; // no insertar filas vacías
     return { fecha, producto_id: sbId, cantidad: v.prod || 0, tipo: 'pedido', nota: v.nota || null };
   }).filter(Boolean);
   if (rows.length) {
@@ -3588,7 +3589,26 @@ async function prodQuitarExtra(pid) {
   const fecha = document.getElementById('prod-date').value || pmHoy();
   const plan  = prodGetPlan(fecha);
   delete plan[pid];
-  await prodGuardar();
+  pmSave('produccion');
+  await _sbProdEnsureMap();
+  // Borrar todos los registros del día y reinsertar sin el producto eliminado
+  const token = await (async () => {
+    try { const c = window._sbAuthClient; if (c) { const {data} = await c.auth.getSession(); if (data?.session?.access_token) return data.session.access_token; } } catch(e) {}
+    return 'sb_publishable_pmKVIGa_lNxtzRos-iY_0Q_LXEcj77v';
+  })();
+  const SB_URL = 'https://xmhokxmuxfkfypttvkjz.supabase.co';
+  const hdrs = { 'Content-Type':'application/json', 'apikey': token, 'Authorization': `Bearer ${token}`, 'Prefer': 'return=minimal' };
+  await fetch(`${SB_URL}/rest/v1/plan_produccion?fecha=eq.${fecha}&tipo=eq.pedido`, { method:'DELETE', headers: hdrs });
+  const rows = Object.entries(plan).map(([p, v]) => {
+    const sbId = _sbProdMap?.[p];
+    if (!sbId || (v.prod||0) === 0) return null;
+    return { fecha, producto_id: sbId, cantidad: v.prod||0, tipo:'pedido', nota: v.nota||null };
+  }).filter(Boolean);
+  if (rows.length) {
+    await fetch(`${SB_URL}/rest/v1/plan_produccion`, { method:'POST', headers: {...hdrs, 'Prefer':'return=minimal'}, body: JSON.stringify(rows) });
+  }
+  pmToast('Producto eliminado del plan ✓');
+  await prodRenderConSb();
 }
 
 function prodPrint() {
