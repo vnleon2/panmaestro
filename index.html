@@ -7105,11 +7105,15 @@ async function ingAdd() {
       if (updateData.codigo && _sbIngCache?.[key]) _sbIngCache[key].codigo = updateData.codigo;
       pmToast(key + ' actualizado ✓' + (updateData.codigo ? ` (${updateData.codigo})` : ''));
     } else {
-      // Calcular siguiente código desde SB
-      const codigosExistentes = Object.values(_sbIngCache||{})
-        .map(r => r?.codigo||'').filter(c => c.startsWith('ING-'))
-        .map(c => parseInt(c.replace('ING-',''))||0);
-      const nextNum = codigosExistentes.length ? Math.max(...codigosExistentes) + 1 : 1;
+      // Calcular siguiente código consultando SB directamente
+      let nextNum = 1;
+      try {
+        const allRows = await pmDB.ingredientes.listar();
+        const nums = (allRows||[]).map(r => r.codigo||'')
+          .filter(c => c.startsWith('ING-'))
+          .map(c => parseInt(c.replace('ING-',''))||0);
+        nextNum = nums.length ? Math.max(...nums) + 1 : 1;
+      } catch(e) { nextNum = Object.keys(G.ingredientes).length; }
       const codigo = `ING-${String(nextNum).padStart(3,'0')}`;
       const rows = await pmDB.ingredientes.crear({ codigo, nombre:key, unidad:'g', precio_ref:pr, qty_base:qty, activo:true });
       if (rows?.[0]) {
