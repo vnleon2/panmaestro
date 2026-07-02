@@ -7049,8 +7049,9 @@ async function _sbIngEnsureMap() {
   try {
     const rows = await pmDB.ingredientes.listar();
     _sbIngMap = {};
-    (rows||[]).forEach(r => { _sbIngMap[r.nombre] = r.id; });
-  } catch(e) { _sbIngMap = {}; }
+    _sbIngCache = {};
+    (rows||[]).forEach(r => { _sbIngMap[r.nombre] = r.id; _sbIngCache[r.nombre] = r; });
+  } catch(e) { _sbIngMap = {}; _sbIngCache = {}; }
 }
 
 // ── Carga ingredientes desde Supabase (fuente primaria) ──
@@ -7089,13 +7090,7 @@ function ingAdd() {
   if (pmDB.disponible()) {
     _sbIngEnsureMap().then(() => {
       const existing = _sbIngMap?.[key];
-      // Calcular siguiente código basado en los que ya existen en SB
-      const codigosExistentes = Object.values(_sbIngCache||{})
-        .map(r => r?.codigo || '')
-        .filter(c => c.startsWith('ING-'))
-        .map(c => parseInt(c.replace('ING-',''))||0);
-      const nextNum = codigosExistentes.length ? Math.max(...codigosExistentes) + 1 : Object.keys(G.ingredientes).length;
-      const codigo = `ING-${String(nextNum).padStart(3,'0')}`;
+      const codigo = `ING-${String(Object.keys(G.ingredientes).length).padStart(3,'0')}`;
       if (existing) {
         pmDB.ingredientes.editar(existing, { precio_ref:pr, qty_base:qty })
           .catch(e => console.warn('[pmDB] ingAdd update error:', e.message));
@@ -7199,16 +7194,19 @@ function ingRender() {
   }).join('') || '<div class="ph"><span class="ph-icon">🌾</span>Sin ingredientes</div>';
 }
 
-function ingEdit(nom) {
+async function ingEdit(nom) {
   const ing = G.ingredientes[nom];
   if (!ing) return;
+  await _sbIngEnsureMap();
   const rows = document.querySelectorAll('#ing-list .item-row');
   let targetRow = null;
   rows.forEach(row => {
     if (row.querySelector('.item-name')?.textContent === nom) targetRow = row;
   });
   if (!targetRow) return;
+  const cod = _sbIngCache?.[nom]?.codigo || '—';
   targetRow.innerHTML = `
+    <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--gold3);min-width:60px">${cod}</span>
     <div class="item-name" style="flex:1">${nom}</div>
     <input type="number" id="ie-price-${nom.replace(/[^a-z0-9]/gi,'_')}" value="${ing.price||0}" min="0"
       style="width:90px;padding:5px 8px;background:var(--sf);border:1px solid var(--gold);border-radius:6px;color:var(--cream);font-size:12px"
