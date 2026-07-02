@@ -3553,7 +3553,11 @@ function prodGuardar() {
       return { fecha, producto_id: sbId, cantidad: v.prod || 0, tipo: 'pedido', nota: v.nota || null };
     }).filter(Boolean);
     if (rows.length) {
-      pmDB.planProduccion.guardar(rows).catch(e => console.warn('[pmDB] plan_produccion upsert:', e.message));
+      pmDB.planProduccion.guardar(rows)
+        .then(() => prodRenderConSb())
+        .catch(e => { console.warn('[pmDB] plan_produccion upsert:', e.message); prodRenderConSb(); });
+    } else {
+      prodRenderConSb();
     }
   }
 }
@@ -3567,7 +3571,7 @@ function prodAgregarExtra() {
   if (!plan[pid]) plan[pid] = {};
   plan[pid].prod = (plan[pid].prod||0) + cant;
   document.getElementById('prod-add-cant').value = 1;
-  prodRender();
+  prodGuardar();
   pmToast('Agregado al plan ✓');
 }
 
@@ -3575,7 +3579,7 @@ function prodQuitarExtra(pid) {
   const fecha = document.getElementById('prod-date').value || pmHoy();
   const plan  = prodGetPlan(fecha);
   delete plan[pid];
-  prodRender();
+  prodGuardar();
 }
 
 function prodPrint() {
