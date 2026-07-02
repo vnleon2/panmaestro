@@ -3479,7 +3479,7 @@ function prodRender(pedsCom = []) {
           style="width:100%;padding:6px 8px;background:var(--sf);border:1px solid var(--border);border-radius:8px;color:var(--cream);font-size:12px">
       </td>
       <td style="padding:8px 6px;vertical-align:middle" class="no-print">
-        ${isExtra ? `<button class="btn btn-red btn-sm" onclick="prodQuitarExtra('${pan.id}')">✕</button>` : ''}
+        <button class="btn btn-red btn-sm" onclick="prodQuitarExtra('${pan.id}')">✕</button>
       </td>
     </tr>`;
   }).join('');
@@ -3570,7 +3570,7 @@ async function prodGuardar() {
   }
 }
 
-function prodAgregarExtra() {
+async function prodAgregarExtra() {
   const pid  = document.getElementById('prod-add-pan').value;
   const cant = parseInt(document.getElementById('prod-add-cant').value)||1;
   if (!pid) return;
@@ -3579,15 +3579,14 @@ function prodAgregarExtra() {
   if (!plan[pid]) plan[pid] = {};
   plan[pid].prod = (plan[pid].prod||0) + cant;
   document.getElementById('prod-add-cant').value = 1;
-  prodGuardar();
-  pmToast('Agregado al plan ✓');
+  await prodGuardar();
 }
 
-function prodQuitarExtra(pid) {
+async function prodQuitarExtra(pid) {
   const fecha = document.getElementById('prod-date').value || pmHoy();
   const plan  = prodGetPlan(fecha);
   delete plan[pid];
-  prodGuardar();
+  await prodGuardar();
 }
 
 function prodPrint() {
