@@ -3528,7 +3528,7 @@ function prodActualizar(pid) {
   }
 }
 
-function prodGuardar() {
+async function prodGuardar() {
   // Save all current input values to plan before persisting
   const fecha = document.getElementById('prod-date').value || pmHoy();
   const plan  = prodGetPlan(fecha);
@@ -3544,26 +3544,21 @@ function prodGuardar() {
   });
   pmSave('produccion');
   pmToast('Plan guardado ✓');
-  // ── Sesión 7: dual write a Supabase plan_produccion (tipo='pedido') ──
-  if (pmDB.disponible()) {
-    // Buscar UUID de producto en cache de maestros
-    const rows = Object.entries(plan).map(([pid, v]) => {
-      const sbId = _sbProdMap?.[pid]; // cache de Sesión 4
-      if (!sbId) return null;
-      return { fecha, producto_id: sbId, cantidad: v.prod || 0, tipo: 'pedido', nota: v.nota || null };
-    }).filter(Boolean);
-    if (rows.length) {
-      pmDB.planProduccion.guardar(rows)
-        .then(() => {
-          prodRenderConSb();
-          const semCard = document.getElementById('prod-semana-card');
-          if (semCard && semCard.style.display !== 'none') prodSemanaVer();
-        })
-        .catch(e => { console.warn('[pmDB] plan_produccion upsert:', e.message); prodRenderConSb(); });
-    } else {
-      prodRenderConSb();
-    }
+  // Guardar en Supabase y refrescar
+  await _sbProdEnsureMap();
+  const rows = Object.entries(plan).map(([pid, v]) => {
+    const sbId = _sbProdMap?.[pid];
+    if (!sbId) return null;
+    return { fecha, producto_id: sbId, cantidad: v.prod || 0, tipo: 'pedido', nota: v.nota || null };
+  }).filter(Boolean);
+  if (rows.length) {
+    try {
+      await pmDB.planProduccion.guardar(rows);
+    } catch(e) { console.warn('[pmDB] plan_produccion upsert:', e.message); }
   }
+  await prodRenderConSb();
+  const semCard = document.getElementById('prod-semana-card');
+  if (semCard && semCard.style.display !== 'none') await prodSemanaVer();
 }
 
 function prodAgregarExtra() {
