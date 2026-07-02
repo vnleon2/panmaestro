@@ -289,7 +289,14 @@ const pmDB = (() => {
         `plan_produccion?fecha=gte.${inicio}&fecha=lte.${fin}&select=*`
       );
     },
-    guardar: (datos) => upsert('plan_produccion', datos),
+    guardar: async (datos) => {
+      if (!datos || !datos.length) return;
+      const fecha = datos[0].fecha;
+      const tipo  = datos[0].tipo;
+      // Delete existing rows for this fecha+tipo, then insert fresh
+      await _fetch(`plan_produccion?fecha=eq.${fecha}&tipo=eq.${tipo}`, { method: 'DELETE', headers: { 'Prefer': 'return=minimal' } });
+      return await insert('plan_produccion', datos, false);
+    },
     eliminar: (id)   => hardDelete('plan_produccion', id),
   };
 
