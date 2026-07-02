@@ -7089,7 +7089,13 @@ function ingAdd() {
   if (pmDB.disponible()) {
     _sbIngEnsureMap().then(() => {
       const existing = _sbIngMap?.[key];
-      const codigo = `ING-${String(Object.keys(G.ingredientes).length).padStart(3,'0')}`;
+      // Calcular siguiente código basado en los que ya existen en SB
+      const codigosExistentes = Object.values(_sbIngCache||{})
+        .map(r => r?.codigo || '')
+        .filter(c => c.startsWith('ING-'))
+        .map(c => parseInt(c.replace('ING-',''))||0);
+      const nextNum = codigosExistentes.length ? Math.max(...codigosExistentes) + 1 : Object.keys(G.ingredientes).length;
+      const codigo = `ING-${String(nextNum).padStart(3,'0')}`;
       if (existing) {
         pmDB.ingredientes.editar(existing, { precio_ref:pr, qty_base:qty })
           .catch(e => console.warn('[pmDB] ingAdd update error:', e.message));
