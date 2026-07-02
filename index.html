@@ -3598,16 +3598,20 @@ async function prodQuitarExtra(pid) {
   })();
   const SB_URL = 'https://xmhokxmuxfkfypttvkjz.supabase.co';
   const hdrs = { 'Content-Type':'application/json', 'apikey': token, 'Authorization': `Bearer ${token}`, 'Prefer': 'return=minimal' };
-  await fetch(`${SB_URL}/rest/v1/plan_produccion?fecha=eq.${fecha}&tipo=eq.pedido`, { method:'DELETE', headers: hdrs });
-  const rows = Object.entries(plan).map(([p, v]) => {
-    const sbId = _sbProdMap?.[p];
-    if (!sbId || (v.prod||0) === 0) return null;
-    return { fecha, producto_id: sbId, cantidad: v.prod||0, tipo:'pedido', nota: v.nota||null };
-  }).filter(Boolean);
-  if (rows.length) {
-    await fetch(`${SB_URL}/rest/v1/plan_produccion`, { method:'POST', headers: {...hdrs, 'Prefer':'return=minimal'}, body: JSON.stringify(rows) });
+  try {
+    await fetch(`${SB_URL}/rest/v1/plan_produccion?fecha=eq.${fecha}&tipo=eq.pedido`, { method:'DELETE', headers: hdrs });
+    const rows = Object.entries(plan).map(([p, v]) => {
+      const sbId = _sbProdMap?.[p];
+      if (!sbId || (v.prod||0) === 0) return null;
+      return { fecha, producto_id: sbId, cantidad: v.prod||0, tipo:'pedido', nota: v.nota||null };
+    }).filter(Boolean);
+    if (rows.length) {
+      await fetch(`${SB_URL}/rest/v1/plan_produccion`, { method:'POST', headers: {...hdrs, 'Prefer':'return=minimal'}, body: JSON.stringify(rows) });
+    }
+    pmToast('Producto eliminado del plan ✓');
+  } catch(e) {
+    pmToast('Error al eliminar: ' + e.message, 'err');
   }
-  pmToast('Producto eliminado del plan ✓');
   await prodRenderConSb();
 }
 
