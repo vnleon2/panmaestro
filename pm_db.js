@@ -66,8 +66,8 @@ const pmDB = (() => {
       if (res.status === 204) return null;
       return await res.json();
     } catch(e) {
-      // 401 = problema de auth, no de conectividad — no marcar offline
-      if (e.message && !e.message.startsWith('401')) _disponible = false;
+      // Solo marcar offline si es error de red real (fetch failed), no errores de query
+      if (e.message && e.message.toLowerCase().includes('failed to fetch')) _disponible = false;
       console.warn('[pmDB] Error:', e.message);
       throw e;
     }
@@ -86,12 +86,11 @@ const pmDB = (() => {
    * @param {string} select — ej: 'id,nombre,precio' (default: '*')
    * @returns {Array}
    */
-  async function get(tabla, filtros = {}, select = '*', order = null) {
+  async function get(tabla, filtros = {}, select = '*') {
     let query = `${tabla}?select=${select}`;
     for (const [k, v] of Object.entries(filtros)) {
       query += `&${k}=eq.${v}`;
     }
-    if (order) query += `&order=${order}`;
     return await _fetch(query);
   }
 
@@ -191,7 +190,7 @@ const pmDB = (() => {
 
   // ── INGREDIENTES ──────────────────────────────────────────────────────────
   const ingredientes = {
-    listar:   ()       => get('ingredientes', { activo: true }, '*', 'codigo.asc'),
+    listar:   ()       => get('ingredientes', { activo: true }),
     obtener:  (id)     => getById('ingredientes', id),
     crear:    (datos)  => insert('ingredientes', datos),
     editar:   (id, d)  => update('ingredientes', id, d),
@@ -201,8 +200,8 @@ const pmDB = (() => {
   // ── PRODUCTOS TERMINADOS ──────────────────────────────────────────────────
   const productos = {
     listar:       ()     => get('productos_terminados', { activo: true }),
-    listarPanes:  ()     => get('productos_terminados', { activo: true, tipo: 'pan' }, '*', 'codigo.asc'),
-    listarGalletas: ()   => get('productos_terminados', { activo: true, tipo: 'galleta' }, '*', 'codigo.asc'),
+    listarPanes:  ()     => get('productos_terminados', { activo: true, tipo: 'pan' }),
+    listarGalletas: ()   => get('productos_terminados', { activo: true, tipo: 'galleta' }),
     obtener:      (id)   => getById('productos_terminados', id),
     crear:        (d)    => insert('productos_terminados', d),
     editar:       (id,d) => update('productos_terminados', id, d),
@@ -211,7 +210,7 @@ const pmDB = (() => {
 
   // ── RECETAS ───────────────────────────────────────────────────────────────
   const recetas = {
-    listar:   ()       => get('recetas', { activo: true }, '*', 'codigo.asc'),
+    listar:   ()       => get('recetas', { activo: true }),
     obtener:  (id)     => getById('recetas', id),
     crear:    (datos)  => insert('recetas', datos),
     editar:   (id, d)  => update('recetas', id, d),

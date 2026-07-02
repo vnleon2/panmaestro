@@ -3554,7 +3554,11 @@ function prodGuardar() {
     }).filter(Boolean);
     if (rows.length) {
       pmDB.planProduccion.guardar(rows)
-        .then(() => prodRenderConSb())
+        .then(() => {
+          prodRenderConSb();
+          const semCard = document.getElementById('prod-semana-card');
+          if (semCard && semCard.style.display !== 'none') prodSemanaVer();
+        })
         .catch(e => { console.warn('[pmDB] plan_produccion upsert:', e.message); prodRenderConSb(); });
     } else {
       prodRenderConSb();
@@ -7692,10 +7696,6 @@ async function prodSemanaVer() {
   card.style.display = 'block';
   tbl.innerHTML = '<div class="ph" style="padding:10px 0"><span class="ph-icon" style="font-size:20px">⏳</span>Cargando semana...</div>';
   card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  if (!pmDB.disponible()) {
-    tbl.innerHTML = '<div class="ph"><span class="ph-icon">⚠️</span>Sin conexión a Supabase</div>';
-    return;
-  }
   const fecha = document.getElementById('prod-date').value || pmHoy();
   const d = new Date(fecha + 'T12:00:00');
   const dia = d.getDay();
