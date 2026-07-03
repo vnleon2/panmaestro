@@ -529,6 +529,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
         <button class="btn btn-out btn-sm" onclick="cvMostrar('cv-maestro');cvMaestroRender()">📋 Maestro</button>
         <button class="btn btn-out btn-sm" onclick="cvMostrar('cv-gm');gmRenderList()">🌾 Gluten Morgen</button>
         <button class="btn btn-gold" onclick="cvMostrar('cv-nueva');recNuevo()">+ Nueva receta</button>
+        <button class="btn btn-out btn-sm" onclick="recSincronizarToSb()">☁️ Sincronizar a SB</button>
       </div>
     </div>
     <!-- Escalado rápido -->
@@ -5879,6 +5880,50 @@ async function recSave() {
   fillRscSel();
   cvMostrar('cv-lista');
   recRender();
+}
+
+// ── Sincronizar recetas locales a Supabase ──
+async function recSincronizarToSb() {
+  if (!pmDB.disponible()) { pmToast('Sin conexión a Supabase','err'); return; }
+  
+  // Cargar recetas que ya están en SB para comparar
+  let sbCodigos = new Set();
+  try {
+    const sbRecs = await pmDB.get('recetas', {}, 'codigo');
+    (sbRecs||[]).forEach(r => { if (r.codigo) sbCodigos.add(r.codigo); });
+  } catch(e) { pmToast('Error al leer SB: ' + e.message, 'err'); return; }
+
+  // Filtrar recetas locales que NO están en SB
+  const pendientes = (G.recetas||[]).filter(r => 
+    r.code && r.code.startsWith('R-') && !sbCodigos.has(r.code)
+  );
+
+  if (!pendientes.length) { pmToast('Todas las recetas ya están en Supabase ✓'); return; }
+  
+  pmToast(`Sincronizando ${pendientes.length} receta(s)...`);
+  let ok = 0, err = 0;
+  
+  for (const r of pendientes) {
+    try {
+      const rows = await pmDB.recetas.crear({
+        codigo: r.code, nombre: r.name, categoria: r.cat||'pan',
+        masa_total_g: r.totalMass||1000, unidades: r.units||1,
+        merma_pct: r.merma||0, margen_pct: r.margen||null,
+        notas: r.notes||null, origen: r.gmSource ? 'gluten_morgen' : 'propia', activo: true
+      });
+      if (rows?.[0]) {
+        r.sbId = rows[0].id;
+        await _sbSaveRecetaItems(rows[0].id, r.flour||[], r.other||[]);
+        ok++;
+      }
+    } catch(e) {
+      console.warn('[recSincronizarToSb] error:', r.code, e.message);
+      err++;
+    }
+  }
+  pmSave('costeo');
+  _sbRecCache = null;
+  pmToast(`Sincronizadas: ${ok} ✓${err ? ' · Errores: '+err : ''}`);
 }
 
 function recEliminar(id) {
