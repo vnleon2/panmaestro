@@ -7086,27 +7086,11 @@ async function ingAdd() {
   document.getElementById('ing-nom').value='';
   document.getElementById('ing-pr').value='';
   document.getElementById('ing-qty').value='';
-  ingRender();
-  // Mostrar mensaje persistente de debug
-  const dbgDiv = document.getElementById('ing-debug') || (() => {
-    const d = document.createElement('div');
-    d.id = 'ing-debug';
-    d.style.cssText = 'background:#1a1a2e;color:#fff;padding:12px;margin:8px 0;border-radius:8px;font-size:12px;white-space:pre-wrap;border:1px solid #gold';
-    document.getElementById('ing-list').before(d);
-    return d;
-  })();
-  const log = (msg) => { dbgDiv.textContent += msg + '\n'; };
-  dbgDiv.textContent = '⏳ Iniciando...\n';
-
+  ingRender(); pmToast('Guardando en Supabase...');
   try {
-    log('1. Cargando mapa SB...');
-    _sbIngMap = null; _sbIngCache = null; // forzar recarga
+    _sbIngMap = null; _sbIngCache = null;
     await _sbIngEnsureMap();
-    log(`2. Mapa cargado: ${Object.keys(_sbIngMap||{}).length} ingredientes`);
-    
     const existing = _sbIngMap?.[key];
-    log(`3. ¿Existe "${key}"? ${existing ? 'SÍ → ' + existing : 'NO'}`);
-    
     if (existing) {
       const cachedRec = _sbIngCache?.[key];
       const updateData = { precio_ref:pr, qty_base:qty, activo:true };
@@ -7117,39 +7101,29 @@ async function ingAdd() {
           .map(c => parseInt(c.replace('ING-',''))||0);
         const nextNum = nums.length ? Math.max(...nums) + 1 : 1;
         updateData.codigo = `ING-${String(nextNum).padStart(3,'0')}`;
-        log(`4. Asignando código: ${updateData.codigo}`);
-      } else {
-        log(`4. Ya tiene código: ${cachedRec.codigo}`);
       }
       await pmDB.ingredientes.editar(existing, updateData);
       if (_sbIngCache?.[key]) { _sbIngCache[key] = {..._sbIngCache[key], ...updateData}; }
-      log(`5. ✅ Actualizado en SB`);
+      pmToast(key + ' actualizado ✓' + (updateData.codigo ? ` (${updateData.codigo})` : ''));
     } else {
-      log('4. Calculando siguiente código...');
       const allRows = await pmDB.get('ingredientes', {}, '*');
       const nums = (allRows||[]).map(r => r.codigo||'')
         .filter(c => c.startsWith('ING-'))
         .map(c => parseInt(c.replace('ING-',''))||0);
       const nextNum = nums.length ? Math.max(...nums) + 1 : 1;
       const codigo = `ING-${String(nextNum).padStart(3,'0')}`;
-      log(`5. Código asignado: ${codigo}`);
-      log(`6. Creando en SB...`);
       const rows = await pmDB.ingredientes.crear({ codigo, nombre:key, unidad:'g', precio_ref:pr, qty_base:qty, activo:true });
-      log(`7. Respuesta SB: ${JSON.stringify(rows)}`);
       if (rows?.[0]) {
         if (!_sbIngMap) _sbIngMap = {};
         if (!_sbIngCache) _sbIngCache = {};
         _sbIngMap[key] = rows[0].id;
         _sbIngCache[key] = rows[0];
-        log(`8. ✅ Creado con ID: ${rows[0].id}`);
-      } else {
-        log('8. ❌ Sin respuesta de SB - rows vacío');
       }
+      pmToast(`${key} guardado ✓ (${codigo})`);
     }
     await ingCargarSb();
-    log('9. ✅ COMPLETADO');
   } catch(e) {
-    log(`❌ ERROR: ${e.message}`);
+    pmToast('Error: ' + e.message, 'err');
     console.warn('[ingAdd]', e.message);
   }
 }
