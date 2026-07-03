@@ -5703,7 +5703,31 @@ async function _sbSaveRecetaItems(sbRecId, flour, other) {
   }
 }
 
-function recSave() {
+// ── Calcular siguiente código de receta desde Supabase ──
+async function _nextRecCode() {
+  try {
+    const allRows = await pmDB.get('recetas', {}, 'codigo');
+    const nums = (allRows||[]).map(r => r.codigo||'')
+      .filter(c => c.startsWith('R-'))
+      .map(c => parseInt(c.replace('R-',''))||0);
+    const maxSb = nums.length ? Math.max(...nums) : 0;
+    // También revisar localStorage por si hay recetas no sincronizadas
+    const numsLocal = (G.recetas||[]).map(r => r.code||'')
+      .filter(c => c.startsWith('R-'))
+      .map(c => parseInt(c.replace('R-',''))||0);
+    const maxLocal = numsLocal.length ? Math.max(...numsLocal) : 0;
+    const nextNum = Math.max(maxSb, maxLocal) + 1;
+    return 'R-' + String(nextNum).padStart(4,'0');
+  } catch(e) {
+    // Fallback a localStorage si SB falla
+    const nums = (G.recetas||[]).map(r => r.code||'')
+      .filter(c => c.startsWith('R-'))
+      .map(c => parseInt(c.replace('R-',''))||0);
+    return 'R-' + String((nums.length ? Math.max(...nums) : 0) + 1).padStart(4,'0');
+  }
+}
+
+async function recSave() {
   const id    = document.getElementById('mr-id').value;
   const code  = document.getElementById('mr-code').value.trim();
   const name  = document.getElementById('mr-name').value.trim();
@@ -5804,8 +5828,7 @@ function recSave() {
         _sbRecCache = null; // invalidar cache para que recargue
       }
     } else {
-      const nextNum = _sbRecLista().filter(r=>r.code&&r.code.startsWith('R-')).length + 1;
-      const newCode = 'R-' + String(nextNum).padStart(4,'0');
+      const newCode = await _nextRecCode();
       G.recetas.push({ id: String(Date.now()), code: newCode, gmSource, ...obj });
       pmToast(newCode + ' · "' + obj.name + '" guardada ✓');
     }
@@ -5830,8 +5853,7 @@ function recSave() {
     }
   } else {
     // New recipe
-    const nextNum = _sbRecLista().filter(r=>r.code&&r.code.startsWith('R-')).length + 1;
-    const newCode = code || ('R-' + String(nextNum).padStart(4,'0'));
+    const newCode = code || await _nextRecCode();
     const newRec = { id: String(Date.now()), code: newCode, ...obj };
     G.recetas.push(newRec);
     pmToast(newCode + ' · "' + obj.name + '" creada ✓');
@@ -6066,7 +6088,7 @@ function _gmConvert(r) {
   };
 }
 
-function gmDoTransfer(name, toEditor) {
+async function gmDoTransfer(name, toEditor) {
   const r = (G.gmRecipes||[]).find(x => x.name === name);
   if (!r) return;
   const rec = _gmConvert(r);
@@ -6078,8 +6100,8 @@ function gmDoTransfer(name, toEditor) {
     document.getElementById('mr-id').value = rec.id;
     // Check if already transferred — use existing code
     const existingGm = (G.recetas||[]).find(x => x.gmSource === name);
-    const nextNum = (G.recetas||[]).filter(r=>r.code&&r.code.startsWith('R-')).length + 1;
-    document.getElementById('mr-code').value = existingGm ? existingGm.code : ('R-' + String(nextNum).padStart(4,'0'));
+    const nextCode = await _nextRecCode();
+    document.getElementById('mr-code').value = existingGm ? existingGm.code : nextCode;
     document.getElementById('mr-name').value = rec.name;
     document.getElementById('mr-masa').value = rec.totalMass||1000;
     document.getElementById('mr-units').value = rec.units||1;
@@ -6112,8 +6134,7 @@ function gmDoTransfer(name, toEditor) {
     pmToast('↺ "' + name + '" actualizada en sistema');
   } else {
     // First transfer — assign our own sequential code
-    const nextNum = (G.recetas||[]).filter(r=>r.code&&r.code.startsWith('R-')).length + 1;
-    rec.code = 'R-' + String(nextNum).padStart(4,'0');
+    rec.code = await _nextRecCode();
     delete rec.gmCode;             // Remove GM code reference
     G.recetas.push(rec);
     pmToast('✓ "' + name + '" → ' + rec.code + ' en sistema');
