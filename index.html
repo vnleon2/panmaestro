@@ -799,6 +799,16 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
         style="background:rgba(200,146,42,.15);border:1px solid var(--gold);color:var(--gold)">A→Z</button>
       <button class="btn btn-out btn-sm" id="ing-tab-cod" onclick="ingSetVista(true)">📋 Por código</button>
     </div>
+    <div class="card" style="border:1px dashed var(--border);margin-bottom:10px">
+      <div class="ctitle" style="font-size:13px">🔧 Mantenimiento — SESIÓN 11</div>
+      <div style="font-size:11px;color:var(--cream2);margin-bottom:10px">
+        Revisa todas las recetas y completa el id estable de ingrediente donde falte
+        (por nombre), sin tocar ningún otro dato de la receta. Ejecutar una vez antes
+        de habilitar renombrar ingredientes.
+      </div>
+      <button class="btn btn-out btn-sm" onclick="_backfillIngredientIds()">Verificar / reparar ids en recetas</button>
+      <div id="backfill-log" style="margin-top:10px;font-family:'DM Mono',monospace;font-size:11px;white-space:pre-wrap"></div>
+    </div>
     <div id="ing-list"></div>
   </div>
 
@@ -5755,6 +5765,69 @@ async function _sbSaveRecetaItems(sbRecId, flour, other) {
   } catch(e) {
     console.warn('[pmDB] _sbSaveRecetaItems error:', e.message);
   }
+}
+
+/**
+ * SESIÓN 11 — Mantenimiento único: completar ingredientId faltante en recetas
+ * existentes, resolviendo por nombre contra el maestro de ingredientes actual.
+ * NO toca nombre, precio, masa, márgenes ni ningún otro dato de la receta —
+ * solo agrega el id donde falte y el nombre coincide exactamente.
+ * Seguro de correr varias veces: los items que ya tienen id no se tocan.
+ */
+async function _backfillIngredientIds() {
+  const logEl = document.getElementById('backfill-log');
+  if (!logEl) return;
+  const log = (msg) => { logEl.textContent += msg + '\n'; };
+  logEl.textContent = '';
+
+  if (!pmDB.disponible()) { log('⚠️ Sin conexión a Supabase — no se puede reparar ahora.'); return; }
+
+  log('⏳ Cargando ingredientes y recetas desde Supabase...');
+  _sbIngMap = null; // forzar recarga fresca del mapa nombre→id
+  await _sbIngEnsureMap();
+  await _sbCosteoCargar();
+  const recs = _sbRecCache || [];
+  log(`Recetas cargadas: ${recs.length}`);
+
+  let recetasActualizadas = 0, itemsReparados = 0;
+  const sinResolver = [];
+
+  for (const r of recs) {
+    if (!r.sbId) continue; // solo recetas que ya existen en Supabase
+    let cambios = false;
+
+    const reparar = (lista) => (lista || []).map(item => {
+      if (item.ingredientId) return item; // ya enganchado — no tocar
+      const nombre = item.productName || item.manualName || '';
+      const id = _sbIngMap?.[nombre];
+      if (id) {
+        cambios = true;
+        itemsReparados++;
+        return { ...item, ingredientId: id };
+      }
+      if (nombre) sinResolver.push(`${r.code} · "${nombre}"`);
+      return item;
+    });
+
+    const flourFix = reparar(r.flour);
+    const otherFix = reparar(r.other);
+
+    if (cambios) {
+      await _sbSaveRecetaItems(r.sbId, flourFix, otherFix);
+      recetasActualizadas++;
+      log(`✓ ${r.code} · ${r.name} — id(s) completado(s)`);
+    }
+  }
+
+  log('──────────');
+  log(`✅ Listo. ${recetasActualizadas} recetas actualizadas · ${itemsReparados} líneas reparadas.`);
+  if (sinResolver.length) {
+    log(`⚠️ ${sinResolver.length} línea(s) sin poder resolver por nombre — revisar a mano:`);
+    sinResolver.forEach(x => log('   · ' + x));
+  } else {
+    log('Sin líneas huérfanas — todas las recetas quedaron enganchadas a un id estable.');
+  }
+  _sbRecCache = null; // forzar recarga limpia la próxima vez que se abra Costeo
 }
 
 function recSave() {
