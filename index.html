@@ -207,7 +207,6 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
     <button class="ntab" data-tab="pg-hid" onclick="showTab('pg-hid')">💧 Hidrat.</button>
     <button class="ntab" data-tab="app-inner" onclick="showTab('app-inner')">⚙️ Maestros</button>
     <button class="ntab" data-tab="pg-rec" onclick="showTab('pg-rec')">📚 Recetario</button>
-    <button class="ntab" data-tab="pg-catalogo" onclick="showTab('pg-catalogo');catRender()">📷 Catálogo</button>
     <button class="ntab" data-tab="pg-gmrec" onclick="showTab('pg-gmrec')">🌾 Gluten Morgen</button>
     <button class="ntab" data-tab="pg-planlibre" onclick="showTab('pg-planlibre');planLibreRender()">📋 Plan Libre</button>
 </div>
@@ -743,6 +742,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
     <button class="pill" onclick="mTab('ing',this)">🌾 Ingredientes</button>
     <button class="pill" onclick="mTab('clientes',this)">👥 Clientes</button>
     <button class="pill" onclick="mTab('estados',this)">🏷 Estados</button>
+    <button class="pill" onclick="mTab('catalogo',this)">📷 Catálogo</button>
     <button class="pill" onclick="mTab('sync',this)">☁️ Nube</button>
     <button class="pill" onclick="mTab('backup',this)">💾 Backup</button>
   </div>
@@ -972,6 +972,51 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
     </div>
   </div>
 
+  <!-- CATÁLOGO — movido a Maestros -->
+  <div id="mt-catalogo" style="display:none">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+      <div>
+        <div class="ctitle" style="margin-bottom:2px">Catálogo de productos</div>
+        <div style="font-size:12px;color:var(--cream2)">Fotos, precios y pesos de tu portafolio</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-out btn-sm no-print" onclick="window.print()">🖨 Imprimir</button>
+        <button class="btn btn-gold btn-sm no-print" onclick="catAbrirSubida()">+ Agregar foto</button>
+      </div>
+    </div>
+
+    <!-- Modal subida de foto -->
+    <div id="cat-modal" style="display:none;background:rgba(0,0,0,.55);position:fixed;top:0;left:0;width:100%;height:100%;z-index:999;align-items:center;justify-content:center">
+      <div style="background:var(--sf);border-radius:16px;padding:24px;width:min(90vw,400px);position:relative">
+        <button onclick="catCerrarSubida()" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:22px;color:var(--cream2);cursor:pointer">✕</button>
+        <div style="font-size:15px;font-weight:600;color:var(--cream);margin-bottom:16px">Agregar foto al catálogo</div>
+        <div style="margin-bottom:12px">
+          <label style="font-size:11px;color:var(--cream2);display:block;margin-bottom:4px">Producto</label>
+          <select id="cat-prod-sel" style="width:100%;padding:8px 10px;background:var(--sf2);border:1px solid var(--border);border-radius:8px;color:var(--cream);font-size:13px">
+            <option value="">— seleccionar —</option>
+          </select>
+        </div>
+        <div style="margin-bottom:16px">
+          <label style="font-size:11px;color:var(--cream2);display:block;margin-bottom:4px">Foto (desde cámara o galería)</label>
+          <input type="file" id="cat-foto-input" accept="image/*"
+            style="width:100%;padding:8px;background:var(--sf2);border:1px dashed var(--border);border-radius:8px;color:var(--cream);font-size:12px;cursor:pointer"
+            onchange="catPreviewFoto(this)">
+          <div id="cat-preview-wrap" style="margin-top:8px;display:none">
+            <img id="cat-preview-img" style="width:100%;max-height:180px;object-fit:cover;border-radius:8px">
+          </div>
+        </div>
+        <button class="btn btn-gold" style="width:100%;padding:10px" onclick="catGuardarFoto()">💾 Guardar foto</button>
+        <div id="cat-status" style="margin-top:8px;font-size:12px;color:var(--cream2);text-align:center;min-height:16px"></div>
+      </div>
+    </div>
+
+    <!-- Galería -->
+    <div id="cat-galeria" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px"></div>
+    <div id="cat-empty" style="display:none">
+      <div class="ph"><span class="ph-icon">📷</span>Sin fotos aún — presioná + Agregar foto para empezar</div>
+    </div>
+  </div>
+
   <!-- SYNC / NUBE -->
   <div id="mt-sync" style="display:none">
 
@@ -1187,50 +1232,6 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 
 
 <!-- ══════════════════════════════════════════ CATÁLOGO -->
-<div class="page" id="pg-catalogo">
-  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:16px">
-    <div>
-      <div class="pg-title">Catálogo de productos</div>
-      <div class="pg-sub">Fotos, precios y pesos de tu portafolio</div>
-    </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn btn-out btn-sm no-print" onclick="window.print()">🖨 Imprimir</button>
-      <button class="btn btn-gold btn-sm no-print" onclick="catAbrirSubida()">+ Agregar foto</button>
-    </div>
-  </div>
-
-  <!-- Modal subida de foto -->
-  <div id="cat-modal" style="display:none;background:rgba(0,0,0,.55);position:fixed;top:0;left:0;width:100%;height:100%;z-index:999;align-items:center;justify-content:center">
-    <div style="background:var(--sf);border-radius:16px;padding:24px;width:min(90vw,400px);position:relative">
-      <button onclick="catCerrarSubida()" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:22px;color:var(--cream2);cursor:pointer">✕</button>
-      <div style="font-size:15px;font-weight:600;color:var(--cream);margin-bottom:16px">Agregar foto al catálogo</div>
-      <div style="margin-bottom:12px">
-        <label style="font-size:11px;color:var(--cream2);display:block;margin-bottom:4px">Producto</label>
-        <select id="cat-prod-sel" style="width:100%;padding:8px 10px;background:var(--sf2);border:1px solid var(--border);border-radius:8px;color:var(--cream);font-size:13px">
-          <option value="">— seleccionar —</option>
-        </select>
-      </div>
-      <div style="margin-bottom:16px">
-        <label style="font-size:11px;color:var(--cream2);display:block;margin-bottom:4px">Foto (desde cámara o galería)</label>
-        <input type="file" id="cat-foto-input" accept="image/*"
-          style="width:100%;padding:8px;background:var(--sf2);border:1px dashed var(--border);border-radius:8px;color:var(--cream);font-size:12px;cursor:pointer"
-          onchange="catPreviewFoto(this)">
-        <div id="cat-preview-wrap" style="margin-top:8px;display:none">
-          <img id="cat-preview-img" style="width:100%;max-height:180px;object-fit:cover;border-radius:8px">
-        </div>
-      </div>
-      <button class="btn btn-gold" style="width:100%;padding:10px" onclick="catGuardarFoto()">💾 Guardar foto</button>
-      <div id="cat-status" style="margin-top:8px;font-size:12px;color:var(--cream2);text-align:center;min-height:16px"></div>
-    </div>
-  </div>
-
-  <!-- Galería -->
-  <div id="cat-galeria" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px"></div>
-  <div id="cat-empty" style="display:none">
-    <div class="ph"><span class="ph-icon">📷</span>Sin fotos aún — presioná + Agregar foto para empezar</div>
-  </div>
-</div>
-
 <!-- pm_db.js debe estar en la misma carpeta que este HTML -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="pm_db.js"></script>
@@ -1786,7 +1787,7 @@ function showTab(id) {
     'pg-dash':'DASHBOARD','pg-pedidos':'PAN','pg-galletas':'GALLETAS',
     'pg-com':'COMERCIAL','pg-prod':'PRODUCCIÓN','pg-rep':'REPORTES',
     'pg-gastos':'GASTOS','pg-costeo':'COSTEO','pg-hid':'HIDRATACIÓN',
-    'app-inner':'MAESTROS','pg-rec':'RECETARIO','pg-gmrec':'GLUTEN MORGEN','pg-planlibre':'PLAN LIBRE','pg-catalogo':'CATÁLOGO'
+    'app-inner':'MAESTROS','pg-rec':'RECETARIO','pg-gmrec':'GLUTEN MORGEN','pg-planlibre':'PLAN LIBRE'
   };
   const modEl = document.querySelector('.brand-mod');
   if (modEl) modEl.textContent = labels[id] || 'PANMAESTRO';
@@ -1803,7 +1804,6 @@ function showTab(id) {
     'app-inner':  () => { currentTab = currentTab||'pan'; if(currentTab==='sync') pmSyncUIRefresh(); panRecetaPopulate(); panCargarSb(); ingCargarSb(); },
     'pg-rec':     () => { recetarioRender(); },
     'pg-gmrec':   () => { gmRecetarioRender(); },
-    'pg-catalogo': () => { catRender(); },
   };
   if (inits[id]) inits[id]();
 }
@@ -6780,13 +6780,13 @@ function hidReset() {
 let currentTab = 'pan';
 function mTab(tab, btn) {
   currentTab = tab;
-  ['pan','galleta','ing','clientes','estados','sync','backup'].forEach(t => {
+  ['pan','galleta','ing','clientes','estados','catalogo','sync','backup'].forEach(t => {
     const el = document.getElementById('mt-' + t);
     if (el) el.style.display = t === tab ? 'block' : 'none';
   });
   document.querySelectorAll('#m-pills .pill').forEach(p => p.classList.remove('on'));
   if (btn) btn.classList.add('on');
-  const renders = {pan:panCargarSb, galleta:gallCargarSb, ing:ingCargarSb, clientes:() => { _sbCliCache = null; cliRender(); }, estados:estCargarSb};
+  const renders = {pan:panCargarSb, galleta:gallCargarSb, ing:ingCargarSb, clientes:() => { _sbCliCache = null; cliRender(); }, estados:estCargarSb, catalogo:catRender};
   if (renders[tab]) renders[tab]();
   if (tab === 'sync') pmSyncUIRefresh();
 }
