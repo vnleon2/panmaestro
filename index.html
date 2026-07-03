@@ -209,6 +209,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
     <button class="ntab" data-tab="pg-rec" onclick="showTab('pg-rec')">📚 Recetario</button>
     <button class="ntab" data-tab="pg-gmrec" onclick="showTab('pg-gmrec')">🌾 Gluten Morgen</button>
     <button class="ntab" data-tab="pg-planlibre" onclick="showTab('pg-planlibre');planLibreRender()">📋 Plan Libre</button>
+    <button class="ntab" data-tab="pg-catalogo" onclick="showTab('pg-catalogo');catRender()">📷 Catálogo</button>
     <button onclick="pmLogout()" title="Cerrar sesión"
     style="margin-left:8px;padding:5px 10px;background:transparent;border:1px solid var(--border);
     border-radius:8px;color:var(--cream2);font-size:11px;cursor:pointer;white-space:nowrap">
@@ -1184,6 +1185,52 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 </div>
 
 
+
+<!-- ══════════════════════════════════════════ CATÁLOGO -->
+<div class="page" id="pg-catalogo">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+    <div>
+      <div class="pg-title">Catálogo de productos</div>
+      <div class="pg-sub">Fotos, precios y pesos de tu portafolio</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-out btn-sm no-print" onclick="window.print()">🖨 Imprimir</button>
+      <button class="btn btn-gold btn-sm no-print" onclick="catAbrirSubida()">+ Agregar foto</button>
+    </div>
+  </div>
+
+  <!-- Modal subida de foto -->
+  <div id="cat-modal" style="display:none;background:rgba(0,0,0,.55);position:fixed;top:0;left:0;width:100%;height:100%;z-index:999;align-items:center;justify-content:center">
+    <div style="background:var(--sf);border-radius:16px;padding:24px;width:min(90vw,400px);position:relative">
+      <button onclick="catCerrarSubida()" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:22px;color:var(--cream2);cursor:pointer">✕</button>
+      <div style="font-size:15px;font-weight:600;color:var(--cream);margin-bottom:16px">Agregar foto al catálogo</div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:11px;color:var(--cream2);display:block;margin-bottom:4px">Producto</label>
+        <select id="cat-prod-sel" style="width:100%;padding:8px 10px;background:var(--sf2);border:1px solid var(--border);border-radius:8px;color:var(--cream);font-size:13px">
+          <option value="">— seleccionar —</option>
+        </select>
+      </div>
+      <div style="margin-bottom:16px">
+        <label style="font-size:11px;color:var(--cream2);display:block;margin-bottom:4px">Foto (desde cámara o galería)</label>
+        <input type="file" id="cat-foto-input" accept="image/*"
+          style="width:100%;padding:8px;background:var(--sf2);border:1px dashed var(--border);border-radius:8px;color:var(--cream);font-size:12px;cursor:pointer"
+          onchange="catPreviewFoto(this)">
+        <div id="cat-preview-wrap" style="margin-top:8px;display:none">
+          <img id="cat-preview-img" style="width:100%;max-height:180px;object-fit:cover;border-radius:8px">
+        </div>
+      </div>
+      <button class="btn btn-gold" style="width:100%;padding:10px" onclick="catGuardarFoto()">💾 Guardar foto</button>
+      <div id="cat-status" style="margin-top:8px;font-size:12px;color:var(--cream2);text-align:center;min-height:16px"></div>
+    </div>
+  </div>
+
+  <!-- Galería -->
+  <div id="cat-galeria" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px"></div>
+  <div id="cat-empty" style="display:none">
+    <div class="ph"><span class="ph-icon">📷</span>Sin fotos aún — presioná + Agregar foto para empezar</div>
+  </div>
+</div>
+
 <!-- pm_db.js debe estar en la misma carpeta que este HTML -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="pm_db.js"></script>
@@ -1739,7 +1786,7 @@ function showTab(id) {
     'pg-dash':'DASHBOARD','pg-pedidos':'PAN','pg-galletas':'GALLETAS',
     'pg-com':'COMERCIAL','pg-prod':'PRODUCCIÓN','pg-rep':'REPORTES',
     'pg-gastos':'GASTOS','pg-costeo':'COSTEO','pg-hid':'HIDRATACIÓN',
-    'app-inner':'MAESTROS','pg-rec':'RECETARIO','pg-gmrec':'GLUTEN MORGEN','pg-planlibre':'PLAN LIBRE'
+    'app-inner':'MAESTROS','pg-rec':'RECETARIO','pg-gmrec':'GLUTEN MORGEN','pg-planlibre':'PLAN LIBRE','pg-catalogo':'CATÁLOGO'
   };
   const modEl = document.querySelector('.brand-mod');
   if (modEl) modEl.textContent = labels[id] || 'PANMAESTRO';
@@ -1756,6 +1803,7 @@ function showTab(id) {
     'app-inner':  () => { currentTab = currentTab||'pan'; if(currentTab==='sync') pmSyncUIRefresh(); panRecetaPopulate(); panCargarSb(); ingCargarSb(); },
     'pg-rec':     () => { recetarioRender(); },
     'pg-gmrec':   () => { gmRecetarioRender(); },
+    'pg-catalogo': () => { catRender(); },
   };
   if (inits[id]) inits[id]();
 }
@@ -7413,6 +7461,161 @@ function onDataLoaded() {
   // Called after data loads - refresh active tab
   const activeTab = document.querySelector('.page.on');
   if (activeTab && activeTab.id === 'pg-rep') repRender();
+}
+
+
+// ── 📷 CATÁLOGO ──────────────────────────────────────────────────────────────
+
+const CAT_BUCKET = 'catalogo';
+const SB_STORAGE_URL = 'https://xmhokxmuxfkfypttvkjz.supabase.co/storage/v1';
+
+async function catRender() {
+  const galeria = document.getElementById('cat-galeria');
+  const empty   = document.getElementById('cat-empty');
+  if (!galeria) return;
+  galeria.innerHTML = '<div style="color:var(--cream2);font-size:12px;padding:20px">Cargando...</div>';
+
+  try {
+    const fotos = await pmDB.get('catalogo_fotos', {}, '*');
+    const prods = [...(G.tiposPan||[]), ...(G.tiposGalleta||[])];
+
+    if (!fotos || !fotos.length) {
+      galeria.innerHTML = '';
+      if (empty) empty.style.display = 'block';
+      return;
+    }
+    if (empty) empty.style.display = 'none';
+
+    galeria.innerHTML = fotos.map(f => {
+      const prod = prods.find(p => p.id === f.producto_codigo);
+      const nombre = prod?.nombre || f.producto_codigo;
+      const precio = prod ? pmMoney(prod.precio) : '—';
+      const peso   = prod ? (prod.peso + 'g') : '—';
+      return `<div class="card" style="padding:0;overflow:hidden;border-radius:12px">
+        <div style="position:relative">
+          <img src="${f.foto_url}" alt="${nombre}"
+            style="width:100%;height:150px;object-fit:cover;display:block"
+            onerror="this.style.display='none'">
+          <button onclick="catEliminarFoto('${f.id}','${f.foto_url}')"
+            class="no-print"
+            style="position:absolute;top:6px;right:6px;background:rgba(0,0,0,.6);border:none;border-radius:50%;width:26px;height:26px;color:#fff;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button>
+        </div>
+        <div style="padding:10px 12px">
+          <div style="font-size:10px;color:var(--gold3);font-family:'DM Mono',monospace">${f.producto_codigo}</div>
+          <div style="font-size:13px;font-weight:600;color:var(--cream);margin:2px 0">${nombre}</div>
+          <div style="font-size:11px;color:var(--cream2)">₡${precio} · ${peso}</div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    galeria.innerHTML = `<div style="color:var(--red);font-size:12px">Error: ${e.message}</div>`;
+  }
+}
+
+function catAbrirSubida() {
+  const modal = document.getElementById('cat-modal');
+  if (!modal) return;
+  // Poblar selector de productos
+  const sel = document.getElementById('cat-prod-sel');
+  const prods = [...(G.tiposPan||[]), ...(G.tiposGalleta||[])];
+  sel.innerHTML = '<option value="">— seleccionar —</option>' +
+    prods.map(p => `<option value="${p.id}">${p.id} · ${p.nombre}</option>`).join('');
+  document.getElementById('cat-status').textContent = '';
+  document.getElementById('cat-preview-wrap').style.display = 'none';
+  document.getElementById('cat-foto-input').value = '';
+  modal.style.display = 'flex';
+}
+
+function catCerrarSubida() {
+  const modal = document.getElementById('cat-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function catPreviewFoto(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const wrap = document.getElementById('cat-preview-wrap');
+  const img  = document.getElementById('cat-preview-img');
+  const reader = new FileReader();
+  reader.onload = e => { img.src = e.target.result; wrap.style.display = 'block'; };
+  reader.readAsDataURL(file);
+}
+
+async function catGuardarFoto() {
+  const codigo = document.getElementById('cat-prod-sel').value;
+  const input  = document.getElementById('cat-foto-input');
+  const status = document.getElementById('cat-status');
+  const file   = input.files[0];
+
+  if (!codigo) { status.textContent = '⚠️ Seleccioná un producto'; return; }
+  if (!file)   { status.textContent = '⚠️ Seleccioná una foto'; return; }
+
+  status.textContent = '⏳ Subiendo foto...';
+
+  try {
+    // Obtener token
+    const token = await (async () => {
+      try {
+        const c = window._sbAuthClient;
+        if (c) { const {data} = await c.auth.getSession(); if (data?.session?.access_token) return data.session.access_token; }
+      } catch(e) {}
+      return 'sb_publishable_pmKVIGa_lNxtzRos-iY_0Q_LXEcj77v';
+    })();
+
+    // Upload a Supabase Storage
+    const ext  = file.name.split('.').pop() || 'jpg';
+    const path = `${codigo}_${Date.now()}.${ext}`;
+    const uploadRes = await fetch(`${SB_STORAGE_URL}/object/${CAT_BUCKET}/${path}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'apikey': token,
+        'Content-Type': file.type,
+        'x-upsert': 'true'
+      },
+      body: file
+    });
+
+    if (!uploadRes.ok) {
+      const err = await uploadRes.text();
+      throw new Error(err);
+    }
+
+    // URL pública
+    const foto_url = `${SB_STORAGE_URL}/object/public/${CAT_BUCKET}/${path}`;
+
+    // Guardar en tabla catalogo_fotos
+    await pmDB.insert('catalogo_fotos', { producto_codigo: codigo, foto_url }, false);
+
+    status.textContent = '✅ Foto guardada';
+    setTimeout(() => { catCerrarSubida(); catRender(); }, 800);
+  } catch(e) {
+    status.textContent = '❌ Error: ' + e.message;
+    console.warn('[catGuardarFoto]', e.message);
+  }
+}
+
+async function catEliminarFoto(id, url) {
+  if (!confirm('¿Eliminar esta foto del catálogo?')) return;
+  try {
+    await pmDB.hardDelete('catalogo_fotos', id);
+    // Intentar borrar del Storage también
+    const path = url.split(`/object/public/${CAT_BUCKET}/`)[1];
+    if (path) {
+      const token = await (async () => {
+        try { const c = window._sbAuthClient; if (c) { const {data} = await c.auth.getSession(); if (data?.session?.access_token) return data.session.access_token; } } catch(e) {}
+        return 'sb_publishable_pmKVIGa_lNxtzRos-iY_0Q_LXEcj77v';
+      })();
+      await fetch(`${SB_STORAGE_URL}/object/${CAT_BUCKET}/${path}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}`, 'apikey': token }
+      }).catch(() => {});
+    }
+    pmToast('Foto eliminada ✓');
+    catRender();
+  } catch(e) {
+    pmToast('Error al eliminar: ' + e.message, 'err');
+  }
 }
 
 // ── 📋 PLAN LIBRE ────────────────────────────────────────────────────────────
