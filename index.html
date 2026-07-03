@@ -529,7 +529,6 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
         <button class="btn btn-out btn-sm" onclick="cvMostrar('cv-maestro');cvMaestroRender()">📋 Maestro</button>
         <button class="btn btn-out btn-sm" onclick="cvMostrar('cv-gm');gmRenderList()">🌾 Gluten Morgen</button>
         <button class="btn btn-gold" onclick="cvMostrar('cv-nueva');recNuevo()">+ Nueva receta</button>
-        <button class="btn btn-out btn-sm" onclick="recSincronizarToSb()">☁️ Sincronizar a SB</button>
       </div>
     </div>
     <!-- Escalado rápido -->
@@ -1752,7 +1751,7 @@ function showTab(id) {
     'pg-prod':    () => { document.getElementById('prod-date').value = pmHoy(); prodRenderConSb(); _sbLotesCargar(); },
     'pg-rep':     () => { const rf=document.getElementById('r-fecha'); const rm=document.getElementById('r-mes'); if(rf&&!rf.value)rf.value=pmHoy(); if(rm&&!rm.value)rm.value=pmHoy().slice(0,7); repCurrentTab=repCurrentTab||'pan'; repRender(); },
     'pg-gastos':  () => { document.getElementById('g-fecha').value = pmHoy(); document.getElementById('g-mes').value = pmHoy().slice(0,7); gastoRender(); },
-    'pg-costeo':  () => { _sbCosteoCargar(); const el = document.getElementById('mro-margen-default'); if(el) el.value = G.margenDefault||40; },
+    'pg-costeo':  () => { _sbCosteoCargar().then(() => { cvMostrar('cv-maestro'); cvMaestroRender(); }); const el = document.getElementById('mro-margen-default'); if(el) el.value = G.margenDefault||40; },
     'pg-hid':     () => { hidCalc(); },
     'app-inner':  () => { currentTab = currentTab||'pan'; if(currentTab==='sync') pmSyncUIRefresh(); panRecetaPopulate(); panCargarSb(); ingCargarSb(); },
     'pg-rec':     () => { recetarioRender(); },
@@ -5704,31 +5703,7 @@ async function _sbSaveRecetaItems(sbRecId, flour, other) {
   }
 }
 
-// ── Calcular siguiente código de receta desde Supabase ──
-async function _nextRecCode() {
-  try {
-    const allRows = await pmDB.get('recetas', {}, 'codigo');
-    const nums = (allRows||[]).map(r => r.codigo||'')
-      .filter(c => c.startsWith('R-'))
-      .map(c => parseInt(c.replace('R-',''))||0);
-    const maxSb = nums.length ? Math.max(...nums) : 0;
-    // También revisar localStorage por si hay recetas no sincronizadas
-    const numsLocal = (G.recetas||[]).map(r => r.code||'')
-      .filter(c => c.startsWith('R-'))
-      .map(c => parseInt(c.replace('R-',''))||0);
-    const maxLocal = numsLocal.length ? Math.max(...numsLocal) : 0;
-    const nextNum = Math.max(maxSb, maxLocal) + 1;
-    return 'R-' + String(nextNum).padStart(4,'0');
-  } catch(e) {
-    // Fallback a localStorage si SB falla
-    const nums = (G.recetas||[]).map(r => r.code||'')
-      .filter(c => c.startsWith('R-'))
-      .map(c => parseInt(c.replace('R-',''))||0);
-    return 'R-' + String((nums.length ? Math.max(...nums) : 0) + 1).padStart(4,'0');
-  }
-}
-
-async function recSave() {
+function recSave() {
   const id    = document.getElementById('mr-id').value;
   const code  = document.getElementById('mr-code').value.trim();
   const name  = document.getElementById('mr-name').value.trim();
@@ -5829,7 +5804,8 @@ async function recSave() {
         _sbRecCache = null; // invalidar cache para que recargue
       }
     } else {
-      const newCode = await _nextRecCode();
+      const nextNum = _sbRecLista().filter(r=>r.code&&r.code.startsWith('R-')).length + 1;
+      const newCode = 'R-' + String(nextNum).padStart(4,'0');
       G.recetas.push({ id: String(Date.now()), code: newCode, gmSource, ...obj });
       pmToast(newCode + ' · "' + obj.name + '" guardada ✓');
     }
@@ -5854,7 +5830,8 @@ async function recSave() {
     }
   } else {
     // New recipe
-    const newCode = code || await _nextRecCode();
+    const nextNum = _sbRecLista().filter(r=>r.code&&r.code.startsWith('R-')).length + 1;
+    const newCode = code || ('R-' + String(nextNum).padStart(4,'0'));
     const newRec = { id: String(Date.now()), code: newCode, ...obj };
     G.recetas.push(newRec);
     pmToast(newCode + ' · "' + obj.name + '" creada ✓');
@@ -5880,50 +5857,6 @@ async function recSave() {
   fillRscSel();
   cvMostrar('cv-lista');
   recRender();
-}
-
-// ── Sincronizar recetas locales a Supabase ──
-async function recSincronizarToSb() {
-  if (!pmDB.disponible()) { pmToast('Sin conexión a Supabase','err'); return; }
-  
-  // Cargar recetas que ya están en SB para comparar
-  let sbCodigos = new Set();
-  try {
-    const sbRecs = await pmDB.get('recetas', {}, 'codigo');
-    (sbRecs||[]).forEach(r => { if (r.codigo) sbCodigos.add(r.codigo); });
-  } catch(e) { pmToast('Error al leer SB: ' + e.message, 'err'); return; }
-
-  // Filtrar recetas locales que NO están en SB
-  const pendientes = (G.recetas||[]).filter(r => 
-    r.code && r.code.startsWith('R-') && !sbCodigos.has(r.code)
-  );
-
-  if (!pendientes.length) { pmToast('Todas las recetas ya están en Supabase ✓'); return; }
-  
-  pmToast(`Sincronizando ${pendientes.length} receta(s)...`);
-  let ok = 0, err = 0;
-  
-  for (const r of pendientes) {
-    try {
-      const rows = await pmDB.recetas.crear({
-        codigo: r.code, nombre: r.name, categoria: r.cat||'pan',
-        masa_total_g: r.totalMass||1000, unidades: r.units||1,
-        merma_pct: r.merma||0, margen_pct: r.margen||null,
-        notas: r.notes||null, origen: r.gmSource ? 'gm' : 'propia', activo: true
-      });
-      if (rows?.[0]) {
-        r.sbId = rows[0].id;
-        await _sbSaveRecetaItems(rows[0].id, r.flour||[], r.other||[]);
-        ok++;
-      }
-    } catch(e) {
-      console.warn('[recSincronizarToSb] error:', r.code, e.message);
-      err++;
-    }
-  }
-  pmSave('costeo');
-  _sbRecCache = null;
-  pmToast(`Sincronizadas: ${ok} ✓${err ? ' · Errores: '+err : ''}`);
 }
 
 function recEliminar(id) {
@@ -6133,7 +6066,7 @@ function _gmConvert(r) {
   };
 }
 
-async function gmDoTransfer(name, toEditor) {
+function gmDoTransfer(name, toEditor) {
   const r = (G.gmRecipes||[]).find(x => x.name === name);
   if (!r) return;
   const rec = _gmConvert(r);
@@ -6145,8 +6078,8 @@ async function gmDoTransfer(name, toEditor) {
     document.getElementById('mr-id').value = rec.id;
     // Check if already transferred — use existing code
     const existingGm = (G.recetas||[]).find(x => x.gmSource === name);
-    const nextCode = await _nextRecCode();
-    document.getElementById('mr-code').value = existingGm ? existingGm.code : nextCode;
+    const nextNum = (G.recetas||[]).filter(r=>r.code&&r.code.startsWith('R-')).length + 1;
+    document.getElementById('mr-code').value = existingGm ? existingGm.code : ('R-' + String(nextNum).padStart(4,'0'));
     document.getElementById('mr-name').value = rec.name;
     document.getElementById('mr-masa').value = rec.totalMass||1000;
     document.getElementById('mr-units').value = rec.units||1;
@@ -6179,7 +6112,8 @@ async function gmDoTransfer(name, toEditor) {
     pmToast('↺ "' + name + '" actualizada en sistema');
   } else {
     // First transfer — assign our own sequential code
-    rec.code = await _nextRecCode();
+    const nextNum = (G.recetas||[]).filter(r=>r.code&&r.code.startsWith('R-')).length + 1;
+    rec.code = 'R-' + String(nextNum).padStart(4,'0');
     delete rec.gmCode;             // Remove GM code reference
     G.recetas.push(rec);
     pmToast('✓ "' + name + '" → ' + rec.code + ' en sistema');
@@ -7152,11 +7086,27 @@ async function ingAdd() {
   document.getElementById('ing-nom').value='';
   document.getElementById('ing-pr').value='';
   document.getElementById('ing-qty').value='';
-  ingRender(); pmToast('Guardando en Supabase...');
+  ingRender();
+  // Mostrar mensaje persistente de debug
+  const dbgDiv = document.getElementById('ing-debug') || (() => {
+    const d = document.createElement('div');
+    d.id = 'ing-debug';
+    d.style.cssText = 'background:#1a1a2e;color:#fff;padding:12px;margin:8px 0;border-radius:8px;font-size:12px;white-space:pre-wrap;border:1px solid #gold';
+    document.getElementById('ing-list').before(d);
+    return d;
+  })();
+  const log = (msg) => { dbgDiv.textContent += msg + '\n'; };
+  dbgDiv.textContent = '⏳ Iniciando...\n';
+
   try {
-    _sbIngMap = null; _sbIngCache = null;
+    log('1. Cargando mapa SB...');
+    _sbIngMap = null; _sbIngCache = null; // forzar recarga
     await _sbIngEnsureMap();
+    log(`2. Mapa cargado: ${Object.keys(_sbIngMap||{}).length} ingredientes`);
+    
     const existing = _sbIngMap?.[key];
+    log(`3. ¿Existe "${key}"? ${existing ? 'SÍ → ' + existing : 'NO'}`);
+    
     if (existing) {
       const cachedRec = _sbIngCache?.[key];
       const updateData = { precio_ref:pr, qty_base:qty, activo:true };
@@ -7167,29 +7117,39 @@ async function ingAdd() {
           .map(c => parseInt(c.replace('ING-',''))||0);
         const nextNum = nums.length ? Math.max(...nums) + 1 : 1;
         updateData.codigo = `ING-${String(nextNum).padStart(3,'0')}`;
+        log(`4. Asignando código: ${updateData.codigo}`);
+      } else {
+        log(`4. Ya tiene código: ${cachedRec.codigo}`);
       }
       await pmDB.ingredientes.editar(existing, updateData);
       if (_sbIngCache?.[key]) { _sbIngCache[key] = {..._sbIngCache[key], ...updateData}; }
-      pmToast(key + ' actualizado ✓' + (updateData.codigo ? ` (${updateData.codigo})` : ''));
+      log(`5. ✅ Actualizado en SB`);
     } else {
+      log('4. Calculando siguiente código...');
       const allRows = await pmDB.get('ingredientes', {}, '*');
       const nums = (allRows||[]).map(r => r.codigo||'')
         .filter(c => c.startsWith('ING-'))
         .map(c => parseInt(c.replace('ING-',''))||0);
       const nextNum = nums.length ? Math.max(...nums) + 1 : 1;
       const codigo = `ING-${String(nextNum).padStart(3,'0')}`;
+      log(`5. Código asignado: ${codigo}`);
+      log(`6. Creando en SB...`);
       const rows = await pmDB.ingredientes.crear({ codigo, nombre:key, unidad:'g', precio_ref:pr, qty_base:qty, activo:true });
+      log(`7. Respuesta SB: ${JSON.stringify(rows)}`);
       if (rows?.[0]) {
         if (!_sbIngMap) _sbIngMap = {};
         if (!_sbIngCache) _sbIngCache = {};
         _sbIngMap[key] = rows[0].id;
         _sbIngCache[key] = rows[0];
+        log(`8. ✅ Creado con ID: ${rows[0].id}`);
+      } else {
+        log('8. ❌ Sin respuesta de SB - rows vacío');
       }
-      pmToast(`${key} guardado ✓ (${codigo})`);
     }
     await ingCargarSb();
+    log('9. ✅ COMPLETADO');
   } catch(e) {
-    pmToast('Error: ' + e.message, 'err');
+    log(`❌ ERROR: ${e.message}`);
     console.warn('[ingAdd]', e.message);
   }
 }
