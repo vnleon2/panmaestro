@@ -62,9 +62,12 @@ const pmDB = (() => {
         const err = await res.text();
         throw new Error(`${res.status}: ${err}`);
       }
-      // 204 No Content no tiene body
-      if (res.status === 204) return null;
-      return await res.json();
+      // Sin contenido: 204 explícito, o 201/200 con body vacío (típico de
+      // Prefer: return=minimal en inserts/updates con retornar=false).
+      // Antes solo se chequeaba 204, así que un 201 vacío tronaba en res.json().
+      const raw = await res.text();
+      if (!raw) return null;
+      try { return JSON.parse(raw); } catch(e) { return null; }
     } catch(e) {
       // Solo marcar offline si es error de red real (fetch failed), no errores de query
       if (e.message && e.message.toLowerCase().includes('failed to fetch')) _disponible = false;
