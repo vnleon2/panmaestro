@@ -113,8 +113,8 @@ const pmDB = (() => {
    */
   async function insert(tabla, datos, retornar = true) {
     const prefer = retornar
-      ? 'resolution=ignore-duplicates,return=representation'
-      : 'resolution=ignore-duplicates,return=minimal';
+      ? 'return=representation'
+      : 'return=minimal';
     return await _fetch(tabla, {
       method: 'POST',
       headers: { 'Prefer': prefer },

@@ -7047,7 +7047,8 @@ let _sbIngMap = null;
 async function _sbIngEnsureMap() {
   if (_sbIngMap) return;
   try {
-    const rows = await pmDB.ingredientes.listar();
+    // Load ALL ingredients including inactive to detect existing records
+    const rows = await pmDB.get('ingredientes', {}, '*');
     _sbIngMap = {};
     _sbIngCache = {};
     (rows||[]).forEach(r => { _sbIngMap[r.nombre] = r.id; _sbIngCache[r.nombre] = r; });
@@ -7091,19 +7092,21 @@ async function ingAdd() {
     await _sbIngEnsureMap();
     const existing = _sbIngMap?.[key];
     if (existing) {
-      // Si no tiene código, asignárselo ahora
+      // Ingrediente existe (puede estar inactivo) — reactivar y actualizar
       const cachedRec = _sbIngCache?.[key];
-      const updateData = { precio_ref:pr, qty_base:qty };
+      const updateData = { precio_ref:pr, qty_base:qty, activo:true };
       if (!cachedRec?.codigo) {
-        const codigosExistentes = Object.values(_sbIngCache||{})
-          .map(r => r?.codigo||'').filter(c => c.startsWith('ING-'))
+        // Asignar código si no tiene
+        const allRows = await pmDB.get('ingredientes', {}, '*');
+        const nums = (allRows||[]).map(r => r.codigo||'')
+          .filter(c => c.startsWith('ING-'))
           .map(c => parseInt(c.replace('ING-',''))||0);
-        const nextNum = codigosExistentes.length ? Math.max(...codigosExistentes) + 1 : 1;
+        const nextNum = nums.length ? Math.max(...nums) + 1 : 1;
         updateData.codigo = `ING-${String(nextNum).padStart(3,'0')}`;
       }
       await pmDB.ingredientes.editar(existing, updateData);
-      if (updateData.codigo && _sbIngCache?.[key]) _sbIngCache[key].codigo = updateData.codigo;
-      pmToast(key + ' actualizado ✓' + (updateData.codigo ? ` (${updateData.codigo})` : ''));
+      if (_sbIngCache?.[key]) { _sbIngCache[key] = {..._sbIngCache[key], ...updateData}; }
+      pmToast(key + ' reactivado ✓' + (updateData.codigo ? ` (${updateData.codigo})` : ''));
     } else {
       // Calcular siguiente código consultando SB directamente
       let nextNum = 1;
