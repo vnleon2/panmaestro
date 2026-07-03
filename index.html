@@ -1679,7 +1679,7 @@ function pmCostoReceta(r, targetMass) {
     const pct  = parseFloat(ing.pct)||0;
     const g    = flourW * pct / 100;
     const name = ing.productName || ing.manualName || '';
-    const cpg  = (() => { const i = _sbGetIng(name) || G.ingredientes[name]; return i && i.price && i.qty ? i.price/i.qty : 0; })();
+    const cpg  = (() => { const i = _sbResolveIng(ing); return i && i.price && i.qty ? i.price/i.qty : 0; })();
     const cost = cpg * g;
     total += cost;
     lines.push({ name, pct, g, cost, flour: true });
@@ -1690,7 +1690,7 @@ function pmCostoReceta(r, targetMass) {
     const pct  = parseFloat(ing.pct)||0;
     const g    = flourW * pct / 100;
     const name = ing.productName || ing.manualName || '';
-    const cpg  = (() => { const i = _sbGetIng(name) || G.ingredientes[name]; return i && i.price && i.qty ? i.price/i.qty : 0; })();
+    const cpg  = (() => { const i = _sbResolveIng(ing); return i && i.price && i.qty ? i.price/i.qty : 0; })();
     const cost = cpg * g;
     total += cost;
     lines.push({ name, pct, g, cost, flour: false });
@@ -5421,8 +5421,8 @@ function recEditar(id) {
   document.getElementById('mr-sub-list').innerHTML = '';
   document.getElementById('mr-addon-list').innerHTML = '';
   mrIngCount = 0; mrSubCount = 0; window._mrAddonCount = 0;
-  (r.flour||[]).forEach(i=>mrAddIng(i.productName||i.manualName||'', i.pct, true));
-  (r.other||[]).forEach(i=>mrAddIng(i.productName||i.manualName||'', i.pct, false));
+  (r.flour||[]).forEach(i=>mrAddIng(i.productName||i.manualName||'', i.pct, true, i.ingredientId||''));
+  (r.other||[]).forEach(i=>mrAddIng(i.productName||i.manualName||'', i.pct, false, i.ingredientId||''));
   (r.subrecs||[]).forEach(s=>mrAddSub(s));
   (r.addons||[]).forEach(a=>mrAddAddon(a));
   mrRefreshEmpty();
@@ -5438,7 +5438,7 @@ function mrRefreshEmpty() {
   empty.style.display = hasItems ? 'none' : 'block';
 }
 
-function mrAddIng(name='', pct='', isFlour=false) {
+function mrAddIng(name='', pct='', isFlour=false, ingredientId='') {
   mrIngCount++;
   const uid = 'mri-' + mrIngCount;
   const dlId = 'dl-' + mrIngCount;
@@ -5460,7 +5460,7 @@ function mrAddIng(name='', pct='', isFlour=false) {
         <option value="other"${!isFlour?' selected':''}>Otro</option>
       </select>
       <div style="flex:1;min-width:140px;display:flex;flex-direction:column;gap:3px">
-        <input type="text" id="inp-${uid}" value="${name}" placeholder="Tocar para buscar ingrediente..."
+        <input type="text" id="inp-${uid}" value="${name}" data-ing-id="${ingredientId||''}" placeholder="Tocar para buscar ingrediente..."
           readonly
           style="width:100%;font-size:12px;padding:6px 8px;background:var(--sf);border:1px solid var(--border);border-radius:8px;color:var(--cream);cursor:pointer"
           onclick="ingPickerOpen('${uid}')">
@@ -5541,7 +5541,12 @@ function ingPickerSelect(name) {
   const uid  = document.getElementById('ing-picker-modal').dataset.uid;
   const inp  = document.getElementById('inp-' + uid);
   const hint = document.getElementById('hint-' + uid);
-  if (inp) inp.value = name;
+  if (inp) {
+    inp.value = name;
+    // SESIÓN 11: guardar el id estable del ingrediente junto al nombre visible
+    const ing = _sbGetIng(name);
+    inp.dataset.ingId = ing?.sbId || _sbIngMap?.[name] || '';
+  }
   if (hint) {
     const ing = _sbGetIng(name) || G.ingredientes[name];
     if (ing) {
@@ -5728,7 +5733,7 @@ async function _sbSaveRecetaItems(sbRecId, flour, other) {
     // Insertar nuevos items
     for (const ing of (flour || [])) {
       const nom = ing.productName || ing.manualName || '';
-      const ingId = _sbIngMapNom?.[nom] || null;
+      const ingId = ing.ingredientId || _sbIngMapNom?.[nom] || _sbIngMap?.[nom] || null;
       await pmDB.insert('receta_items', {
         receta_id:      sbRecId,
         ingrediente_id: ingId,
@@ -5738,7 +5743,7 @@ async function _sbSaveRecetaItems(sbRecId, flour, other) {
     }
     for (const ing of (other || [])) {
       const nom = ing.productName || ing.manualName || '';
-      const ingId = _sbIngMapNom?.[nom] || null;
+      const ingId = ing.ingredientId || _sbIngMapNom?.[nom] || _sbIngMap?.[nom] || null;
       await pmDB.insert('receta_items', {
         receta_id:      sbRecId,
         ingrediente_id: ingId,
@@ -5774,10 +5779,13 @@ function recSave() {
     const prod = nameInp.value.trim();
     const pct  = parseFloat(pctInp.value)||0;
     if (prod && pct) {
-      // If it's in G.ingredientes use productName, else manualName
+      // Preferimos el id guardado por el picker (SESIÓN 11); si no hay (línea manual
+      // o receta vieja no migrada), resolvemos por nombre como antes.
+      const ingId = nameInp.dataset.ingId || _sbIngMap?.[prod] || '';
       const key = G.ingredientes[prod] ? 'productName' : 'manualName';
-      if (tipo==='flour') flour.push({pct, [key]:prod});
-      else                other.push({pct, [key]:prod});
+      const entry = { pct, [key]: prod, ...(ingId ? { ingredientId: ingId } : {}) };
+      if (tipo==='flour') flour.push(entry);
+      else                other.push(entry);
     }
   });
 
@@ -7093,6 +7101,7 @@ function gallDel(id) {
 // ─── INGREDIENTES ─────────────────────────────────────────────────────────────
 // Cache local { nombre → uuid } para ingredientes en Supabase
 let _sbIngMap = null;
+let _sbIngById = null; // { uuid → registro completo del ingrediente } — SESIÓN 11: migración a id estable
 async function _sbIngEnsureMap() {
   if (_sbIngMap) return;
   try {
@@ -7100,8 +7109,13 @@ async function _sbIngEnsureMap() {
     const rows = await pmDB.get('ingredientes', {}, '*');
     _sbIngMap = {};
     _sbIngCache = {};
-    (rows||[]).forEach(r => { _sbIngMap[r.nombre] = r.id; _sbIngCache[r.nombre] = r; });
-  } catch(e) { _sbIngMap = {}; _sbIngCache = {}; }
+    _sbIngById = {};
+    (rows||[]).forEach(r => {
+      _sbIngMap[r.nombre] = r.id;
+      _sbIngCache[r.nombre] = r;
+      _sbIngById[r.id] = { price: r.precio_ref||0, qty: r.qty_base||1000, sbId: r.id, codigo: r.codigo, nombre: r.nombre };
+    });
+  } catch(e) { _sbIngMap = {}; _sbIngCache = {}; _sbIngById = {}; }
 }
 
 // ── Carga ingredientes desde Supabase (fuente primaria) ──
@@ -7112,9 +7126,11 @@ async function ingCargarSb() {
       if (rows && rows.length) {
         if (!_sbIngMap) _sbIngMap = {};
         if (!_sbIngCache) _sbIngCache = {};
+        if (!_sbIngById) _sbIngById = {};
         rows.forEach(r => {
           _sbIngMap[r.nombre] = r.id;
           _sbIngCache[r.nombre] = r; // guardar objeto completo para acceder a codigo
+          _sbIngById[r.id] = { price: r.precio_ref||0, qty: r.qty_base||1000, sbId: r.id, codigo: r.codigo, nombre: r.nombre }; // lookup estable por id — SESIÓN 11
           G.ingredientes[r.nombre] = { price: r.precio_ref||0, qty: r.qty_base||1000 };
         });
         pmSave('maestros');
@@ -7341,8 +7357,10 @@ function ingEditSave(nom) {
 }
 
 function ingDel(nom) {
+  const uuid = _sbIngMap?.[nom] || null;
   const usedIn = (G.recetas||[]).filter(r => {
-    return [...(r.flour||[]), ...(r.other||[])].some(i => i.productName === nom || i.manualName === nom);
+    return [...(r.flour||[]), ...(r.other||[])].some(i =>
+      (uuid && i.ingredientId === uuid) || i.productName === nom || i.manualName === nom);
   }).map(r => r.code + ' ' + r.name);
   if (usedIn.length) {
     pmToast('Usado en: ' + usedIn.slice(0,3).join(', ') + (usedIn.length>3?' y más...':'') + ' — no se puede eliminar', 'err');
@@ -8153,9 +8171,11 @@ async function _sbCosteoCargar() {
     const sbIngs = await pmDB.ingredientes.listar();
     _sbIngCache  = {};
     _sbIngMapNom = {};
+    if (!_sbIngById) _sbIngById = {};
     (sbIngs || []).forEach(row => {
       _sbIngCache[row.nombre]  = { price: row.precio_ref || 0, qty: row.qty_base || 1000, sbId: row.id, codigo: row.codigo };
       _sbIngMapNom[row.nombre] = row.id;
+      _sbIngById[row.id]       = { price: row.precio_ref || 0, qty: row.qty_base || 1000, sbId: row.id, codigo: row.codigo, nombre: row.nombre };
     });
     Object.entries(G.ingredientes || {}).forEach(([k, v]) => {
       if (!_sbIngCache[k]) _sbIngCache[k] = v;
@@ -8193,8 +8213,10 @@ async function _sbCosteoCargar() {
         items.forEach(item => {
           // Nombre del ingrediente: etiqueta > nombre_manual > ingrediente via cache
           const nomIng = item.etiqueta || item.nombre_manual || ingPorId[item.ingrediente_id] || item.ingrediente_id || '';
-          const entry  = { pct: item.porcentaje || 0, productName: nomIng };
-          if (item.es_harina) flour.push(entry);
+          const entry  = { pct: item.porcentaje || 0, productName: nomIng, ingredientId: item.ingrediente_id || null };
+          // SESIÓN 11 fix: clasificar por 'tipo' (que es lo que _sbSaveRecetaItems realmente escribe),
+          // no por 'es_harina' que nunca se guarda — antes esto mandaba todo a "other" silenciosamente.
+          if (item.tipo === 'flour' || item.es_harina) flour.push(entry);
           else other.push(entry);
         });
         // Ordenar por campo orden si existe
@@ -8266,6 +8288,20 @@ function _sbGetRec(id) {
 function _sbGetIng(nombre) {
   const cache = _sbIngLista();
   return cache[nombre] || null;
+}
+
+/**
+ * SESIÓN 11 — Resolver ingrediente de una línea de receta.
+ * Prioriza ingredientId (estable, no se rompe si el nombre cambia).
+ * Si no hay id (líneas manuales o recetas viejas sin migrar), cae a nombre.
+ */
+function _sbResolveIng(entry) {
+  if (!entry) return null;
+  if (entry.ingredientId && _sbIngById && _sbIngById[entry.ingredientId]) {
+    return _sbIngById[entry.ingredientId];
+  }
+  const name = entry.productName || entry.manualName || '';
+  return _sbGetIng(name) || G.ingredientes[name] || null;
 }
 
 
