@@ -1812,6 +1812,7 @@ async function syncGeneral() {
       ingCargarSb().catch(e => console.warn('sync ing:', e.message)),
       _sbCosteoCargar().catch(e => console.warn('sync costeo:', e.message)),
       _sbCliCargar().catch(e => console.warn('sync cli:', e.message)),
+      estCargarSb().catch(e => console.warn('sync estados:', e.message)),
     ]);
     const seg = ((Date.now() - t0) / 1000).toFixed(1);
     if (st) st.textContent = `✓ Sincronizado en ${seg}s`;
@@ -6737,7 +6738,7 @@ function mTab(tab, btn) {
   });
   document.querySelectorAll('#m-pills .pill').forEach(p => p.classList.remove('on'));
   if (btn) btn.classList.add('on');
-  const renders = {pan:panCargarSb, galleta:gallCargarSb, ing:ingCargarSb, clientes:() => { _sbCliCache = null; cliRender(); }, estados:estRender};
+  const renders = {pan:panCargarSb, galleta:gallCargarSb, ing:ingCargarSb, clientes:() => { _sbCliCache = null; cliRender(); }, estados:estCargarSb};
   if (renders[tab]) renders[tab]();
   if (tab === 'sync') pmSyncUIRefresh();
 }
@@ -7315,22 +7316,52 @@ function ingDel(nom) {
   }
 }
 
-function estAdd() {
+async function estAdd() {
   const v = document.getElementById('est-nuevo').value.trim();
   if (!v || G.estados.includes(v)) return;
   G.estados.push(v);
   pmSave('sistema');
   document.getElementById('est-nuevo').value='';
   estRender(); pmToast('Estado agregado ✓');
+  if (pmDB.disponible()) {
+    pmDB.insert('estados_pedido', { nombre: v, activo: true }, false)
+      .catch(e => console.warn('[estAdd SB]', e.message));
+  }
 }
 
-function instAdd() {
+async function instAdd() {
   const v = document.getElementById('inst-nuevo').value.trim();
   if (!v || G.instrucciones.includes(v)) return;
   G.instrucciones.push(v);
   pmSave('sistema');
   document.getElementById('inst-nuevo').value='';
   estRender(); pmToast('Instrucción agregada ✓');
+  if (pmDB.disponible()) {
+    pmDB.insert('instrucciones_especiales', { texto: v, activo: true }, false)
+      .catch(e => console.warn('[instAdd SB]', e.message));
+  }
+}
+
+async function estCargarSb() {
+  if (pmDB.disponible()) {
+    try {
+      const estados = await pmDB.estados.listar();
+      if (estados && estados.length) {
+        const nombresEst = estados.map(e => e.nombre).filter(Boolean);
+        // Mergear: conservar los fijos (primeros 4) + los de SB
+        const fijos = G.estados.slice(0, 4);
+        const extras = nombresEst.filter(n => !fijos.includes(n));
+        G.estados = [...fijos, ...extras];
+      }
+      const instrucciones = await pmDB.instrucciones.listar();
+      if (instrucciones && instrucciones.length) {
+        const textos = instrucciones.map(i => i.texto).filter(Boolean);
+        G.instrucciones = [...new Set([...G.instrucciones, ...textos])];
+      }
+      pmSave('sistema');
+    } catch(e) { console.warn('[estCargarSb]', e.message); }
+  }
+  estRender();
 }
 
 function estRender() {
@@ -7347,8 +7378,28 @@ function estRender() {
     </div>`).join('');
 }
 
-function estDel(i) { G.estados.splice(i,1); pmSave('sistema'); estRender(); }
-function instDel(i) { G.instrucciones.splice(i,1); pmSave('sistema'); estRender(); }
+async function estDel(i) {
+  const nombre = G.estados[i];
+  G.estados.splice(i,1); pmSave('sistema'); estRender();
+  if (pmDB.disponible() && nombre) {
+    try {
+      const rows = await pmDB.get('estados_pedido', { nombre });
+      if (rows?.[0]) pmDB.update('estados_pedido', rows[0].id, { activo: false })
+        .catch(e => console.warn('[estDel SB]', e.message));
+    } catch(e) { console.warn('[estDel SB]', e.message); }
+  }
+}
+async function instDel(i) {
+  const texto = G.instrucciones[i];
+  G.instrucciones.splice(i,1); pmSave('sistema'); estRender();
+  if (pmDB.disponible() && texto) {
+    try {
+      const rows = await pmDB.get('instrucciones_especiales', { texto });
+      if (rows?.[0]) pmDB.update('instrucciones_especiales', rows[0].id, { activo: false })
+        .catch(e => console.warn('[instDel SB]', e.message));
+    } catch(e) { console.warn('[instDel SB]', e.message); }
+  }
+}
 
 
 
