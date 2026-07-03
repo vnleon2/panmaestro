@@ -7568,7 +7568,15 @@ async function catGuardarFoto() {
   if (!codigo) { status.textContent = '⚠️ Seleccioná un producto'; return; }
   if (!file)   { status.textContent = '⚠️ Seleccioná una foto'; return; }
 
-  status.textContent = '⏳ Subiendo foto...';
+  // Panel de diagnóstico visible (sin depender de consola — celular no la muestra)
+  status.style.whiteSpace = 'pre-wrap';
+  status.style.textAlign = 'left';
+  status.style.fontFamily = "'DM Mono',monospace";
+  status.style.fontSize = '11px';
+  const log = (msg) => { status.textContent += msg + '\n'; };
+  status.textContent = '';
+  log(`⏳ Iniciando... archivo: ${file.name} (${(file.size/1024).toFixed(0)} KB, tipo: "${file.type||'—'}")`);
+  log(`Conexión reportada por el navegador: ${navigator.onLine ? 'online' : 'OFFLINE'}`);
 
   try {
     // Obtener token
@@ -7579,10 +7587,27 @@ async function catGuardarFoto() {
       } catch(e) {}
       return 'sb_publishable_pmKVIGa_lNxtzRos-iY_0Q_LXEcj77v';
     })();
+    log(`Token listo (${token.startsWith('sb_') ? 'anon key' : 'sesión JWT'})`);
+
+    // Prueba de conectividad simple al servicio de Storage ANTES de subir el archivo,
+    // para distinguir "no llega ni a Supabase" de "llega pero rechaza la subida".
+    log('Probando conexión a Storage...');
+    try {
+      const ping = await fetch(`${SB_STORAGE_URL}/bucket/${CAT_BUCKET}`, {
+        headers: { 'Authorization': `Bearer ${token}`, 'apikey': token }
+      });
+      log(`✓ Storage respondió — status ${ping.status}`);
+    } catch (pingErr) {
+      log(`✗ Storage NO respondió: ${pingErr.name}: ${pingErr.message}`);
+      log('→ Esto confirma que el bloqueo es de red/navegador, no de Supabase.');
+      log('→ Probá: desactivar "Data Saver" o "Modo Lite" en Chrome, o probar otra red.');
+      throw pingErr;
+    }
 
     // Upload a Supabase Storage
     const ext  = file.name.split('.').pop() || 'jpg';
     const path = `${codigo}_${Date.now()}.${ext}`;
+    log(`Subiendo a: ${CAT_BUCKET}/${path}`);
     const uploadRes = await fetch(`${SB_STORAGE_URL}/object/${CAT_BUCKET}/${path}`, {
       method: 'POST',
       headers: {
@@ -7596,8 +7621,9 @@ async function catGuardarFoto() {
 
     if (!uploadRes.ok) {
       const err = await uploadRes.text();
-      throw new Error(err);
+      throw new Error(`HTTP ${uploadRes.status}: ${err}`);
     }
+    log('✓ Archivo subido');
 
     // URL pública
     const foto_url = `${SB_STORAGE_URL}/object/public/${CAT_BUCKET}/${path}`;
@@ -7605,10 +7631,10 @@ async function catGuardarFoto() {
     // Guardar en tabla catalogo_fotos
     await pmDB.insert('catalogo_fotos', { producto_codigo: codigo, foto_url }, false);
 
-    status.textContent = '✅ Foto guardada';
-    setTimeout(() => { catCerrarSubida(); catRender(); }, 800);
+    log('✅ Foto guardada');
+    setTimeout(() => { catCerrarSubida(); catRender(); }, 1200);
   } catch(e) {
-    status.textContent = '❌ Error: ' + e.message;
+    log(`❌ Error final: ${e.name || ''}: ${e.message}`);
     console.warn('[catGuardarFoto]', e.message);
   }
 }
@@ -8670,6 +8696,7 @@ function _sbGetAuthClient() {
   if (_sbAuthClient) return _sbAuthClient;
   if (typeof supabase !== 'undefined' && supabase.createClient) {
     _sbAuthClient = supabase.createClient(PM_SB_URL, PM_SB_KEY);
+    window._sbAuthClient = _sbAuthClient; // SESIÓN 11 fix: antes nunca se exponía en window
   }
   return _sbAuthClient;
 }
