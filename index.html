@@ -107,6 +107,25 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 .pills{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px}
 .pill{padding:4px 11px;border-radius:20px;font-size:12px;font-weight:500;cursor:pointer;border:1px solid #CBD5E1;color:var(--cream2);background:#FFFFFF;transition:all .15s}
 .pill.on{background:var(--gold);color:#FFFFFF;border-color:var(--gold)}
+/* TARJETAS DE RECETA — SESIÓN 11: estas clases nunca tuvieron estilo propio */
+.rec-card{background:#FFFFFF;border:1px solid #E2E8F0;border-radius:var(--r);margin-bottom:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.04);transition:box-shadow .15s}
+.rec-card:hover{box-shadow:0 3px 12px rgba(0,0,0,.07)}
+.rec-head{display:flex;align-items:center;gap:12px;padding:13px 16px;cursor:pointer;user-select:none}
+.rec-head:hover{background:#FAFBFD}
+.rec-head::after{content:'▾';color:#CBD5E1;font-size:11px;flex-shrink:0;transition:transform .2s}
+.rec-head.open::after{transform:rotate(180deg)}
+.rec-code{font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:var(--gold);background:rgba(37,99,235,.08);padding:3px 8px;border-radius:6px;flex-shrink:0;letter-spacing:.3px}
+.rec-name{flex:1;min-width:0;font-size:14.5px;font-weight:600;color:var(--cream);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rec-meta{font-size:11.5px;color:var(--cream2);flex-shrink:0;white-space:nowrap}
+.rec-body{display:none;padding:0 16px 14px;border-top:1px solid #EEF1F5}
+.rec-body.open{display:block;padding-top:12px}
+.cpills{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.cpill{font-size:11px;padding:5px 10px;border-radius:20px;background:var(--bg3);border:1px solid #E2E8F0;color:var(--cream2);white-space:nowrap}
+.cpill span{color:var(--cream);font-weight:700;margin-left:3px}
+.ing-tbl{border:1px solid #E2E8F0;border-radius:var(--rs);overflow:hidden}
+.ing-tbl th{font-size:9.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--cream2);font-weight:700}
+.ing-tbl td{color:var(--cream)}
+.ing-tbl tbody tr:hover td{background:rgba(37,99,235,.03)}
 /* MODAL */
 .modal-bg{display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:500;align-items:center;justify-content:center;padding:14px}
 .modal-bg.open{display:flex}
@@ -5281,7 +5300,7 @@ function recCard(r) {
     </tr>` : '';
 
   return `<div class="rec-card">
-    <div class="rec-head" onclick="this.nextElementSibling.classList.toggle('open')">
+    <div class="rec-head" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')">
       <span class="rec-code">${r.code}</span>
       <span class="rec-name">${icon} ${r.name}</span>
       <span class="rec-meta">${mass}g · ${r.units||1} ud</span>
