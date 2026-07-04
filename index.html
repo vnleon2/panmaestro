@@ -5464,7 +5464,14 @@ function recNuevo() {
   mrIngCount = 0; mrSubCount = 0; window._mrAddonCount = 0;
 }
 
-function recEditar(id) {
+async function recEditar(id) {
+  // SESIÓN 11 fix crítico: si la descarga de Supabase todavía no terminó,
+  // esperamos a que termine ANTES de abrir el formulario — así nunca se
+  // abre "Editar" con datos viejos/incompletos que luego, al Guardar,
+  // podrían sobrescribir rellenos/coberturas reales con datos vacíos.
+  if (pmDB.disponible() && !_sbRecCache) {
+    await _sbCosteoCargar();
+  }
   const r = _sbGetRec(id) || (G.recetas||[]).find(x=>x.id===id);
   if (!r) return;
   cvMostrar('cv-nueva');
