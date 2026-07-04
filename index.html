@@ -837,6 +837,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
       <button class="btn btn-out btn-sm" onclick="_backfillIngredientIds()">Verificar / reparar ids en recetas</button>
       <button class="btn btn-out btn-sm" onclick="_backfillRecetasFaltantes()" style="margin-left:6px">Verificar / crear recetas faltantes en Supabase</button>
       <button class="btn btn-out btn-sm" onclick="_backfillItemsFaltantes()" style="margin-left:6px">Completar ingredientes en recetas vacías (Supabase)</button>
+      <button class="btn btn-out btn-sm" onclick="_backfillSubrecsAddons()" style="margin-left:6px">Sincronizar rellenos/coberturas locales → Supabase</button>
       <div id="backfill-log" style="margin-top:10px;font-family:'DM Mono',monospace;font-size:11px;white-space:pre-wrap"></div>
     </div>
     <div id="ing-list"></div>
@@ -5908,7 +5909,8 @@ async function _backfillRecetasFaltantes() {
         codigo: rec.code, nombre: rec.name, categoria: rec.cat,
         masa_total_g: rec.totalMass, unidades: rec.units,
         merma_pct: rec.merma || 0, margen_pct: (rec.margen ?? null),
-        notas: rec.notes || '', origen: 'propia', activo: true
+        notas: rec.notes || '', origen: 'propia', activo: true,
+        subrecs: rec.subrecs || [], addons: rec.addons || []
       });
       if (rows?.[0]) {
         rec.sbId = rows[0].id;
@@ -5979,6 +5981,53 @@ async function _backfillItemsFaltantes() {
   if (sinLocal.length) {
     log(`⚠️ ${sinLocal.length} sin datos locales disponibles para copiar (revisar a mano):`);
     sinLocal.forEach(c => log('   · ' + c));
+  }
+  _sbRecCache = null;
+}
+
+/**
+ * SESIÓN 11 — Mantenimiento único: los rellenos/coberturas (subrecs/addons)
+ * nunca viajaban a Supabase — vivían solo en el navegador donde se crearon,
+ * por eso una misma receta podía verse distinta en celular vs. laptop.
+ * Esto empuja lo que ya existe localmente hacia las columnas nuevas en
+ * Supabase (subrecs/addons), emparejando por código exacto.
+ */
+async function _backfillSubrecsAddons() {
+  const logEl = document.getElementById('backfill-log');
+  if (!logEl) return;
+  const log = (msg) => { logEl.textContent += msg + '\n'; };
+  logEl.textContent = '';
+
+  if (!pmDB.disponible()) { log('⚠️ Sin conexión a Supabase — no se puede revisar ahora.'); return; }
+
+  log('⏳ Buscando rellenos/coberturas guardados solo en este navegador...');
+  const candidatos = (G.recetas || []).filter(r =>
+    (r.subrecs && r.subrecs.length) || (r.addons && r.addons.length));
+  log(`Recetas locales con rellenos/coberturas: ${candidatos.length}`);
+  if (!candidatos.length) { log('✅ No hay nada que sincronizar desde este navegador.'); return; }
+
+  const sbRecs = await pmDB.recetas.listar();
+  const byCode = {};
+  (sbRecs || []).forEach(r => { byCode[r.codigo] = r; });
+
+  let actualizadas = 0;
+  const sinFila = [];
+  for (const rec of candidatos) {
+    const sb = byCode[rec.code];
+    if (!sb) { sinFila.push(rec.code); continue; }
+    try {
+      await pmDB.recetas.editar(sb.id, { subrecs: rec.subrecs || [], addons: rec.addons || [] });
+      actualizadas++;
+      log(`✓ ${rec.code} · ${rec.name} — rellenos/coberturas sincronizados`);
+    } catch(e) {
+      log(`✗ ${rec.code} · ${rec.name} — error: ${e.message}`);
+    }
+  }
+
+  log('──────────');
+  log(`✅ Listo. ${actualizadas} de ${candidatos.length} sincronizadas.`);
+  if (sinFila.length) {
+    log(`⚠️ Sin fila en Supabase (revisar a mano): ${sinFila.join(', ')}`);
   }
   _sbRecCache = null;
 }
@@ -6089,7 +6138,8 @@ function recSave() {
       if (cached?.sbId) {
         pmDB.recetas.editar(cached.sbId, {
           nombre: obj.name, categoria: obj.cat, masa_total_g: obj.totalMass,
-          unidades: obj.units, merma_pct: obj.merma, margen_pct: obj.margen, notas: obj.notes
+          unidades: obj.units, merma_pct: obj.merma, margen_pct: obj.margen, notas: obj.notes,
+          subrecs: obj.subrecs || [], addons: obj.addons || []
         }).then(() => _sbSaveRecetaItems(cached.sbId, obj.flour, obj.other))
           .catch(e => console.warn('[pmDB] recSave gmSource update error:', e.message));
       } else {
@@ -6097,7 +6147,8 @@ function recSave() {
           codigo: target.code, nombre: obj.name, categoria: obj.cat,
           masa_total_g: obj.totalMass, unidades: obj.units,
           merma_pct: obj.merma, margen_pct: obj.margen || null,
-          notas: obj.notes, origen: 'propia', activo: true
+          notas: obj.notes, origen: 'propia', activo: true,
+          subrecs: obj.subrecs || [], addons: obj.addons || []
         }).then(rows => {
           if (rows?.[0]) {
             target.sbId = rows[0].id;
@@ -6120,7 +6171,8 @@ function recSave() {
         if (cached?.sbId) {
           pmDB.recetas.editar(cached.sbId, {
             nombre: obj.name, categoria: obj.cat, masa_total_g: obj.totalMass,
-            unidades: obj.units, merma_pct: obj.merma, margen_pct: obj.margen, notas: obj.notes
+            unidades: obj.units, merma_pct: obj.merma, margen_pct: obj.margen, notas: obj.notes,
+            subrecs: obj.subrecs || [], addons: obj.addons || []
           }).then(() => _sbSaveRecetaItems(cached.sbId, obj.flour, obj.other))
             .catch(e => console.warn('[pmDB] recSave edit error:', e.message));
         }
@@ -6140,7 +6192,8 @@ function recSave() {
         codigo: newCode, nombre: obj.name, categoria: obj.cat,
         masa_total_g: obj.totalMass, unidades: obj.units,
         merma_pct: obj.merma, margen_pct: obj.margen || null,
-        notas: obj.notes, origen: 'propia', activo: true
+        notas: obj.notes, origen: 'propia', activo: true,
+        subrecs: obj.subrecs || [], addons: obj.addons || []
       }).then(rows => {
         if (rows?.[0]) {
           newRec.sbId = rows[0].id;
@@ -6425,7 +6478,8 @@ function gmDoTransfer(name, toEditor) {
     if (cached?.sbId) {
       pmDB.recetas.editar(cached.sbId, {
         nombre: rec.name, categoria: rec.cat, masa_total_g: rec.totalMass,
-        unidades: rec.units, merma_pct: rec.merma, notas: rec.notes
+        unidades: rec.units, merma_pct: rec.merma, notas: rec.notes,
+        subrecs: rec.subrecs || [], addons: rec.addons || []
       }).then(() => _sbSaveRecetaItems(cached.sbId, rec.flour, rec.other))
         .catch(e => console.warn('[pmDB] gmDoTransfer update error:', e.message));
     } else {
@@ -6433,7 +6487,8 @@ function gmDoTransfer(name, toEditor) {
         codigo: rec.code, nombre: rec.name, categoria: rec.cat,
         masa_total_g: rec.totalMass, unidades: rec.units,
         merma_pct: rec.merma, margen_pct: null,
-        notas: rec.notes, origen: 'propia', activo: true
+        notas: rec.notes, origen: 'propia', activo: true,
+        subrecs: rec.subrecs || [], addons: rec.addons || []
       }).then(rows => {
         if (rows?.[0]) {
           rec.sbId = rows[0].id;
@@ -8539,8 +8594,11 @@ async function _sbCosteoCargar() {
         notes:     row.notas         || local.notes     || '',
         flour,
         other,
-        subrecs: local.subrecs || [],
-        addons:  local.addons  || [],
+        // SESIÓN 11: rellenos/coberturas ahora también viven en Supabase.
+        // Se prefiere lo que viene de Supabase; si esa receta todavía no
+        // fue migrada (columna vacía), se cae al local como antes.
+        subrecs: (row.subrecs && row.subrecs.length ? row.subrecs : local.subrecs) || [],
+        addons:  (row.addons  && row.addons.length  ? row.addons  : local.addons)  || [],
         gmSource: local.gmSource,
       };
       _sbRecMap[row.id] = merged;
