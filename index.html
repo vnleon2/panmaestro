@@ -807,6 +807,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
         de habilitar renombrar ingredientes.
       </div>
       <button class="btn btn-out btn-sm" onclick="_backfillIngredientIds()">Verificar / reparar ids en recetas</button>
+      <button class="btn btn-out btn-sm" onclick="_backfillRecetasFaltantes()" style="margin-left:6px">Verificar / crear recetas faltantes en Supabase</button>
       <div id="backfill-log" style="margin-top:10px;font-family:'DM Mono',monospace;font-size:11px;white-space:pre-wrap"></div>
     </div>
     <div id="ing-list"></div>
@@ -5830,6 +5831,62 @@ async function _backfillIngredientIds() {
   _sbRecCache = null; // forzar recarga limpia la próxima vez que se abra Costeo
 }
 
+/**
+ * SESIÓN 11 — Mantenimiento único: detectar recetas R-xxxx que existen en el
+ * navegador local pero nunca llegaron a crearse en Supabase (bug de las
+ * transferencias GM, ya corregido hacia adelante) y crearlas ahora.
+ * Compara por código exacto — nunca duplica una receta que ya existe allá.
+ */
+async function _backfillRecetasFaltantes() {
+  const logEl = document.getElementById('backfill-log');
+  if (!logEl) return;
+  const log = (msg) => { logEl.textContent += msg + '\n'; };
+  logEl.textContent = '';
+
+  if (!pmDB.disponible()) { log('⚠️ Sin conexión a Supabase — no se puede revisar ahora.'); return; }
+
+  log('⏳ Comparando recetas locales contra Supabase...');
+  const sbRecs = await pmDB.recetas.listar();
+  const sbCodes = new Set((sbRecs || []).map(r => r.codigo));
+  const locales = (G.recetas || []).filter(r => r.code && r.code.startsWith('R-'));
+  log(`Recetas locales (R-xxxx): ${locales.length}`);
+  log(`Recetas ya en Supabase: ${sbCodes.size}`);
+
+  const faltantes = locales.filter(r => !sbCodes.has(r.code));
+  log(`Faltantes por crear: ${faltantes.length}`);
+  if (!faltantes.length) {
+    log('✅ Todo está sincronizado — nada que hacer.');
+    return;
+  }
+
+  let creadas = 0;
+  for (const rec of faltantes) {
+    try {
+      const rows = await pmDB.recetas.crear({
+        codigo: rec.code, nombre: rec.name, categoria: rec.cat,
+        masa_total_g: rec.totalMass, unidades: rec.units,
+        merma_pct: rec.merma || 0, margen_pct: (rec.margen ?? null),
+        notas: rec.notes || '', origen: rec.gmSource ? 'gluten_morgen' : 'propia', activo: true
+      });
+      if (rows?.[0]) {
+        rec.sbId = rows[0].id;
+        await _sbSaveRecetaItems(rows[0].id, rec.flour, rec.other);
+        creadas++;
+        log(`✓ ${rec.code} · ${rec.name} — creada`);
+      } else {
+        log(`✗ ${rec.code} · ${rec.name} — Supabase no devolvió id`);
+      }
+    } catch(e) {
+      log(`✗ ${rec.code} · ${rec.name} — error: ${e.message}`);
+    }
+  }
+
+  log('──────────');
+  log(`✅ Listo. ${creadas} de ${faltantes.length} recetas creadas en Supabase.`);
+  _sbRecCache = null;
+  pmSave('costeo');
+}
+
 function recSave() {
   const id    = document.getElementById('mr-id').value;
   const code  = document.getElementById('mr-code').value.trim();
@@ -5921,23 +5978,39 @@ function recSave() {
       const ex = G.recetas[exIdx];
       G.recetas[exIdx] = { id: ex.id, code: ex.code, gmSource, ...obj };
       pmToast('Receta "' + obj.name + '" actualizada ✓');
-      // Supabase dual write — actualizar si tiene sbId
-      if (pmDB.disponible()) {
-        const cached = _sbGetRec(ex.id);
-        if (cached?.sbId) {
-          pmDB.recetas.editar(cached.sbId, {
-            nombre: obj.name, categoria: obj.cat, masa_total_g: obj.totalMass,
-            unidades: obj.units, merma_pct: obj.merma, margen_pct: obj.margen, notas: obj.notes
-          }).then(() => _sbSaveRecetaItems(cached.sbId, obj.flour, obj.other))
-            .catch(e => console.warn('[pmDB] recSave gmSource update error:', e.message));
-        }
-        _sbRecCache = null; // invalidar cache para que recargue
-      }
     } else {
       const nextNum = _sbRecLista().filter(r=>r.code&&r.code.startsWith('R-')).length + 1;
       const newCode = 'R-' + String(nextNum).padStart(4,'0');
       G.recetas.push({ id: String(Date.now()), code: newCode, gmSource, ...obj });
       pmToast(newCode + ' · "' + obj.name + '" guardada ✓');
+    }
+    // Supabase dual write — crear si nunca se creó, actualizar si ya existe.
+    // SESIÓN 11 fix: antes esto solo actualizaba (nunca creaba), así que una
+    // receta transferida de GM jamás llegaba a existir en Supabase.
+    if (pmDB.disponible()) {
+      const target = G.recetas.find(x => x.gmSource === gmSource);
+      const cached = _sbGetRec(target.id);
+      if (cached?.sbId) {
+        pmDB.recetas.editar(cached.sbId, {
+          nombre: obj.name, categoria: obj.cat, masa_total_g: obj.totalMass,
+          unidades: obj.units, merma_pct: obj.merma, margen_pct: obj.margen, notas: obj.notes
+        }).then(() => _sbSaveRecetaItems(cached.sbId, obj.flour, obj.other))
+          .catch(e => console.warn('[pmDB] recSave gmSource update error:', e.message));
+      } else {
+        pmDB.recetas.crear({
+          codigo: target.code, nombre: obj.name, categoria: obj.cat,
+          masa_total_g: obj.totalMass, unidades: obj.units,
+          merma_pct: obj.merma, margen_pct: obj.margen || null,
+          notas: obj.notes, origen: 'gluten_morgen', activo: true
+        }).then(rows => {
+          if (rows?.[0]) {
+            target.sbId = rows[0].id;
+            console.log('[pmDB] ✅ Receta GM creada en Supabase:', target.code);
+            _sbSaveRecetaItems(rows[0].id, obj.flour, obj.other);
+          }
+        }).catch(e => console.warn('[pmDB] recSave gmSource create error:', e.message));
+      }
+      _sbRecCache = null; // invalidar cache para que recargue
     }
   } else if (realId) {
     // Editing existing recipe
@@ -6247,6 +6320,33 @@ function gmDoTransfer(name, toEditor) {
     delete rec.gmCode;             // Remove GM code reference
     G.recetas.push(rec);
     pmToast('✓ "' + name + '" → ' + rec.code + ' en sistema');
+  }
+  // Supabase dual write — crear si nunca se creó, actualizar si ya existe.
+  // SESIÓN 11 fix: la transferencia directa (sin pasar por el editor) tampoco
+  // creaba nunca el registro en Supabase — quedaba solo en el navegador local.
+  if (pmDB.disponible()) {
+    const cached = _sbGetRec(rec.id);
+    if (cached?.sbId) {
+      pmDB.recetas.editar(cached.sbId, {
+        nombre: rec.name, categoria: rec.cat, masa_total_g: rec.totalMass,
+        unidades: rec.units, merma_pct: rec.merma, notas: rec.notes
+      }).then(() => _sbSaveRecetaItems(cached.sbId, rec.flour, rec.other))
+        .catch(e => console.warn('[pmDB] gmDoTransfer update error:', e.message));
+    } else {
+      pmDB.recetas.crear({
+        codigo: rec.code, nombre: rec.name, categoria: rec.cat,
+        masa_total_g: rec.totalMass, unidades: rec.units,
+        merma_pct: rec.merma, margen_pct: null,
+        notas: rec.notes, origen: 'gluten_morgen', activo: true
+      }).then(rows => {
+        if (rows?.[0]) {
+          rec.sbId = rows[0].id;
+          console.log('[pmDB] ✅ Receta GM (transferencia directa) creada en Supabase:', rec.code);
+          _sbSaveRecetaItems(rows[0].id, rec.flour, rec.other);
+        }
+      }).catch(e => console.warn('[pmDB] gmDoTransfer create error:', e.message));
+    }
+    _sbRecCache = null;
   }
   pmSave('costeo');
   fillRscSel();
