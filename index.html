@@ -5766,6 +5766,8 @@ async function _sbSaveRecetaItems(sbRecId, flour, other) {
     console.log(`[pmDB] ✅ receta_items guardados: ${(flour||[]).length} harinas, ${(other||[]).length} otros`);
   } catch(e) {
     console.warn('[pmDB] _sbSaveRecetaItems error:', e.message);
+    throw e; // SESIÓN 11 fix: antes se tragaba el error en silencio y quien
+             // llamaba a esta función creía que había guardado bien aunque no.
   }
 }
 
@@ -5815,9 +5817,13 @@ async function _backfillIngredientIds() {
     const otherFix = reparar(r.other);
 
     if (cambios) {
-      await _sbSaveRecetaItems(r.sbId, flourFix, otherFix);
-      recetasActualizadas++;
-      log(`✓ ${r.code} · ${r.name} — id(s) completado(s)`);
+      try {
+        await _sbSaveRecetaItems(r.sbId, flourFix, otherFix);
+        recetasActualizadas++;
+        log(`✓ ${r.code} · ${r.name} — id(s) completado(s)`);
+      } catch(e) {
+        log(`✗ ${r.code} · ${r.name} — error: ${e.message}`);
+      }
     }
   }
 
@@ -6061,7 +6067,7 @@ function recSave() {
           if (rows?.[0]) {
             target.sbId = rows[0].id;
             console.log('[pmDB] ✅ Receta GM creada en Supabase:', target.code);
-            _sbSaveRecetaItems(rows[0].id, obj.flour, obj.other);
+            _sbSaveRecetaItems(rows[0].id, obj.flour, obj.other).catch(e => console.warn('[pmDB] items gmSource error:', e.message));
           }
         }).catch(e => console.warn('[pmDB] recSave gmSource create error:', e.message));
       }
@@ -6104,7 +6110,7 @@ function recSave() {
         if (rows?.[0]) {
           newRec.sbId = rows[0].id;
           console.log('[pmDB] ✅ Receta creada en Supabase:', newCode);
-          _sbSaveRecetaItems(rows[0].id, obj.flour, obj.other);
+          _sbSaveRecetaItems(rows[0].id, obj.flour, obj.other).catch(e => console.warn('[pmDB] items create error:', e.message));
         }
       }).catch(e => console.warn('[pmDB] recSave create error:', e.message));
       _sbRecCache = null; // invalidar cache
@@ -6397,7 +6403,7 @@ function gmDoTransfer(name, toEditor) {
         if (rows?.[0]) {
           rec.sbId = rows[0].id;
           console.log('[pmDB] ✅ Receta GM (transferencia directa) creada en Supabase:', rec.code);
-          _sbSaveRecetaItems(rows[0].id, rec.flour, rec.other);
+          _sbSaveRecetaItems(rows[0].id, rec.flour, rec.other).catch(e => console.warn('[pmDB] items gmDirect error:', e.message));
         }
       }).catch(e => console.warn('[pmDB] gmDoTransfer create error:', e.message));
     }
