@@ -126,6 +126,15 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 .ing-tbl th{font-size:9.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--cream2);font-weight:700}
 .ing-tbl td{color:var(--cream)}
 .ing-tbl tbody tr:hover td{background:rgba(37,99,235,.03)}
+/* SESIÓN 11: en vertical (angosto) el nombre no cabía en la misma fila que
+   código/medidas/costo — se le da su propia línea completa y legible */
+@media (max-width:480px){
+  .rec-head{flex-wrap:wrap;row-gap:4px}
+  .rec-code{order:1}
+  .rec-name{order:2;flex:1 1 100%;white-space:normal;line-height:1.3}
+  .rec-meta{order:3}
+  .rec-head > div:last-child{order:4;margin-left:auto}
+}
 /* MODAL */
 .modal-bg{display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:500;align-items:center;justify-content:center;padding:14px}
 .modal-bg.open{display:flex}
