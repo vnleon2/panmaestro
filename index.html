@@ -5866,7 +5866,7 @@ async function _backfillRecetasFaltantes() {
         codigo: rec.code, nombre: rec.name, categoria: rec.cat,
         masa_total_g: rec.totalMass, unidades: rec.units,
         merma_pct: rec.merma || 0, margen_pct: (rec.margen ?? null),
-        notas: rec.notes || '', origen: rec.gmSource ? 'gluten_morgen' : 'propia', activo: true
+        notas: rec.notes || '', origen: 'propia', activo: true
       });
       if (rows?.[0]) {
         rec.sbId = rows[0].id;
@@ -6001,7 +6001,7 @@ function recSave() {
           codigo: target.code, nombre: obj.name, categoria: obj.cat,
           masa_total_g: obj.totalMass, unidades: obj.units,
           merma_pct: obj.merma, margen_pct: obj.margen || null,
-          notas: obj.notes, origen: 'gluten_morgen', activo: true
+          notas: obj.notes, origen: 'propia', activo: true
         }).then(rows => {
           if (rows?.[0]) {
             target.sbId = rows[0].id;
@@ -6337,7 +6337,7 @@ function gmDoTransfer(name, toEditor) {
         codigo: rec.code, nombre: rec.name, categoria: rec.cat,
         masa_total_g: rec.totalMass, unidades: rec.units,
         merma_pct: rec.merma, margen_pct: null,
-        notas: rec.notes, origen: 'gluten_morgen', activo: true
+        notas: rec.notes, origen: 'propia', activo: true
       }).then(rows => {
         if (rows?.[0]) {
           rec.sbId = rows[0].id;
