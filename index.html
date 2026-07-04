@@ -808,6 +808,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
       </div>
       <button class="btn btn-out btn-sm" onclick="_backfillIngredientIds()">Verificar / reparar ids en recetas</button>
       <button class="btn btn-out btn-sm" onclick="_backfillRecetasFaltantes()" style="margin-left:6px">Verificar / crear recetas faltantes en Supabase</button>
+      <button class="btn btn-out btn-sm" onclick="_backfillItemsFaltantes()" style="margin-left:6px">Completar ingredientes en recetas vacías (Supabase)</button>
       <div id="backfill-log" style="margin-top:10px;font-family:'DM Mono',monospace;font-size:11px;white-space:pre-wrap"></div>
     </div>
     <div id="ing-list"></div>
@@ -5885,6 +5886,60 @@ async function _backfillRecetasFaltantes() {
   log(`✅ Listo. ${creadas} de ${faltantes.length} recetas creadas en Supabase.`);
   _sbRecCache = null;
   pmSave('costeo');
+}
+
+/**
+ * SESIÓN 11 — Mantenimiento único: detectar recetas que YA existen en Supabase
+ * pero sin ningún receta_items (probable resto de una migración antigua que
+ * creó las cabezas sin copiar los ingredientes), y completarlas usando los
+ * ingredientes que sí siguen intactos en la copia local (G.recetas), emparejando
+ * por código exacto. No crea recetas nuevas ni toca las que ya tienen ingredientes.
+ */
+async function _backfillItemsFaltantes() {
+  const logEl = document.getElementById('backfill-log');
+  if (!logEl) return;
+  const log = (msg) => { logEl.textContent += msg + '\n'; };
+  logEl.textContent = '';
+
+  if (!pmDB.disponible()) { log('⚠️ Sin conexión a Supabase — no se puede revisar ahora.'); return; }
+
+  log('⏳ Buscando recetas en Supabase sin ingredientes...');
+  const sbRecs = await pmDB.recetas.listar();
+  const todosItems = await pmDB.get('receta_items', {}).catch(() => []);
+  const conItems = new Set((todosItems || []).map(i => i.receta_id));
+  const vacias = (sbRecs || []).filter(r => !conItems.has(r.id));
+
+  log(`Recetas en Supabase: ${sbRecs.length}`);
+  log(`Sin ingredientes: ${vacias.length}`);
+  if (!vacias.length) { log('✅ Nada que reparar.'); return; }
+
+  const gByCode = {};
+  (G.recetas || []).forEach(r => { if (r.code) gByCode[r.code] = r; });
+
+  let reparadas = 0;
+  const sinLocal = [];
+  for (const rec of vacias) {
+    const local = gByCode[rec.codigo];
+    if (!local || (!(local.flour||[]).length && !(local.other||[]).length)) {
+      sinLocal.push(rec.codigo);
+      continue;
+    }
+    try {
+      await _sbSaveRecetaItems(rec.id, local.flour, local.other);
+      reparadas++;
+      log(`✓ ${rec.codigo} · ${rec.nombre} — ingredientes copiados desde local`);
+    } catch(e) {
+      log(`✗ ${rec.codigo} · ${rec.nombre} — error: ${e.message}`);
+    }
+  }
+
+  log('──────────');
+  log(`✅ Listo. ${reparadas} de ${vacias.length} recetas reparadas.`);
+  if (sinLocal.length) {
+    log(`⚠️ ${sinLocal.length} sin datos locales disponibles para copiar (revisar a mano):`);
+    sinLocal.forEach(c => log('   · ' + c));
+  }
+  _sbRecCache = null;
 }
 
 function recSave() {
