@@ -1193,6 +1193,16 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
             oninput="recetarioEscalar()"
             style="width:90px;padding:6px 10px;background:var(--sf);border:1px solid var(--border);border-radius:8px;color:var(--cream);font-size:14px;font-family:'DM Mono',monospace;text-align:center">
         </div>
+        <div style="display:flex;align-items:center;gap:5px;padding-left:6px;border-left:1px dashed var(--border)">
+          <label style="font-size:11px;color:var(--cream2)">o por unidades:</label>
+          <input type="number" id="rec-unidades-obj" placeholder="uds" min="1" step="1"
+            oninput="recetarioCalcularPorUnidades()"
+            style="width:56px;padding:6px 6px;background:var(--sf);border:1px solid var(--border);border-radius:8px;color:var(--cream);font-size:13px;font-family:'DM Mono',monospace;text-align:center">
+          <span style="font-size:11px;color:var(--cream2)">×</span>
+          <input type="number" id="rec-peso-ud-obj" placeholder="g/ud" min="1" step="10"
+            oninput="recetarioCalcularPorUnidades()"
+            style="width:66px;padding:6px 6px;background:var(--sf);border:1px solid var(--border);border-radius:8px;color:var(--cream);font-size:13px;font-family:'DM Mono',monospace;text-align:center">
+        </div>
         <button class="btn btn-gold btn-sm no-print" onclick="recetarioImprimir()">🖨 Imprimir</button>
       </div>
     </div>
@@ -6690,6 +6700,20 @@ function recetarioSeleccionar(id) {
   document.getElementById('rec-vista').scrollIntoView({behavior:'smooth', block:'start'});
 }
 
+/**
+ * SESIÓN 11 — Calculadora alternativa: unidades a fabricar × peso por unidad.
+ * Solo calcula la masa objetivo y la mete en el campo de siempre — la lógica
+ * de escalado y merma sigue siendo exactamente la misma (recetarioEscalar).
+ */
+function recetarioCalcularPorUnidades() {
+  const uds    = parseFloat(document.getElementById('rec-unidades-obj').value);
+  const pesoUd = parseFloat(document.getElementById('rec-peso-ud-obj').value);
+  if (!uds || !pesoUd) return; // esperar a que ambos campos tengan valor
+  const masaObj = Math.round(uds * pesoUd);
+  document.getElementById('rec-masa-obj').value = masaObj;
+  recetarioEscalar();
+}
+
 function recetarioEscalar() {
   const id = _recetarioActual;
   if (!id) return;
@@ -6738,7 +6762,15 @@ function recetarioEscalar() {
   const costSubs   = subLines.reduce((s,l)=>s+l.cost,0);
   const costMasa   = (costIng + costSubs) * (1 + merma/100);
   const costAddons = addonLines.reduce((s,l)=>s+l.cost,0);
-  const costTotal  = costMasa + costAddons;
+  const costTotal  = costMasa + costAddons; // costo de materiales (como antes)
+
+  // SESIÓN 11: costo total incluyendo mano de obra y gastos generales,
+  // usando los mismos porcentajes ya guardados en la receta (modPct/ggPct)
+  const modPct2   = r.modPct !== undefined ? r.modPct : 80;
+  const ggPct2    = r.ggPct  !== undefined ? r.ggPct  : 45;
+  const costMOD2  = costTotal * modPct2 / 100;
+  const costGG2   = costTotal * ggPct2  / 100;
+  const costFinal = costTotal + costMOD2 + costGG2;
 
   const gMasa    = ingLines.reduce((s,l)=>s+l.g,0) + subLines.reduce((s,l)=>s+l.g,0);
   const gAddons  = addonLines.reduce((s,l)=>s+l.g,0);
@@ -6848,6 +6880,20 @@ function recetarioEscalar() {
     <td style="padding:10px;font-size:15px;color:var(--gold)" colspan="2">COSTO TOTAL (${Number.isInteger(units)?units:units.toFixed(1)} ud)</td>
     <td style="padding:10px;text-align:right;font-family:'DM Mono',monospace;font-size:13px;color:var(--cream)">×${factor.toFixed(2)} base</td>
     <td style="padding:10px;text-align:right;font-family:'DM Mono',monospace;font-size:18px;color:var(--gold2)">${costTotal>0?pmMoney(Math.round(costTotal)):'Sin costo'}</td>
+  </tr>
+  <tr><td colspan="4" style="padding:3px"></td></tr>
+  <tr style="background:rgba(74,128,192,.05)">
+    <td style="padding:6px 10px;color:var(--cream2);font-size:12px" colspan="2">👷 Mano de obra (${modPct2}% de materiales)</td>
+    <td style="padding:6px 10px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--blue)" colspan="2">${costMOD2>0?pmMoney(Math.round(costMOD2)):'—'}</td>
+  </tr>
+  <tr style="background:rgba(74,128,192,.05)">
+    <td style="padding:6px 10px;color:var(--cream2);font-size:12px" colspan="2">🏭 Gastos generales (${ggPct2}% de materiales)</td>
+    <td style="padding:6px 10px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--blue)" colspan="2">${costGG2>0?pmMoney(Math.round(costGG2)):'—'}</td>
+  </tr>
+  <tr style="font-weight:900;background:rgba(74,144,96,.16);border-top:2px solid var(--green)">
+    <td style="padding:10px;font-size:14px;color:var(--green)" colspan="2">💰 COSTO TOTAL con MOD + gastos</td>
+    <td style="padding:10px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--cream2)">${costFinal>0?pmMoney(Math.round(costFinal/units))+'/ud':'—'}</td>
+    <td style="padding:10px;text-align:right;font-family:'DM Mono',monospace;font-size:18px;color:var(--green)">${costFinal>0?pmMoney(Math.round(costFinal)):'Sin costo'}</td>
   </tr>`;
 
   const notesHtml = r.notes ? `
