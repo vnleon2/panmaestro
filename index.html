@@ -1699,7 +1699,18 @@ function pmTotalCom(ped) {
   }, 0);
 }
 
-function pmCostoReceta(r, targetMass) {
+function pmCostoReceta(r, targetMass, _visited) {
+  // SESIÓN 11 fix crítico de estabilidad: si una receta se referencia a sí
+  // misma (directa o indirectamente) como sub-receta/relleno, esto entraba
+  // en recursión infinita y colgaba el navegador — la lista de Costeo se
+  // veía "desaparecer" hasta forzar recarga. Ahora se corta el ciclo.
+  _visited = _visited || new Set();
+  if (r.code && _visited.has(r.code)) {
+    console.warn('[pmCostoReceta] Ciclo detectado en receta', r.code, '— se corta la recursión');
+    return { lines: [], total: 0, totalMerma: 0, perUnit: 0, mass: targetMass || r.totalMass || 1000, flourW: 0, units: r.units || 1 };
+  }
+  if (r.code) _visited = new Set([..._visited, r.code]);
+
   // Baker's percentage logic — guarded against division by zero and NaN
   const baseFlourPct = (r.flour||[]).reduce((a,i) => a + (parseFloat(i.pct)||0), 0);
   const otherPct     = (r.other||[]).reduce((a,i) => a + (parseFloat(i.pct)||0), 0);
@@ -1762,7 +1773,7 @@ function pmCostoReceta(r, targetMass) {
       subMass = flourW * sub.pct / 100; // baker's % relative to flour
     }
     if (subMass <= 0) continue;
-    const subCost  = pmCostoReceta(ref, subMass);
+    const subCost  = pmCostoReceta(ref, subMass, _visited);
     const subLabel = sub.label || ref.name;
     total += subCost.totalMerma;
     lines.push({ name: '🔗 ' + subLabel, pct: sub.pct||0, g: subMass, cost: subCost.totalMerma, flour: false, isSub: true });
@@ -1777,7 +1788,7 @@ function pmCostoReceta(r, targetMass) {
     if (!ref || !addon.gPorUnidad) continue;
     const units_r  = r.units || 1;
     const totalG   = addon.gPorUnidad * units_r;
-    const ca       = pmCostoReceta(ref, totalG);
+    const ca       = pmCostoReceta(ref, totalG, _visited);
     const label    = addon.label || (addon.tipo === 'cobertura' ? '🍫 ' : '🍯 ') + ref.name;
     total += ca.totalMerma;
     addonMassTotal += totalG;
