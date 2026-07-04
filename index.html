@@ -5743,14 +5743,19 @@ async function _sbSaveRecetaItems(sbRecId, flour, other) {
       await pmDB.hardDelete('receta_items', item.id);
     }
     // Insertar nuevos items
+    // SESIÓN 11 fix real: 'tipo' en esta tabla NO distingue harina/otro — solo
+    // acepta 'ingrediente' | 'subreceta' | 'addon' (confirmado con el constraint
+    // real en Supabase). La harina se marca con la columna 'es_harina' (boolean).
     for (const ing of (flour || [])) {
       const nom = ing.productName || ing.manualName || '';
       const ingId = ing.ingredientId || _sbIngMapNom?.[nom] || _sbIngMap?.[nom] || null;
       await pmDB.insert('receta_items', {
         receta_id:      sbRecId,
         ingrediente_id: ingId,
+        nombre_manual:  ingId ? null : (nom || null),
         porcentaje:     ing.pct || 0,
-        tipo:           'flour'
+        tipo:           'ingrediente',
+        es_harina:      true
       }, false);
     }
     for (const ing of (other || [])) {
@@ -5759,8 +5764,10 @@ async function _sbSaveRecetaItems(sbRecId, flour, other) {
       await pmDB.insert('receta_items', {
         receta_id:      sbRecId,
         ingrediente_id: ingId,
+        nombre_manual:  ingId ? null : (nom || null),
         porcentaje:     ing.pct || 0,
-        tipo:           'other'
+        tipo:           'ingrediente',
+        es_harina:      false
       }, false);
     }
     console.log(`[pmDB] ✅ receta_items guardados: ${(flour||[]).length} harinas, ${(other||[]).length} otros`);
@@ -8476,7 +8483,10 @@ async function _sbCosteoCargar() {
           const entry  = { pct: item.porcentaje || 0, productName: nomIng, ingredientId: item.ingrediente_id || null };
           // SESIÓN 11 fix: clasificar por 'tipo' (que es lo que _sbSaveRecetaItems realmente escribe),
           // no por 'es_harina' que nunca se guarda — antes esto mandaba todo a "other" silenciosamente.
-          if (item.tipo === 'flour' || item.es_harina) flour.push(entry);
+          // SESIÓN 11 fix real: la clasificación harina/otro vive en 'es_harina',
+          // confirmado con el esquema real de Supabase. 'tipo' es otra cosa
+          // (ingrediente/subreceta/addon) y nunca debió usarse para esto.
+          if (item.es_harina) flour.push(entry);
           else other.push(entry);
         });
         // Ordenar por campo orden si existe
