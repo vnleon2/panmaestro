@@ -6066,6 +6066,24 @@ async function _backfillSubrecsAddons() {
   _sbRecCache = null;
 }
 
+/**
+ * SESIÓN 11 fix: antes se contaba cuántas recetas R- había en el navegador
+ * LOCAL y se sumaba 1 — si el local estaba desincronizado de Supabase
+ * (con menos recetas de las que realmente existen), el "siguiente" número
+ * ya estaba usado y chocaba con una receta real (pasó con R-0020).
+ * Ahora se toma el número más alto que exista (local + Supabase) y se
+ * suma 1 — nunca puede repetir uno ya usado.
+ */
+function _pmNextRecCode() {
+  const nums = _sbRecLista()
+    .map(r => r.code || '')
+    .filter(c => /^R-\d+$/.test(c))
+    .map(c => parseInt(c.slice(2), 10))
+    .filter(n => !isNaN(n));
+  const max = nums.length ? Math.max(...nums) : 0;
+  return 'R-' + String(max + 1).padStart(4, '0');
+}
+
 function recSave() {
   const id    = document.getElementById('mr-id').value;
   const code  = document.getElementById('mr-code').value.trim();
@@ -6158,8 +6176,7 @@ function recSave() {
       G.recetas[exIdx] = { id: ex.id, code: ex.code, gmSource, ...obj };
       pmToast('Receta "' + obj.name + '" actualizada ✓');
     } else {
-      const nextNum = _sbRecLista().filter(r=>r.code&&r.code.startsWith('R-')).length + 1;
-      const newCode = 'R-' + String(nextNum).padStart(4,'0');
+      const newCode = _pmNextRecCode();
       G.recetas.push({ id: String(Date.now()), code: newCode, gmSource, ...obj });
       pmToast(newCode + ' · "' + obj.name + '" guardada ✓');
     }
@@ -6215,8 +6232,7 @@ function recSave() {
     }
   } else {
     // New recipe
-    const nextNum = _sbRecLista().filter(r=>r.code&&r.code.startsWith('R-')).length + 1;
-    const newCode = code || ('R-' + String(nextNum).padStart(4,'0'));
+    const newCode = code || _pmNextRecCode();
     const newRec = { id: String(Date.now()), code: newCode, ...obj };
     G.recetas.push(newRec);
     pmToast(newCode + ' · "' + obj.name + '" creada ✓');
@@ -6464,8 +6480,7 @@ function gmDoTransfer(name, toEditor) {
     document.getElementById('mr-id').value = rec.id;
     // Check if already transferred — use existing code
     const existingGm = (G.recetas||[]).find(x => x.gmSource === name);
-    const nextNum = (G.recetas||[]).filter(r=>r.code&&r.code.startsWith('R-')).length + 1;
-    document.getElementById('mr-code').value = existingGm ? existingGm.code : ('R-' + String(nextNum).padStart(4,'0'));
+    document.getElementById('mr-code').value = existingGm ? existingGm.code : _pmNextRecCode();
     document.getElementById('mr-name').value = rec.name;
     document.getElementById('mr-masa').value = rec.totalMass||1000;
     document.getElementById('mr-units').value = rec.units||1;
@@ -6498,8 +6513,7 @@ function gmDoTransfer(name, toEditor) {
     pmToast('↺ "' + name + '" actualizada en sistema');
   } else {
     // First transfer — assign our own sequential code
-    const nextNum = (G.recetas||[]).filter(r=>r.code&&r.code.startsWith('R-')).length + 1;
-    rec.code = 'R-' + String(nextNum).padStart(4,'0');
+    rec.code = _pmNextRecCode();
     delete rec.gmCode;             // Remove GM code reference
     G.recetas.push(rec);
     pmToast('✓ "' + name + '" → ' + rec.code + ' en sistema');
