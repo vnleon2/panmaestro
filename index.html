@@ -6223,13 +6223,22 @@ function recSave() {
     }
   } else if (realId) {
     // Editing existing recipe
-    const rIdx = G.recetas.findIndex(x => x.id === realId);
-    if (rIdx >= 0) {
+    // SESIÓN 11 fix crítico: antes esto solo buscaba en la copia LOCAL — si
+    // la receta existía en Supabase pero nunca se había agregado a este
+    // navegador (posible ahora que Costeo/Recetario leen de Supabase),
+    // Guardar no hacía NADA, en silencio, sin avisar (pasó con Pan Dulce).
+    const cached = _sbGetRec(realId);
+    let rIdx = G.recetas.findIndex(x => x.id === realId);
+    if (rIdx < 0 && cached) {
+      G.recetas.push({ id: realId, code: cached.code, ...obj });
+      rIdx = G.recetas.length - 1;
+    } else if (rIdx >= 0) {
       G.recetas[rIdx] = { ...G.recetas[rIdx], ...obj };
+    }
+    if (rIdx >= 0) {
       pmToast('Receta actualizada ✓');
       // Supabase dual write — actualizar datos maestros
       if (pmDB.disponible()) {
-        const cached = _sbGetRec(realId);
         if (cached?.sbId) {
           pmDB.recetas.editar(cached.sbId, {
             nombre: obj.name, categoria: obj.cat, masa_total_g: obj.totalMass,
@@ -6237,9 +6246,13 @@ function recSave() {
             subrecs: obj.subrecs || [], addons: obj.addons || []
           }).then(() => _sbSaveRecetaItems(cached.sbId, obj.flour, obj.other))
             .catch(e => console.warn('[pmDB] recSave edit error:', e.message));
+        } else {
+          pmToast('⚠️ Guardado local, pero no se pudo confirmar en Supabase', 'err');
         }
         _sbRecCache = null; // invalidar cache
       }
+    } else {
+      pmToast('❌ No se encontró la receta — no se guardó nada. Avisar a soporte.', 'err');
     }
   } else {
     // New recipe
