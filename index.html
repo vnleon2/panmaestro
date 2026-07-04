@@ -1858,7 +1858,7 @@ function showTab(id) {
     'pg-costeo':  () => { _sbCosteoCargar().then(() => { cvMostrar('cv-maestro'); cvMaestroRender(); recRender(); }); const el = document.getElementById('mro-margen-default'); if(el) el.value = G.margenDefault||40; },
     'pg-hid':     () => { hidCalc(); },
     'app-inner':  () => { currentTab = currentTab||'pan'; if(currentTab==='sync') pmSyncUIRefresh(); panRecetaPopulate(); panCargarSb(); ingCargarSb(); },
-    'pg-rec':     () => { recetarioRender(); },
+    'pg-rec':     () => { _sbCosteoCargar().then(() => recetarioRender()); },
     'pg-gmrec':   () => { gmRecetarioRender(); },
   };
   if (inits[id]) inits[id]();
@@ -6683,8 +6683,8 @@ function recetarioRender() {
 function recetarioFiltrar() {
   const q   = (document.getElementById('rec-sel-search').value||'').toLowerCase().trim();
   const cat = document.getElementById('rec-sel-cat').value||'';
-  // Only R-type recipes (not raw GM)
-  let list = (G.recetas||[]).filter(r => r.code && r.code.startsWith('R-'));
+  // Only R-type recipes (not raw GM) — SESIÓN 11: ahora leído de Supabase
+  let list = _sbRecLista().filter(r => r.code && r.code.startsWith('R-'));
   if (q)   list = list.filter(r =>
     (r.name||'').toLowerCase().includes(q) || (r.code||'').toLowerCase().includes(q)
   );
@@ -6716,7 +6716,7 @@ function recetarioFiltrar() {
 function recetarioSeleccionar(id) {
   _recetarioActual = id;
   recetarioFiltrar();
-  const r = (G.recetas||[]).find(x => x.id === id);
+  const r = _sbGetRec(id) || (G.recetas||[]).find(x => x.id === id);
   if (!r) return;
   // Set masa objetivo to recipe's base mass
   document.getElementById('rec-masa-obj').value = r.totalMass || 1000;
@@ -6740,10 +6740,16 @@ function recetarioCalcularPorUnidades() {
   recetarioEscalar();
 }
 
-function recetarioEscalar() {
+async function recetarioEscalar() {
   const id = _recetarioActual;
   if (!id) return;
-  const r = (G.recetas||[]).find(x => x.id === id);
+  // SESIÓN 11: mismo guard de seguridad que recEditar — si Supabase todavía
+  // no terminó de cargar, esperamos antes de leer, para no calcular con
+  // datos locales viejos/incompletos.
+  if (pmDB.disponible() && !_sbRecCache) {
+    await _sbCosteoCargar();
+  }
+  const r = _sbGetRec(id) || (G.recetas||[]).find(x => x.id === id);
   if (!r) return;
 
   const masaObj    = parseFloat(document.getElementById('rec-masa-obj').value) || 1000;
@@ -6775,7 +6781,7 @@ function recetarioEscalar() {
 
   // Addons: scale by factor (gPorUnidad × units)
   const addonLines = (r.addons||[]).map(addon => {
-    const ref = (G.recetas||[]).find(x => x.code === addon.recId);
+    const ref = _sbRecLista().find(x => x.code === addon.recId);
     if (!ref || !addon.gPorUnidad) return null;
     const totalG  = addon.gPorUnidad * units;  // factor already in units
     const ca      = pmCostoReceta(ref, totalG);
@@ -6959,7 +6965,7 @@ function recetarioEscalar() {
 function recetarioImprimir() {
   const area = document.getElementById('rec-print-area');
   if (!area) return;
-  const r = (G.recetas||[]).find(x => x.id === _recetarioActual);
+  const r = _sbGetRec(_recetarioActual) || (G.recetas||[]).find(x => x.id === _recetarioActual);
   const masa = document.getElementById('rec-masa-obj').value;
   const w = window.open('','_blank','width=900,height=700');
   w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
