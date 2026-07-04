@@ -6559,7 +6559,8 @@ function cvMaestroRender() {
   const q   = (document.getElementById('mro-search')||{}).value?.toLowerCase()||'';
   const cat = (document.getElementById('mro-cat')||{}).value||'';
   const origen = (document.getElementById('mro-origen')||{}).value||'';
-  let list  = (G.recetas||[]).slice();
+  // SESIÓN 11: ahora lee de Supabase (merged), no solo del navegador local
+  let list  = _sbRecLista().slice();
   if (origen === 'R') list = list.filter(r =>  r.code && r.code.startsWith('R-'));
   if (origen === 'G') list = list.filter(r => !r.code || !r.code.startsWith('R-'));
   list = list.sort((a,b) => (a.name||'').localeCompare(b.name||'', 'es'));
@@ -7316,7 +7317,7 @@ function panRender() {
     // Calcular costo desde receta vinculada
     let cpgRec = null, costoTipoPan = null, margenReal = null;
     if (p.recetaCod && p.peso) {
-      const rec = (G.recetas||[]).find(r => r.code === p.recetaCod);
+      const rec = _sbRecLista().find(r => r.code === p.recetaCod);
       if (rec) {
         const c = pmCostoReceta(rec);
         if (c.totalMerma && rec.totalMass) {
@@ -7360,7 +7361,7 @@ function panRender() {
 function panRecetaPopulate() {
   const sel = document.getElementById('pan-rec');
   if (!sel) return;
-  const recetas = (G.recetas||[]).filter(r => !String(r.id).startsWith('gm-'));
+  const recetas = _sbRecLista().filter(r => r.code && r.code.startsWith('R-'));
   const current = sel.value;
   sel.innerHTML = '<option value="">— Sin receta —</option>' +
     recetas.map(r => `<option value="${r.code}"${r.code===current?' selected':''}>${r.code} · ${r.name}</option>`).join('');
@@ -7372,7 +7373,7 @@ function panEdit(id) {
   document.querySelectorAll('.pan-edit-form').forEach(el => el.remove());
   const row = document.getElementById('pan-row-' + id);
   if (!row) { panRender(); return; }
-  const recetas = (G.recetas||[]).filter(r => !String(r.id).startsWith('gm-'));
+  const recetas = _sbRecLista().filter(r => r.code && r.code.startsWith('R-'));
   const recOpts = '<option value="">— Sin receta —</option>' +
     recetas.map(r => `<option value="${r.code}"${r.code===(p.recetaCod||'')?' selected':''}>${r.code} · ${r.name}</option>`).join('');
   const form = document.createElement('div');
@@ -7772,7 +7773,8 @@ function ingEditSave(nom) {
 
 function ingDel(nom) {
   const uuid = _sbIngMap?.[nom] || null;
-  const usedIn = (G.recetas||[]).filter(r => {
+  // SESIÓN 11: revisar contra la lista completa (Supabase + local), no solo local
+  const usedIn = _sbRecLista().filter(r => {
     return [...(r.flour||[]), ...(r.other||[])].some(i =>
       (uuid && i.ingredientId === uuid) || i.productName === nom || i.manualName === nom);
   }).map(r => r.code + ' ' + r.name);
