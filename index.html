@@ -1749,10 +1749,11 @@ function pmCostoReceta(r, targetMass) {
 
   // Sub-recipes (baker's % relative to flourW, or fixed grams)
   for (const sub of (r.subrecs||[])) {
-    // SESIÓN 11 fix: resolver primero por código (estable entre dispositivos);
-    // el id local solo servía en el mismo navegador donde se creó el vínculo.
-    const ref = (_sbRecLista()||[]).find(x => x.code === sub.recId) ||
-                _sbGetRec(sub.recId) || (G.recetas||[]).find(x => x.id === sub.recId);
+    // SESIÓN 11 fix: resolver SOLO por código (estable entre dispositivos).
+    // Se quitó el respaldo al id local viejo — podía "coincidir" con el id
+    // de OTRA receta distinta (colisión) y calcular costo mal, en silencio.
+    // Mejor no resolver nada que resolver a la receta equivocada.
+    const ref = (_sbRecLista()||[]).find(x => x.code === sub.recId);
     if (!ref) continue;
     let subMass = 0;
     if (sub.gFijos > 0) {
@@ -1771,9 +1772,8 @@ function pmCostoReceta(r, targetMass) {
   // Their grams DO sum to the total product weight (a golfeado IS masa + relleno)
   let addonMassTotal = 0;
   for (const addon of (r.addons||[])) {
-    // SESIÓN 11 fix: mismo criterio que sub-recetas — código primero
-    const ref = (_sbRecLista()||[]).find(x => x.code === addon.recId) ||
-                _sbGetRec(addon.recId) || (G.recetas||[]).find(x => x.id === addon.recId);
+    // SESIÓN 11 fix: resolver SOLO por código — mismo motivo que sub-recetas
+    const ref = (_sbRecLista()||[]).find(x => x.code === addon.recId);
     if (!ref || !addon.gPorUnidad) continue;
     const units_r  = r.units || 1;
     const totalG   = addon.gPorUnidad * units_r;
@@ -5746,8 +5746,7 @@ function mrAddonCostPreview(uid) {
   const recId = selEl.value;
   const gPorU = parseFloat(gEl?.value) || 0;
   if (!recId || !gPorU) { costEl.textContent = ''; return; }
-  const ref = (_sbRecLista()||[]).find(x => x.code === recId) ||
-              _sbGetRec(recId) || (G.recetas||[]).find(x => x.id === recId);
+  const ref = (_sbRecLista()||[]).find(x => x.code === recId);
   if (!ref) return;
   const units = parseInt(document.getElementById('mr-units')?.value) || 1;
   const totalG = gPorU * units;
@@ -5766,8 +5765,7 @@ function mrSubCostPreview(uid) {
   const recId = selEl.value;
   if (!recId) { costEl.textContent = ''; return; }
 
-  const ref = (_sbRecLista()||[]).find(x => x.code === recId) ||
-              _sbGetRec(recId) || (G.recetas||[]).find(x => x.id === recId);
+  const ref = (_sbRecLista()||[]).find(x => x.code === recId);
   if (!ref) { costEl.textContent = ''; return; }
 
   // Get current base mass from the editor
@@ -6763,8 +6761,7 @@ function recetarioEscalar() {
 
   // Addons: scale by factor (gPorUnidad × units)
   const addonLines = (r.addons||[]).map(addon => {
-    const ref = (G.recetas||[]).find(x => x.code === addon.recId) ||
-                (G.recetas||[]).find(x => x.id === addon.recId);
+    const ref = (G.recetas||[]).find(x => x.code === addon.recId);
     if (!ref || !addon.gPorUnidad) return null;
     const totalG  = addon.gPorUnidad * units;  // factor already in units
     const ca      = pmCostoReceta(ref, totalG);
