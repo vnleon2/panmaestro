@@ -1699,7 +1699,14 @@ function pmTotalCom(ped) {
   }, 0);
 }
 
-function pmCostoReceta(r, targetMass, _visited) {
+function pmCostoReceta(r, targetMass, _visited, _cache) {
+  // SESIÓN 11 — optimización: cachear por código+masa dentro de un mismo
+  // repintado (cvMaestroRender/recRender llaman esto para cada receta, y
+  // cada una puede recalcular las mismas sub-recetas una y otra vez).
+  _cache = _cache || new Map();
+  const _cacheKey = r.code ? (r.code + '|' + (targetMass || '')) : null;
+  if (_cacheKey && _cache.has(_cacheKey)) return _cache.get(_cacheKey);
+
   // SESIÓN 11 fix crítico de estabilidad: si una receta se referencia a sí
   // misma (directa o indirectamente) como sub-receta/relleno, esto entraba
   // en recursión infinita y colgaba el navegador — la lista de Costeo se
@@ -1773,7 +1780,7 @@ function pmCostoReceta(r, targetMass, _visited) {
       subMass = flourW * sub.pct / 100; // baker's % relative to flour
     }
     if (subMass <= 0) continue;
-    const subCost  = pmCostoReceta(ref, subMass, _visited);
+    const subCost  = pmCostoReceta(ref, subMass, _visited, _cache);
     const subLabel = sub.label || ref.name;
     total += subCost.totalMerma;
     lines.push({ name: '🔗 ' + subLabel, pct: sub.pct||0, g: subMass, cost: subCost.totalMerma, flour: false, isSub: true });
@@ -1788,7 +1795,7 @@ function pmCostoReceta(r, targetMass, _visited) {
     if (!ref || !addon.gPorUnidad) continue;
     const units_r  = r.units || 1;
     const totalG   = addon.gPorUnidad * units_r;
-    const ca       = pmCostoReceta(ref, totalG, _visited);
+    const ca       = pmCostoReceta(ref, totalG, _visited, _cache);
     const label    = addon.label || (addon.tipo === 'cobertura' ? '🍫 ' : '🍯 ') + ref.name;
     total += ca.totalMerma;
     addonMassTotal += totalG;
@@ -1808,7 +1815,7 @@ function pmCostoReceta(r, targetMass, _visited) {
 
   // Safety: replace any NaN/Infinity with 0
   const safe = v => (isFinite(v) && !isNaN(v)) ? v : 0;
-  return {
+  const _result = {
     lines,
     total:       safe(total),
     totalMerma:  safe(totalMerma),
@@ -1817,6 +1824,8 @@ function pmCostoReceta(r, targetMass, _visited) {
     flourW:      safe(flourW),
     units
   };
+  if (_cacheKey) _cache.set(_cacheKey, _result);
+  return _result;
 }
 
 function pmToast(msg, type='ok') {
@@ -5260,13 +5269,16 @@ function recRender() {
     return;
   }
 
-  el.innerHTML = list.map(r => recCard(r)).join('');
+  // SESIÓN 11: caché compartido para toda la lista (evita recalcular
+  // la misma sub-receta/relleno una y otra vez por cada tarjeta)
+  const _sharedCache = new Map();
+  el.innerHTML = list.map(r => recCard(r, _sharedCache)).join('');
 }
 
 const CAT_ICON = {pan:'🍞',pan_mm:'🌾',galleta:'🍪',masa:'🫧',otro:'📦'};
 
-function recCard(r) {
-  const c = pmCostoReceta(r);
+function recCard(r, _sharedCache) {
+  const c = pmCostoReceta(r, undefined, undefined, _sharedCache);
   const icon = CAT_ICON[r.cat||'otro']||'📦';
   const mass = r.totalMass || 1000;
 
@@ -6598,10 +6610,14 @@ function cvMaestroRender() {
     return;
   }
 
+  // SESIÓN 11: un solo caché compartido para toda la lista — evita recalcular
+  // el costo de la misma sub-receta/relleno una y otra vez por cada fila
+  const _sharedCache = new Map();
+
   const CAT_ICON = {pan:'🍞', pan_mm:'🌾', galleta:'🍪', masa:'🫧', otro:'📦'};
 
   const rows = list.map(r => {
-    const c = pmCostoReceta(r);
+    const c = pmCostoReceta(r, undefined, undefined, _sharedCache);
     const hasCost = c.totalMerma > 0;
     const icon = CAT_ICON[r.cat||'otro']||'📦';
     const ingCount = (r.flour||[]).length + (r.other||[]).length;
@@ -6624,7 +6640,7 @@ function cvMaestroRender() {
         ${hasCost ? 'Costo: '+pmMoney(Math.round(c.perUnit)) : '—'}
       </td>
       <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace;font-size:13px;color:var(--green);font-weight:600">
-        ${(() => { const ps = pmPrecioSugerido(r); return ps ? pmMoney(Math.round(ps)) : '—'; })()}
+        ${(() => { const ps = pmPrecioSugerido(r, _sharedCache); return ps ? pmMoney(Math.round(ps)) : '—'; })()}
       </td>
       <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace;font-size:11px;color:var(--cream2)">
         ${hasCost && r.totalMass ? (() => { const modP = r.modPct!==undefined?r.modPct:80; const ggP = r.ggPct!==undefined?r.ggPct:45; const ct = c.totalMerma*(1+(modP+ggP)/100); const pu = r.totalMass/(r.units||1); return (ct/pu).toFixed(2); })() : '—'}
@@ -6632,7 +6648,7 @@ function cvMaestroRender() {
     </tr>`;
   }).join('');
 
-  const totalConCosto = list.filter(r => pmCostoReceta(r).totalMerma > 0).length;
+  const totalConCosto = list.filter(r => pmCostoReceta(r, undefined, undefined, _sharedCache).totalMerma > 0).length;
 
   el.innerHTML = `
     <div style="font-size:11px;color:var(--cream2);margin-bottom:8px;display:flex;justify-content:space-between">
@@ -6687,9 +6703,9 @@ function cvMaestroPrint() {
 
 
 // ── PRECIO SUGERIDO ──────────────────────────────────────────
-function pmPrecioSugerido(r) {
+function pmPrecioSugerido(r, _cache) {
   // Precio sugerido por unidad: costo/ud (con MOD y GG) + margen
-  const c = pmCostoReceta(r);
+  const c = pmCostoReceta(r, undefined, undefined, _cache);
   if (!c.perUnit) return null;
   const margen = (r.margen !== undefined ? r.margen : (G.margenDefault || 40)) / 100;
   if (margen >= 1) return null;
@@ -6717,13 +6733,14 @@ function recetarioFiltrar() {
   list.sort((a,b) => (a.code||'').localeCompare(b.code||''));
 
   const el = document.getElementById('rec-sel-list');
+  const _recetarioSharedCache = new Map();
   if (!list.length) {
     el.innerHTML = '<div style="font-size:12px;color:var(--cream2);padding:8px">Sin recetas' + (q?` para "${q}"`:'') + '</div>';
     return;
   }
 
   el.innerHTML = list.map(r => {
-    const c = pmCostoReceta(r);
+    const c = pmCostoReceta(r, undefined, undefined, _recetarioSharedCache);
     const CAT = {pan:'🍞',pan_mm:'🌾',galleta:'🍪',masa:'🫧',otro:'📦'};
     const icon = CAT[r.cat||'otro']||'📦';
     const active = _recetarioActual === r.id;
