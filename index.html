@@ -5252,6 +5252,10 @@ function recCard(r) {
   const costIng    = ingLines.reduce((s,l)=>s+l.cost,0);
   const costSubs   = subLines.reduce((s,l)=>s+l.cost,0);
   const costAddons = addonLines.reduce((s,l)=>s+l.cost,0);
+  // SESIÓN 11: mismos subtotales pero en peso (g), para mostrar junto al costo
+  const pesoIng    = ingLines.reduce((s,l)=>s+(l.g||0),0);
+  const pesoSubs   = subLines.reduce((s,l)=>s+(l.g||0),0);
+  const pesoAddons = addonLines.reduce((s,l)=>s+(l.g||0),0);
   const merma      = r.merma || 0;
   const costMatTotal = (costIng + costSubs + costAddons) * (1 + merma/100);
   const modPct = r.modPct !== undefined ? r.modPct : 80;
@@ -5278,7 +5282,8 @@ function recCard(r) {
     <div style="font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--cream2);padding:6px 8px 2px;background:rgba(200,146,42,.05)">Ingredientes</div>
     ${ingLines.map(tblRow).join('')}
     <tr style="background:rgba(200,146,42,.06);font-weight:600">
-      <td style="padding:5px 8px" colspan="3">Subtotal ingredientes</td>
+      <td style="padding:5px 8px" colspan="2">Subtotal ingredientes</td>
+      <td style="padding:5px 8px;text-align:right;font-family:'DM Mono',monospace;font-size:11px">${pesoIng.toFixed(0)}g</td>
       <td style="padding:5px 8px;text-align:right;font-family:'DM Mono',monospace;color:var(--gold2)">${pmMoney(Math.round(costIng))}</td>
     </tr>` : '';
 
@@ -5286,7 +5291,8 @@ function recCard(r) {
     <div style="font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--blue);padding:6px 8px 2px;background:rgba(74,128,192,.05)">Sub-recetas / Rellenos / Coberturas</div>
     ${subLines.map(tblRow).join('')}
     <tr style="background:rgba(74,128,192,.06);font-weight:600">
-      <td style="padding:5px 8px" colspan="3">Subtotal sub-recetas</td>
+      <td style="padding:5px 8px" colspan="2">Subtotal sub-recetas</td>
+      <td style="padding:5px 8px;text-align:right;font-family:'DM Mono',monospace;font-size:11px">${pesoSubs.toFixed(0)}g</td>
       <td style="padding:5px 8px;text-align:right;font-family:'DM Mono',monospace;color:var(--blue)">${pmMoney(Math.round(costSubs))}</td>
     </tr>` : '';
 
@@ -5299,7 +5305,8 @@ function recCard(r) {
       <td style="padding:5px 8px;text-align:right;font-family:'DM Mono',monospace;color:var(--gold2)">${pmMoney(Math.round(l.cost))}</td>
     </tr>`).join('')}
     <tr style="background:rgba(192,64,64,.06);font-weight:600">
-      <td style="padding:5px 8px" colspan="3">Subtotal rellenos/coberturas</td>
+      <td style="padding:5px 8px" colspan="2">Subtotal rellenos/coberturas</td>
+      <td style="padding:5px 8px;text-align:right;font-family:'DM Mono',monospace;font-size:11px">${pesoAddons.toFixed(0)}g</td>
       <td style="padding:5px 8px;text-align:right;font-family:'DM Mono',monospace;color:var(--red)">${pmMoney(Math.round(costAddons))}</td>
     </tr>` : '';
 
@@ -5351,6 +5358,11 @@ function recCard(r) {
           <tr style="background:rgba(200,146,42,.08);font-weight:600;border-top:2px solid rgba(200,146,42,.3)">
             <td style="padding:6px 8px;font-size:12px" colspan="3">📦 Total costo materiales</td>
             <td style="padding:6px 8px;text-align:right;font-family:'DM Mono',monospace;color:var(--gold2)">${pmMoney(Math.round(costMatTotal))}</td>
+          </tr>
+          <tr style="background:rgba(74,144,96,.08);font-weight:600">
+            <td style="padding:6px 8px;font-size:12px" colspan="2">⚖️ Peso total${addonLines.length?' (con relleno)':''}</td>
+            <td style="padding:6px 8px;text-align:right;font-family:'DM Mono',monospace;color:var(--green)">${c.mass.toFixed(0)}g</td>
+            <td style="padding:6px 8px;text-align:right;font-family:'DM Mono',monospace;font-size:11px;color:var(--cream2)">${r.units>1?(c.mass/r.units).toFixed(0)+'g/ud':'—'}</td>
           </tr>
           <tr style="background:rgba(74,128,192,.06);border-top:1px solid var(--border)">
             <td style="padding:5px 8px;font-size:11px">👷 Mano de obra
