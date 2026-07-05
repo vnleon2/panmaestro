@@ -5385,7 +5385,14 @@ function recCard(r, _sharedCache) {
   const pesoSubs   = subLines.reduce((s,l)=>s+(l.g||0),0);
   const pesoAddons = addonLines.reduce((s,l)=>s+(l.g||0),0);
   const merma      = r.merma || 0;
-  const costMatTotal = (costIng + costSubs + costAddons) * (1 + merma/100);
+  // FIX: recCard() recalculaba costMatTotal desde cero con la fórmula
+  // vieja — (ing+subs+addons)*(1+merma) — en vez de usar el valor ya
+  // corregido de pmCostoReceta() (c.totalMerma). Esto reintroducía en
+  // esta pantalla el mismo bug de merma duplicada en addons (B1,
+  // Sesión 2) aunque el motor de cálculo ya estaba arreglado. Ahora la
+  // merma se aplica solo a masa (ingredientes+subrecetas); los addons
+  // se suman después, sin merma adicional — igual que en pmCostoReceta().
+  const costMatTotal = (costIng + costSubs) * (1 + merma/100) + costAddons;
   const modPct = r.modPct !== undefined ? r.modPct : 80;
   const ggPct  = r.ggPct  !== undefined ? r.ggPct  : 45;
   const costMOD = costMatTotal * modPct / 100;
@@ -5440,8 +5447,8 @@ function recCard(r, _sharedCache) {
 
   const mermaRow = merma > 0 ? `
     <tr style="border-top:1px solid var(--border)">
-      <td style="padding:5px 8px;font-size:11px;color:var(--cream2)" colspan="3">Merma ${merma}%</td>
-      <td style="padding:5px 8px;text-align:right;font-family:'DM Mono',monospace;font-size:11px;color:var(--cream2)">+${pmMoney(Math.round((costIng+costSubs+costAddons)*merma/100))}</td>
+      <td style="padding:5px 8px;font-size:11px;color:var(--cream2)" colspan="3">Merma ${merma}% (solo sobre masa, no sobre rellenos/coberturas)</td>
+      <td style="padding:5px 8px;text-align:right;font-family:'DM Mono',monospace;font-size:11px;color:var(--cream2)">+${pmMoney(Math.round((costIng+costSubs)*merma/100))}</td>
     </tr>` : '';
 
   return `<div class="rec-card">
