@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Utilidades · PanMaestro</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600;700&display=swap');
+
+  :root{
+    --flour:#F3ECDF; --dough:#E8D2A6; --crust:#7A4B26; --espresso:#2B1B10;
+    --wheat:#C9973B; --sage:#7C8B6F; --clay:#B5562F; --card:#FFFDF8;
+    --line: rgba(43,27,16,0.12);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(circle at 15% 0%, rgba(201,151,59,0.10), transparent 45%),
+      radial-gradient(circle at 100% 100%, rgba(122,75,38,0.08), transparent 50%),
+      var(--flour);
+    color:var(--espresso); font-family:'Work Sans', sans-serif;
+    min-height:100vh; padding:28px 20px 60px;
+  }
+  .wrap{max-width:1080px;margin:0 auto;}
+  .backlink{
+    display:inline-flex; align-items:center; gap:6px;
+    font-size:13px; color:var(--crust); text-decoration:none; font-weight:600;
+    margin-bottom:18px;
+  }
+  .backlink:hover{text-decoration:underline;}
+  .eyebrow{ font-size:12px; letter-spacing:0.16em; text-transform:uppercase; color:var(--crust); font-weight:600; margin-bottom:10px; }
+  h1{ font-family:'Fraunces', serif; font-weight:600; font-size:clamp(28px,4.5vw,42px); line-height:1.05; margin:0 0 10px; letter-spacing:-0.01em; }
+  .sub{ max-width:640px; color:rgba(43,27,16,0.72); font-size:15px; line-height:1.55; margin-bottom:28px; }
+
+  /* Tabs */
+  .tabs{ display:flex; gap:8px; margin-bottom:24px; flex-wrap:wrap; }
+  .tab-btn{
+    padding:10px 18px; border-radius:999px; border:1px solid var(--line);
+    background:#fffefb; font-family:'Work Sans',sans-serif; font-weight:600; font-size:14px;
+    color:rgba(43,27,16,0.6); cursor:pointer; transition:.15s;
+  }
+  .tab-btn.active{ background:var(--crust); color:#fff8ee; border-color:var(--crust); }
+  .panel{ display:none; }
+  .panel.active{ display:block; }
+
+  .grid{ display:grid; grid-template-columns:1.05fr 0.95fr; gap:22px; }
+  @media (max-width:860px){ .grid{grid-template-columns:1fr;} }
+
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:18px; padding:26px 26px 28px; box-shadow:0 1px 2px rgba(43,27,16,0.04); }
+
+  label{ display:block; font-size:12.5px; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; color:var(--crust); margin-bottom:8px; }
+  .field{margin-bottom:22px;} .field:last-child{margin-bottom:0;}
+  .row-between{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px; }
+  .row-between label{margin-bottom:0;}
+  .val{ font-family:'Fraunces', serif; font-weight:600; font-size:18px; color:var(--espresso); }
+  .val small{ font-family:'Work Sans',sans-serif; font-weight:500; font-size:12px; color:rgba(43,27,16,0.55); text-transform:none; letter-spacing:0; }
+
+  input[type=range]{ -webkit-appearance:none; width:100%; height:6px; border-radius:6px; background: linear-gradient(90deg, var(--dough), var(--wheat)); outline:none; }
+  input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; width:20px;height:20px; border-radius:50%; background:var(--crust); border:3px solid var(--flour); box-shadow:0 0 0 1px var(--crust); cursor:pointer; }
+  input[type=range]::-moz-range-thumb{ width:20px;height:20px;border-radius:50%; background:var(--crust); border:3px solid var(--flour); box-shadow:0 0 0 1px var(--crust); cursor:pointer; }
+  .scale-labels{ display:flex; justify-content:space-between; font-size:11px; color:rgba(43,27,16,0.45); margin-top:6px; }
+
+  input[type=number], input[type=datetime-local], input[type=time], select{
+    width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--line);
+    background:#fffefb; font-family:'Work Sans', sans-serif; font-size:15px; color:var(--espresso);
+  }
+  input:focus, select:focus{ outline:2px solid var(--wheat); outline-offset:1px; }
+
+  .two-col{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+
+  .toggle-group{ display:flex; border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  .toggle-group button{ flex:1; padding:10px 8px; border:none; background:#fffefb; font-family:'Work Sans', sans-serif; font-size:13px; font-weight:500; color:rgba(43,27,16,0.6); cursor:pointer; transition:.15s; }
+  .toggle-group button.active{ background:var(--crust); color:#fff8ee; font-weight:600; }
+  .toggle-group button:not(:last-child){ border-right:1px solid var(--line); }
+
+  .divider{ height:1px; background:var(--line); margin:22px 0; }
+
+  .ratio-title{ font-family:'Fraunces', serif; font-size:15.5px; font-weight:600; margin-bottom:2px; }
+  .ratio-name{ color:var(--clay); }
+
+  .jar-card{ display:flex; flex-direction:column; align-items:center; text-align:center; }
+  .jar-holder{ width:150px; height:210px; position:relative; margin: 4px auto 6px; }
+  svg{ width:100%; height:100%; overflow:visible; }
+
+  .metric-big{ font-family:'Fraunces', serif; font-weight:700; font-size:38px; line-height:1; margin-top:6px; }
+  .metric-sub{ font-size:13px; color:rgba(43,27,16,0.6); margin-top:6px; }
+
+  .stats{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:20px; width:100%; }
+  .stat{ background:var(--flour); border-radius:12px; padding:12px 14px; text-align:left; }
+  .stat .k{ font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--crust); font-weight:600; }
+  .stat .v{ font-family:'Fraunces',serif; font-weight:600; font-size:17px; margin-top:2px; }
+
+  .gauge-wrap{ width:100%; margin-top:18px; text-align:left; }
+  .gauge-track{ height:10px; border-radius:6px; position:relative; }
+  .gauge-track.acidity{ background: linear-gradient(90deg, var(--clay), var(--wheat) 50%, var(--sage)); }
+  .gauge-track.ph{ background: linear-gradient(90deg, #B5562F 0%, #C9973B 35%, #7C8B6F 65%, #4E6A8C 100%); }
+  .gauge-dot{ position:absolute; top:-4px; width:18px; height:18px; border-radius:50%; background:#fff; border:3px solid var(--espresso); transform:translateX(-50%); transition: left .25s ease; }
+  .gauge-labels{ display:flex; justify-content:space-between; font-size:11px; color:rgba(43,27,16,0.5); margin-top:6px; }
+
+  .use-card{ margin-top:18px; }
+  .use-title{ font-size:12px; text-transform:uppercase; letter-spacing:0.06em; color:var(--crust); font-weight:600; margin-bottom:6px; text-align:left; }
+  .use-text{ font-size:14px; line-height:1.55; text-align:left; color:rgba(43,27,16,0.82); }
+
+  .badge{ display:inline-block; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:600; margin-top:10px; }
+  .badge.warn{ background:rgba(181,86,47,0.14); color:var(--clay); }
+  .badge.ok{ background:rgba(124,139,111,0.16); color:var(--sage); }
+
+  footer{ margin-top:26px; font-size:12px; color:rgba(43,27,16,0.45); line-height:1.6; max-width:720px; }
+
+  .calc-display{
+    background:var(--flour); border-radius:12px; padding:14px 16px; text-align:right;
+    font-family:'Fraunces',serif; font-size:26px; font-weight:600; margin-bottom:14px;
+    overflow-x:auto; white-space:nowrap;
+  }
+  .calc-keys{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+  .calc-keys button{
+    padding:14px 0; border-radius:10px; border:1px solid var(--line); background:#fffefb;
+    font-family:'Work Sans',sans-serif; font-weight:600; font-size:16px; cursor:pointer; color:var(--espresso);
+  }
+  .calc-keys button:active{ transform:scale(0.96); }
+  .calc-keys button.op{ background:var(--crust); color:#fff8ee; }
+  .calc-keys button.eq{ background:var(--clay); color:#fff8ee; }
+  .calc-keys button.clear{ background:var(--sage); color:#fff8ee; }
+  .calc-keys button.zero{ grid-column: span 2; }
+
+  @media (prefers-reduced-motion: reduce){ #bubbles circle{ animation: none !important; } #liquidGroup{ transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="backlink" href="index.html">&larr; Volver a PanMaestro</a>
+  <div class="eyebrow">Utilidades · Herramientas de cálculo</div>
+  <h1>Calculadoras de panadería</h1>
+  <div class="sub">Solo procesan lo que ingresas — ningún dato se guarda ni se envía a Supabase. Úsalas como apoyo rápido de cálculo, no como registro de lote.</div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="levain">Refresco de levain</button>
+    <button class="tab-btn" data-tab="temp">Temperatura &amp; tiempo de levado</button>
+    <button class="tab-btn" data-tab="ph">pH de masas</button>
+    <button class="tab-btn" data-tab="precios">Precios &amp; Calculadora</button>
+  </div>
+
+  <!-- ================= TAB 1: LEVAIN ================= -->
+  <section class="panel active" id="panel-levain">
+    <div class="grid">
+      <div class="card">
+        <div class="field">
+          <label>Modo de cálculo</label>
+          <div class="toggle-group">
+            <button id="modeForward" class="active">Tiempo de fermentación</button>
+            <button id="modeReverse">Planificador inverso</button>
+          </div>
+        </div>
+        <div class="field" id="reverseField" style="display:none;">
+          <label for="kneadTime">¿A qué hora quieres amasar / usar el levain?</label>
+          <input type="datetime-local" id="kneadTime">
+        </div>
+        <div class="field">
+          <label for="starter">Masa madre inicial (inóculo)</label>
+          <input type="number" id="starter" value="50" min="1" step="1"> <span style="font-size:13px;color:rgba(43,27,16,0.5)">gramos</span>
+        </div>
+        <div class="field">
+          <div class="row-between"><label>Proporción de refresco</label>
+            <div class="val" id="ratioLabel">1 : 2 : 2 <small>(harina : agua)</small></div>
+          </div>
+          <input type="range" id="ratio" min="1" max="5" step="0.5" value="2">
+          <div class="scale-labels"><span>1:1:1</span><span>1:3:3</span><span>1:5:5</span></div>
+          <div class="ratio-title" style="margin-top:14px;">Zona: <span class="ratio-name" id="zoneName">Intermedia</span></div>
+        </div>
+        <div class="field">
+          <div class="row-between"><label>Temperatura ambiente</label>
+            <div class="val" id="tempLabel">25 <small>°C</small></div>
+          </div>
+          <input type="range" id="temp" min="16" max="32" step="1" value="25">
+          <div class="scale-labels"><span>16°C</span><span>24°C</span><span>32°C</span></div>
+        </div>
+        <div class="divider"></div>
+        <div class="field">
+          <label>Tipo de hidratación</label>
+          <div class="toggle-group">
+            <button id="btnLiquid" class="active">Líquida 100%</button>
+            <button id="btnRigid">Rígida (lievito madre)</button>
+          </div>
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label>Ingredientes resultantes</label>
+          <div class="stats">
+            <div class="stat"><div class="k">Masa madre</div><div class="v" id="outStarter">50 g</div></div>
+            <div class="stat"><div class="k">Harina</div><div class="v" id="outFlour">100 g</div></div>
+            <div class="stat"><div class="k">Agua</div><div class="v" id="outWater">100 g</div></div>
+            <div class="stat"><div class="k">Total refresco</div><div class="v" id="outTotal">250 g</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card jar-card">
+        <div class="jar-holder">
+          <svg id="jarSvg" viewBox="0 0 150 210">
+            <defs>
+              <clipPath id="jarClip"><path d="M35 30 L35 178 Q35 196 53 196 L97 196 Q115 196 115 178 L115 30 Z"/></clipPath>
+              <linearGradient id="liquidGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#E8D2A6"/><stop offset="100%" stop-color="#C9973B"/>
+              </linearGradient>
+            </defs>
+            <path d="M35 30 L35 178 Q35 196 53 196 L97 196 Q115 196 115 178 L115 30 Z" fill="#FFFDF8" stroke="#2B1B10" stroke-width="2.5"/>
+            <rect x="30" y="14" width="90" height="18" rx="4" fill="#7A4B26" stroke="#2B1B10" stroke-width="2"/>
+            <rect x="40" y="6" width="70" height="10" rx="3" fill="#2B1B10"/>
+            <g clip-path="url(#jarClip)">
+              <g id="liquidGroup" transform="translate(0,90)">
+                <rect x="30" y="0" width="90" height="200" fill="url(#liquidGrad)"/>
+              </g>
+              <g id="bubbles"></g>
+            </g>
+            <line x1="30" y1="150" x2="120" y2="150" stroke="#B5562F" stroke-width="1.5" stroke-dasharray="3 3"/>
+            <text x="122" y="153" font-size="8" fill="#B5562F" font-family="Work Sans, sans-serif">inicio</text>
+          </svg>
+        </div>
+        <div class="metric-big" id="peakTime">5–7 h</div>
+        <div class="metric-sub" id="peakSub">tiempo estimado al punto máximo de actividad</div>
+        <div class="gauge-wrap">
+          <div class="use-title">Perfil de acidez esperado</div>
+          <div class="gauge-track acidity"><div class="gauge-dot" id="gaugeDot" style="left:50%"></div></div>
+          <div class="gauge-labels"><span>Ácido marcado</span><span>Equilibrado</span><span>Suave / sin acidez</span></div>
+        </div>
+        <div class="use-card">
+          <div class="use-title">Ideal para</div>
+          <div class="use-text" id="useText">Panes artesanales de larga fermentación (hogazas, pagnotas).</div>
+        </div>
+      </div>
+    </div>
+    <footer>Estimaciones basadas en un modelo de referencia general, no en datos de laboratorio de tu masa madre específica. El modelo de temperatura asume que la velocidad de fermentación aproximadamente se duplica cada 10°C de aumento.</footer>
+  </section>
+
+  <!-- ================= TAB 2: TEMPERATURA / DDT + LEVADO ================= -->
+  <section class="panel" id="panel-temp">
+    <div class="grid">
+      <div class="card">
+        <div class="ratio-title" style="margin-bottom:14px;">Parte A · Temperatura del agua (DDT)</div>
+        <div class="field">
+          <div class="row-between"><label>Temperatura de masa deseada</label><div class="val" id="ddtGoalLabel">25 <small>°C</small></div></div>
+          <input type="range" id="ddtGoal" min="20" max="30" step="0.5" value="25">
+        </div>
+        <div class="two-col field">
+          <div>
+            <label for="ddtRoom">Temp. ambiente (°C)</label>
+            <input type="number" id="ddtRoom" value="25" step="0.5">
+          </div>
+          <div>
+            <label for="ddtFlour">Temp. harina (°C)</label>
+            <input type="number" id="ddtFlour" value="24" step="0.5">
+          </div>
+        </div>
+        <div class="field">
+          <label for="ddtFriction">Factor de fricción (amasado)</label>
+          <input type="number" id="ddtFriction" value="1" step="0.5">
+          <div style="font-size:12px;color:rgba(43,27,16,0.5);margin-top:4px;">Amasado a mano suele ser bajo (~1–2°C). Amasadora eléctrica puede subir a 3–5°C.</div>
+        </div>
+        <div class="field">
+          <label>¿Incluyes el levain como variable aparte?</label>
+          <div class="toggle-group">
+            <button id="ddtDirect" class="active">Masa directa (N=3)</button>
+            <button id="ddtWithLevain">Con levain aparte (N=4)</button>
+          </div>
+        </div>
+        <div class="field" id="ddtLevainField" style="display:none;">
+          <label for="ddtLevainTemp">Temp. del levain (°C)</label>
+          <input type="number" id="ddtLevainTemp" value="24" step="0.5">
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="ratio-title" style="margin-bottom:14px;">Parte B · Tiempo de levado</div>
+        <div class="field">
+          <div class="row-between"><label>% de inoculación (levain sobre harina)</label><div class="val" id="inocLabel">15 <small>%</small></div></div>
+          <input type="range" id="inocPct" min="2" max="30" step="1" value="15">
+          <div class="scale-labels"><span>2% (largo)</span><span>15%</span><span>30% (rápido)</span></div>
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <div class="row-between"><label>Hidratación de la masa</label><div class="val" id="hydLabel">75 <small>%</small></div></div>
+          <input type="range" id="hydPct" min="60" max="100" step="1" value="75">
+        </div>
+      </div>
+
+      <div class="card jar-card">
+        <div class="jar-holder" style="width:110px;height:200px;">
+          <svg viewBox="0 0 100 210">
+            <rect x="35" y="10" width="30" height="180" rx="15" fill="#FFFDF8" stroke="#2B1B10" stroke-width="2.5"/>
+            <circle cx="50" cy="190" r="20" fill="#FFFDF8" stroke="#2B1B10" stroke-width="2.5"/>
+            <rect id="thermoFill" x="39" y="60" width="22" height="130" rx="11" fill="url(#thermoGrad)"/>
+            <circle cx="50" cy="190" r="14" fill="url(#thermoGrad)"/>
+            <defs>
+              <linearGradient id="thermoGrad" x1="0" y1="1" x2="0" y2="0">
+                <stop offset="0%" stop-color="#B5562F"/><stop offset="50%" stop-color="#C9973B"/><stop offset="100%" stop-color="#7C8B6F"/>
+              </linearGradient>
+            </defs>
+            <text x="50" y="6" text-anchor="middle" font-size="9" fill="#7A4B26" font-family="Work Sans, sans-serif">agua</text>
+          </svg>
+        </div>
+        <div class="metric-big" id="waterTempOut">24°C</div>
+        <div class="metric-sub">temperatura de agua recomendada</div>
+        <div id="ddtBadge"></div>
+
+        <div class="stats">
+          <div class="stat"><div class="k">Bulk fermentation</div><div class="v" id="bulkOut">4–5 h</div></div>
+          <div class="stat"><div class="k">Proofing final</div><div class="v" id="proofOut">1–2 h</div></div>
+        </div>
+
+        <div class="use-card">
+          <div class="use-title">Nota</div>
+          <div class="use-text" id="tempUseText">Bulk fermentation estimado según tu % de inoculación y temperatura ambiente de la Parte A.</div>
+        </div>
+      </div>
+    </div>
+    <footer>La fórmula de DDT es una guía clásica de panadería, no una medición exacta de tu proceso. El tiempo de levado es una heurística basada en % de inoculación y temperatura; la hidratación tiene un efecto menor y aproximado.</footer>
+  </section>
+
+  <!-- ================= TAB 3: pH ================= -->
+  <section class="panel" id="panel-ph">
+    <div class="grid">
+      <div class="card">
+        <div class="field">
+          <label>Modo</label>
+          <div class="toggle-group">
+            <button id="phSingleBtn" class="active">Lectura única</button>
+            <button id="phRateBtn">Dos lecturas (proyección)</button>
+          </div>
+        </div>
+
+        <div id="phSingleFields">
+          <div class="field">
+            <label for="phDoughType">Tipo de masa</label>
+            <select id="phDoughType">
+              <option value="levain">Levain / masa madre</option>
+              <option value="final">Masa final antes de hornear</option>
+            </select>
+          </div>
+          <div class="field" style="margin-bottom:0;">
+            <label for="phValue">pH medido</label>
+            <input type="number" id="phValue" value="4.2" step="0.1" min="2.5" max="7">
+          </div>
+        </div>
+
+        <div id="phRateFields" style="display:none;">
+          <div class="two-col field">
+            <div><label for="ph1">pH lectura 1</label><input type="number" id="ph1" value="5.2" step="0.1"></div>
+            <div><label for="phTime1">Hora lectura 1</label><input type="time" id="phTime1" value="14:00"></div>
+          </div>
+          <div class="two-col field">
+            <div><label for="ph2">pH lectura 2</label><input type="number" id="ph2" value="4.8" step="0.1"></div>
+            <div><label for="phTime2">Hora lectura 2</label><input type="time" id="phTime2" value="16:00"></div>
+          </div>
+          <div class="field" style="margin-bottom:0;">
+            <label for="phTarget">pH objetivo</label>
+            <input type="number" id="phTarget" value="4.2" step="0.1">
+          </div>
+        </div>
+      </div>
+
+      <div class="card jar-card">
+        <div class="gauge-wrap" style="margin-top:6px;">
+          <div class="use-title">Escala de pH</div>
+          <div class="gauge-track ph"><div class="gauge-dot" id="phGaugeDot" style="left:50%"></div></div>
+          <div class="gauge-labels"><span>3.5</span><span>4.5</span><span>5.5</span><span>6.5</span></div>
+        </div>
+        <div class="metric-big" id="phMetric" style="margin-top:22px;">4.2</div>
+        <div class="metric-sub" id="phSub">pH medido</div>
+        <div class="use-card">
+          <div class="use-title" id="phUseTitle">Interpretación</div>
+          <div class="use-text" id="phUseText">En punto óptimo de uso.</div>
+        </div>
+      </div>
+    </div>
+    <footer>Rangos de referencia general (levain maduro ≈ pH 3.8–4.5; masa final antes de hornear ≈ pH 4.3–4.8, según el tipo de pan). La proyección de dos lecturas asume una caída lineal, pero en la práctica la fermentación suele desacelerar cerca del final — usa el resultado como estimado, no como valor exacto.</footer>
+  </section>
+
+  <!-- ================= TAB 4: PRECIOS & CALCULADORA ================= -->
+  <section class="panel" id="panel-precios">
+    <div class="grid">
+      <div class="card">
+        <div class="ratio-title" style="margin-bottom:14px;">Calculadora básica</div>
+        <div class="calc-display" id="calcDisplay">0</div>
+        <div class="calc-keys">
+          <button class="clear" data-key="clear">AC</button>
+          <button data-key="sign">±</button>
+          <button data-key="percent">%</button>
+          <button class="op" data-key="/">÷</button>
+
+          <button data-key="7">7</button>
+          <button data-key="8">8</button>
+          <button data-key="9">9</button>
+          <button class="op" data-key="*">×</button>
+
+          <button data-key="4">4</button>
+          <button data-key="5">5</button>
+          <button data-key="6">6</button>
+          <button class="op" data-key="-">−</button>
+
+          <button data-key="1">1</button>
+          <button data-key="2">2</button>
+          <button data-key="3">3</button>
+          <button class="op" data-key="+">+</button>
+
+          <button class="zero" data-key="0">0</button>
+          <button data-key=".">.</button>
+          <button class="eq" data-key="=">=</button>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="ratio-title" style="margin-bottom:14px;">Operaciones con porcentaje</div>
+        <div class="field">
+          <label for="pctOp">Operación</label>
+          <select id="pctOp">
+            <option value="of">¿Cuánto es A% de B?</option>
+            <option value="increase">Aumentar B en A%</option>
+            <option value="decrease">Disminuir B en A%</option>
+            <option value="what_pct">¿Qué % es A de B?</option>
+          </select>
+        </div>
+        <div class="two-col field" style="margin-bottom:12px;">
+          <div><label id="pctLabelA">A (%)</label><input type="number" id="pctA" value="10" step="0.1"></div>
+          <div><label id="pctLabelB">B</label><input type="number" id="pctB" value="100" step="0.1"></div>
+        </div>
+        <div class="stat" style="margin-bottom:0;">
+          <div class="k">Resultado</div>
+          <div class="v" id="pctResult" style="font-size:20px;">10</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="ratio-title" style="margin-bottom:14px;">Costo → Precio de venta</div>
+        <div class="two-col field">
+          <div><label for="priceCost">Costo</label><input type="number" id="priceCost" value="1000" step="10"></div>
+          <div>
+            <div class="row-between"><label>Rentabilidad</label><div class="val" id="priceMarginLabel">30<small>%</small></div></div>
+            <input type="range" id="priceMargin" min="0" max="80" step="1" value="30" style="margin-top:12px;">
+          </div>
+        </div>
+        <div class="field">
+          <label>Tipo de rentabilidad</label>
+          <div class="toggle-group">
+            <button id="marginOnSaleBtn" class="active">Margen s/ precio de venta</button>
+            <button id="markupOnCostBtn">Markup s/ costo</button>
+          </div>
+        </div>
+        <div class="stats" style="grid-template-columns:1fr;">
+          <div class="stat"><div class="k">Precio de venta sugerido</div><div class="v" id="suggestedPrice" style="font-size:24px;">₡1,429</div></div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="ratio-title" style="margin-bottom:14px;">Precio fijado → Margen real</div>
+        <div class="field">
+          <label for="priceFixed">Precio de venta que vas a cobrar</label>
+          <input type="number" id="priceFixed" value="1429" step="10">
+        </div>
+        <div class="stats">
+          <div class="stat"><div class="k">Utilidad neta</div><div class="v" id="fixedProfit">₡429</div></div>
+          <div class="stat"><div class="k">Margen s/ venta</div><div class="v" id="fixedMarginSale">30%</div></div>
+          <div class="stat"><div class="k">Markup s/ costo</div><div class="v" id="fixedMarginCost">42.9%</div></div>
+          <div class="stat"><div class="k">Costo usado</div><div class="v" id="fixedCostEcho">₡1,000</div></div>
+        </div>
+      </div>
+    </div>
+    <footer>Margen sobre precio de venta = utilidad ÷ precio. Markup sobre costo = utilidad ÷ costo. Son dos formas distintas de medir rentabilidad sobre la misma venta — elige la que uses habitualmente para fijar precios.</footer>
+  </section>
+</div>
+
+<script>
+/* ============ TABS ============ */
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+/* ============ TAB 1: LEVAIN (idéntico al standalone) ============ */
+(function(){
+  const starterInput = document.getElementById('starter');
+  const ratioInput = document.getElementById('ratio');
+  const tempInput = document.getElementById('temp');
+  const btnLiquid = document.getElementById('btnLiquid');
+  const btnRigid = document.getElementById('btnRigid');
+  let hydrationMode = 'liquid';
+  let calcMode = 'forward';
+
+  const modeForwardBtn = document.getElementById('modeForward');
+  const modeReverseBtn = document.getElementById('modeReverse');
+  const reverseField = document.getElementById('reverseField');
+  const kneadTimeInput = document.getElementById('kneadTime');
+
+  function toLocalDatetimeValue(date){
+    const pad = (n)=> String(n).padStart(2,'0');
+    return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
+  const defaultKnead = new Date(Date.now() + 6*3600*1000);
+  defaultKnead.setMinutes(Math.round(defaultKnead.getMinutes()/15)*15, 0, 0);
+  kneadTimeInput.value = toLocalDatetimeValue(defaultKnead);
+
+  function formatClock(date){
+    let s = date.toLocaleString('es-ES', { weekday:'short', hour:'2-digit', minute:'2-digit', hour12:false });
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+
+  const refPoints = [{r:1,h:3.5},{r:2,h:5.5},{r:3,h:7},{r:4,h:9},{r:5,h:11}];
+  function interpHours(r){
+    for(let i=0;i<refPoints.length-1;i++){
+      const a=refPoints[i], b=refPoints[i+1];
+      if(r>=a.r && r<=b.r){ const t=(r-a.r)/(b.r-a.r); return a.h+t*(b.h-a.h); }
+    }
+    return refPoints[refPoints.length-1].h;
+  }
+  function tempAdjustedHours(baseHours, tempC){ return baseHours * Math.pow(2,(25-tempC)/10); }
+  function zoneInfo(r){
+    if(r<=1.4) return {name:'Corta / mantenimiento diario', use:'Panes directos del mismo día o refrescos diarios a temperatura ambiente.'};
+    if(r<=3.4) return {name:'Intermedia', use:'Panes artesanales de larga fermentación (hogazas, pagnotas) o refrescar la noche anterior.'};
+    return {name:'Larga / fuerza sin acidez', use:'Masas enriquecidas (brioche, panetón, panes de leche) o dejar actuando toda la noche.'};
+  }
+  function formatHoursRange(c){ const low=c*0.85, high=c*1.15; const fmt=n=> n<10? n.toFixed(1).replace(/\.0$/,''):Math.round(n); return fmt(low)+'–'+fmt(high)+' h'; }
+
+  function buildBubbles(count){
+    const g = document.getElementById('bubbles'); g.innerHTML='';
+    for(let i=0;i<count;i++){
+      const cx=45+Math.random()*60, r=1.4+Math.random()*2.2;
+      const dur=(2+Math.random()*3).toFixed(2), delay=(Math.random()*3).toFixed(2);
+      const c=document.createElementNS('http://www.w3.org/2000/svg','circle');
+      c.setAttribute('cx',cx); c.setAttribute('cy',190); c.setAttribute('r',r);
+      c.setAttribute('fill','rgba(255,253,248,0.75)');
+      c.style.animation = `rise ${dur}s linear ${delay}s infinite`;
+      g.appendChild(c);
+    }
+  }
+  const styleTag = document.createElement('style');
+  styleTag.textContent = `@keyframes rise{0%{transform:translateY(0);opacity:0;}10%{opacity:0.9;}90%{opacity:0.5;}100%{transform:translateY(-170px);opacity:0;}}`;
+  document.head.appendChild(styleTag);
+
+  function render(){
+    const starter = Math.max(1, parseFloat(starterInput.value)||50);
+    const r = parseFloat(ratioInput.value);
+    const t = parseFloat(tempInput.value);
+    const flourAmt = starter*r;
+    const waterAmt = hydrationMode==='liquid'? starter*r : starter*r*0.5;
+    const total = starter+flourAmt+waterAmt;
+
+    document.getElementById('ratioLabel').innerHTML = `1 : ${r} : ${hydrationMode==='liquid'? r : (r*0.5)} <small>(harina : agua)</small>`;
+    document.getElementById('tempLabel').innerHTML = `${t} <small>°C</small>`;
+    document.getElementById('outStarter').textContent = Math.round(starter)+' g';
+    document.getElementById('outFlour').textContent = Math.round(flourAmt)+' g';
+    document.getElementById('outWater').textContent = Math.round(waterAmt)+' g';
+    document.getElementById('outTotal').textContent = Math.round(total)+' g';
+
+    const rigidPenalty = hydrationMode==='rigid'?1.1:1;
+    const baseHours = interpHours(r)*rigidPenalty;
+    const hours = tempAdjustedHours(baseHours, t);
+
+    const peakTimeEl = document.getElementById('peakTime');
+    const peakSubEl = document.getElementById('peakSub');
+    if(calcMode==='forward'){
+      peakTimeEl.textContent = formatHoursRange(hours);
+      peakSubEl.textContent = 'tiempo estimado al punto máximo de actividad';
+    } else {
+      const kneadVal = kneadTimeInput.value;
+      if(kneadVal){
+        const kneadDate = new Date(kneadVal);
+        const centerDate = new Date(kneadDate.getTime() - hours*3600*1000);
+        const lowDate = new Date(kneadDate.getTime() - hours*1.15*3600*1000);
+        const highDate = new Date(kneadDate.getTime() - hours*0.85*3600*1000);
+        peakTimeEl.textContent = formatClock(centerDate);
+        peakSubEl.textContent = `refresca entre las ${formatClock(lowDate)} y las ${formatClock(highDate)}`;
+      } else {
+        peakTimeEl.textContent = '--:--';
+        peakSubEl.textContent = 'elige la hora en que quieres amasar';
+      }
+    }
+
+    const zone = zoneInfo(r);
+    document.getElementById('zoneName').textContent = zone.name;
+    document.getElementById('useText').textContent = zone.use;
+
+    let pct = ((r-1)/(5-1))*100;
+    pct = pct - ((t-25)*1.2);
+    pct = Math.min(96, Math.max(4, pct));
+    document.getElementById('gaugeDot').style.left = pct+'%';
+
+    const normHours = Math.min(Math.max(hours,2),30);
+    const liquidGroup = document.getElementById('liquidGroup');
+    liquidGroup.style.transition = 'transform 0.4s ease';
+    const riseAmount = 55 + (1-Math.min(normHours,20)/20)*35;
+    liquidGroup.setAttribute('transform', `translate(0, ${90-(riseAmount-55)})`);
+    const animDuration = 1.5 + (normHours/30)*9;
+    const bubbleCount = Math.round(18 - Math.min(normHours,18)*0.8);
+    buildBubbles(Math.max(3,bubbleCount));
+    document.querySelectorAll('#bubbles circle').forEach(c=>{
+      const currentDur = parseFloat(c.style.animation.match(/([\d.]+)s/)[1]);
+      c.style.animationDuration = (currentDur*(animDuration/4)).toFixed(2)+'s';
+    });
+  }
+
+  starterInput.addEventListener('input', render);
+  ratioInput.addEventListener('input', render);
+  tempInput.addEventListener('input', render);
+  kneadTimeInput.addEventListener('input', render);
+  btnLiquid.addEventListener('click', ()=>{ hydrationMode='liquid'; btnLiquid.classList.add('active'); btnRigid.classList.remove('active'); render(); });
+  btnRigid.addEventListener('click', ()=>{ hydrationMode='rigid'; btnRigid.classList.add('active'); btnLiquid.classList.remove('active'); render(); });
+  modeForwardBtn.addEventListener('click', ()=>{ calcMode='forward'; modeForwardBtn.classList.add('active'); modeReverseBtn.classList.remove('active'); reverseField.style.display='none'; render(); });
+  modeReverseBtn.addEventListener('click', ()=>{ calcMode='reverse'; modeReverseBtn.classList.add('active'); modeForwardBtn.classList.remove('active'); reverseField.style.display='block'; render(); });
+
+  render();
+})();
+
+/* ============ TAB 2: TEMPERATURA / DDT + TIEMPO DE LEVADO ============ */
+(function(){
+  const ddtGoal = document.getElementById('ddtGoal');
+  const ddtRoom = document.getElementById('ddtRoom');
+  const ddtFlour = document.getElementById('ddtFlour');
+  const ddtFriction = document.getElementById('ddtFriction');
+  const ddtDirectBtn = document.getElementById('ddtDirect');
+  const ddtWithLevainBtn = document.getElementById('ddtWithLevain');
+  const ddtLevainField = document.getElementById('ddtLevainField');
+  const ddtLevainTemp = document.getElementById('ddtLevainTemp');
+  const inocPct = document.getElementById('inocPct');
+  const hydPct = document.getElementById('hydPct');
+  let ddtMode = 'direct'; // 'direct' (N=3) | 'levain' (N=4)
+
+  function renderTemp(){
+    const goal = parseFloat(ddtGoal.value);
+    const room = parseFloat(ddtRoom.value)||0;
+    const flour = parseFloat(ddtFlour.value)||0;
+    const friction = parseFloat(ddtFriction.value)||0;
+    document.getElementById('ddtGoalLabel').innerHTML = `${goal} <small>°C</small>`;
+
+    let waterTemp;
+    if(ddtMode==='direct'){
+      waterTemp = (goal*3) - flour - room - friction;
+    } else {
+      const levainT = parseFloat(ddtLevainTemp.value)||0;
+      waterTemp = (goal*4) - flour - room - friction - levainT;
+    }
+    document.getElementById('waterTempOut').textContent = Math.round(waterTemp*10)/10 + '°C';
+
+    const badge = document.getElementById('ddtBadge');
+    if(waterTemp < 5){
+      badge.innerHTML = '<span class="badge warn">Muy fría — considera agua con hielo</span>';
+    } else if(waterTemp > 35){
+      badge.innerHTML = '<span class="badge warn">Muy caliente — cuidado, puede dañar la levadura</span>';
+    } else {
+      badge.innerHTML = '<span class="badge ok">Rango manejable</span>';
+    }
+
+    // thermometer visual: map waterTemp (0-40) to fill height
+    const clampT = Math.min(Math.max(waterTemp,0),40);
+    const fillHeight = 20 + (clampT/40)*160; // 20..180
+    const rect = document.getElementById('thermoFill');
+    rect.setAttribute('y', 190-10-fillHeight+ (190-190)); // keep bottom anchored near bulb
+    rect.setAttribute('height', fillHeight);
+    rect.setAttribute('y', 180-fillHeight+10);
+
+    // Part B: tiempo de levado
+    const inoc = parseFloat(inocPct.value);
+    const hyd = parseFloat(hydPct.value);
+    document.getElementById('inocLabel').innerHTML = `${inoc} <small>%</small>`;
+    document.getElementById('hydLabel').innerHTML = `${hyd} <small>%</small>`;
+
+    let baseBulk = 3 + (12/inoc);
+    baseBulk = Math.min(Math.max(baseBulk,3),12);
+    const hydFactor = 1 - (hyd-75)*0.002;
+    baseBulk = baseBulk * Math.min(Math.max(hydFactor,0.9),1.1);
+    const bulkHours = baseBulk * Math.pow(2,(25-room)/10);
+    const proofHours = bulkHours * 0.35;
+
+    const fmt = (n)=> n<10? n.toFixed(1).replace(/\.0$/,''):Math.round(n);
+    document.getElementById('bulkOut').textContent = fmt(bulkHours*0.85)+'–'+fmt(bulkHours*1.15)+' h';
+    document.getElementById('proofOut').textContent = fmt(proofHours*0.85)+'–'+fmt(proofHours*1.15)+' h';
+  }
+
+  ddtDirectBtn.addEventListener('click', ()=>{ ddtMode='direct'; ddtDirectBtn.classList.add('active'); ddtWithLevainBtn.classList.remove('active'); ddtLevainField.style.display='none'; renderTemp(); });
+  ddtWithLevainBtn.addEventListener('click', ()=>{ ddtMode='levain'; ddtWithLevainBtn.classList.add('active'); ddtDirectBtn.classList.remove('active'); ddtLevainField.style.display='block'; renderTemp(); });
+
+  [ddtGoal, ddtRoom, ddtFlour, ddtFriction, ddtLevainTemp, inocPct, hydPct].forEach(el=> el.addEventListener('input', renderTemp));
+  renderTemp();
+})();
+
+/* ============ TAB 3: pH ============ */
+(function(){
+  const phSingleBtn = document.getElementById('phSingleBtn');
+  const phRateBtn = document.getElementById('phRateBtn');
+  const phSingleFields = document.getElementById('phSingleFields');
+  const phRateFields = document.getElementById('phRateFields');
+  let phMode = 'single';
+
+  const phDoughType = document.getElementById('phDoughType');
+  const phValue = document.getElementById('phValue');
+  const ph1 = document.getElementById('ph1');
+  const ph2 = document.getElementById('ph2');
+  const phTime1 = document.getElementById('phTime1');
+  const phTime2 = document.getElementById('phTime2');
+  const phTarget = document.getElementById('phTarget');
+
+  function gaugePosFromPH(ph){
+    // scale shown: 3.5 to 6.5+
+    let pct = ((ph-3.5)/(6.5-3.5))*100;
+    return Math.min(96, Math.max(4, pct));
+  }
+
+  function interpretSingle(ph, type){
+    if(type==='levain'){
+      if(ph>4.5) return {label:'Joven, aún no en su punto', tone:'warn'};
+      if(ph>=3.8) return {label:'En punto óptimo de uso', tone:'ok'};
+      return {label:'Sobre-fermentado, riesgo de exceso de acidez', tone:'warn'};
+    } else {
+      if(ph>5.0) return {label:'Fermentación corta / sabor suave — revisa si necesita más tiempo', tone:'warn'};
+      if(ph>=4.3) return {label:'Rango típico saludable para la mayoría de panes', tone:'ok'};
+      return {label:'Muy ácida — riesgo de estructura de gluten debilitada', tone:'warn'};
+    }
+  }
+
+  function timeToHours(hhmm){
+    const [h,m] = hhmm.split(':').map(Number);
+    return h + m/60;
+  }
+
+  function renderPh(){
+    if(phMode==='single'){
+      const ph = parseFloat(phValue.value);
+      const type = phDoughType.value;
+      document.getElementById('phMetric').textContent = ph.toFixed(1);
+      document.getElementById('phSub').textContent = 'pH medido';
+      document.getElementById('phGaugeDot').style.left = gaugePosFromPH(ph)+'%';
+      const interp = interpretSingle(ph, type);
+      document.getElementById('phUseTitle').textContent = 'Interpretación';
+      document.getElementById('phUseText').textContent = interp.label;
+    } else {
+      const p1 = parseFloat(ph1.value), p2 = parseFloat(ph2.value);
+      let h1 = timeToHours(phTime1.value), h2 = timeToHours(phTime2.value);
+      let deltaH = h2 - h1;
+      if(deltaH <= 0) deltaH += 24; // cruza medianoche
+      const rate = (p2 - p1) / deltaH; // pH por hora, normalmente negativo
+      const target = parseFloat(phTarget.value);
+
+      document.getElementById('phMetric').textContent = p2.toFixed(1);
+      document.getElementById('phGaugeDot').style.left = gaugePosFromPH(p2)+'%';
+
+      if(rate >= 0){
+        document.getElementById('phSub').textContent = 'sin caída detectada';
+        document.getElementById('phUseTitle').textContent = 'Revisa las lecturas';
+        document.getElementById('phUseText').textContent = 'El pH no muestra caída entre las dos lecturas. Verifica el orden de las horas o vuelve a medir.';
+      } else {
+        const hoursToTarget = (target - p2) / rate;
+        if(hoursToTarget < 0){
+          document.getElementById('phSub').textContent = 'ya se alcanzó el pH objetivo';
+          document.getElementById('phUseTitle').textContent = 'Objetivo alcanzado';
+          document.getElementById('phUseText').textContent = 'Según la tasa de caída, tu pH objetivo ya quedó atrás. Revisa la masa directamente.';
+        } else {
+          const projected = new Date();
+          projected.setHours(Math.floor(h2), Math.round((h2%1)*60), 0, 0);
+          projected.setTime(projected.getTime() + hoursToTarget*3600*1000);
+          const hh = String(projected.getHours()).padStart(2,'0');
+          const mm = String(projected.getMinutes()).padStart(2,'0');
+          document.getElementById('phSub').textContent = `tasa: ${rate.toFixed(2)} pH/hora`;
+          document.getElementById('phUseTitle').textContent = 'Proyección';
+          document.getElementById('phUseText').textContent = `Al ritmo actual, llegarías a pH ${target.toFixed(1)} alrededor de las ${hh}:${mm}. La caída suele desacelerar cerca del final, así que revisa físicamente antes de confiar solo en la hora.`;
+        }
+      }
+    }
+  }
+
+  phSingleBtn.addEventListener('click', ()=>{ phMode='single'; phSingleBtn.classList.add('active'); phRateBtn.classList.remove('active'); phSingleFields.style.display='block'; phRateFields.style.display='none'; renderPh(); });
+  phRateBtn.addEventListener('click', ()=>{ phMode='rate'; phRateBtn.classList.add('active'); phSingleBtn.classList.remove('active'); phSingleFields.style.display='none'; phRateFields.style.display='block'; renderPh(); });
+
+  [phDoughType, phValue, ph1, ph2, phTime1, phTime2, phTarget].forEach(el=> el.addEventListener('input', renderPh));
+  renderPh();
+})();
+
+/* ============ TAB 4: CALCULADORA BÁSICA ============ */
+(function(){
+  const displayEl = document.getElementById('calcDisplay');
+  let display = '0';
+  let prevValue = null;
+  let operator = null;
+  let waitingForOperand = false;
+
+  function updateDisplay(){ displayEl.textContent = display; }
+
+  function compute(a, op, b){
+    switch(op){
+      case '+': return a + b;
+      case '-': return a - b;
+      case '*': return a * b;
+      case '/': return b === 0 ? 0 : a / b;
+      default: return b;
+    }
+  }
+
+  function formatResult(n){
+    if(!isFinite(n)) return '0';
+    const rounded = Math.round(n * 1e10) / 1e10;
+    return rounded.toString();
+  }
+
+  document.querySelectorAll('.calc-keys button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const key = btn.dataset.key;
+      if(key >= '0' && key <= '9'){
+        if(waitingForOperand || display==='0'){ display = key; waitingForOperand = false; }
+        else { display += key; }
+      } else if(key === '.'){
+        if(waitingForOperand){ display = '0.'; waitingForOperand = false; }
+        else if(!display.includes('.')){ display += '.'; }
+      } else if(key === 'clear'){
+        display = '0'; prevValue = null; operator = null; waitingForOperand = false;
+      } else if(key === 'sign'){
+        display = formatResult(parseFloat(display) * -1);
+      } else if(key === 'percent'){
+        display = formatResult(parseFloat(display) / 100);
+      } else if(['+','-','*','/'].includes(key)){
+        const current = parseFloat(display);
+        if(prevValue === null){ prevValue = current; }
+        else if(operator && !waitingForOperand){ prevValue = compute(prevValue, operator, current); display = formatResult(prevValue); }
+        operator = key;
+        waitingForOperand = true;
+      } else if(key === '='){
+        if(operator !== null){
+          const current = parseFloat(display);
+          const result = compute(prevValue, operator, current);
+          display = formatResult(result);
+          prevValue = null; operator = null; waitingForOperand = true;
+        }
+      }
+      updateDisplay();
+    });
+  });
+  updateDisplay();
+})();
+
+/* ============ TAB 4: OPERACIONES CON PORCENTAJE ============ */
+(function(){
+  const pctOp = document.getElementById('pctOp');
+  const pctA = document.getElementById('pctA');
+  const pctB = document.getElementById('pctB');
+  const pctLabelA = document.getElementById('pctLabelA');
+  const pctLabelB = document.getElementById('pctLabelB');
+  const pctResult = document.getElementById('pctResult');
+
+  const labels = {
+    of: ['A (%)', 'Sobre el valor (B)'],
+    increase: ['Valor base (B)', 'Aumentar en (A %)'],
+    decrease: ['Valor base (B)', 'Disminuir en (A %)'],
+    what_pct: ['Valor (A)', 'Sobre el total (B)']
+  };
+
+  function renderPct(){
+    const mode = pctOp.value;
+    pctLabelA.textContent = labels[mode][0];
+    pctLabelB.textContent = labels[mode][1];
+    const a = parseFloat(pctA.value)||0;
+    const b = parseFloat(pctB.value)||0;
+    let result, suffix='';
+    if(mode==='of'){ result = b*a/100; }
+    else if(mode==='increase'){ result = a*(1 + b/100); }
+    else if(mode==='decrease'){ result = a*(1 - b/100); }
+    else if(mode==='what_pct'){ result = b!==0 ? (a/b)*100 : 0; suffix='%'; }
+    pctResult.textContent = (Math.round(result*100)/100).toLocaleString('es-CR') + suffix;
+  }
+
+  pctOp.addEventListener('change', renderPct);
+  pctA.addEventListener('input', renderPct);
+  pctB.addEventListener('input', renderPct);
+  renderPct();
+})();
+
+/* ============ TAB 4: PRECIOS (COSTO -> PRECIO, PRECIO -> MARGEN) ============ */
+(function(){
+  const priceCost = document.getElementById('priceCost');
+  const priceMargin = document.getElementById('priceMargin');
+  const priceMarginLabel = document.getElementById('priceMarginLabel');
+  const marginOnSaleBtn = document.getElementById('marginOnSaleBtn');
+  const markupOnCostBtn = document.getElementById('markupOnCostBtn');
+  const suggestedPrice = document.getElementById('suggestedPrice');
+  const priceFixed = document.getElementById('priceFixed');
+  const fixedProfit = document.getElementById('fixedProfit');
+  const fixedMarginSale = document.getElementById('fixedMarginSale');
+  const fixedMarginCost = document.getElementById('fixedMarginCost');
+  const fixedCostEcho = document.getElementById('fixedCostEcho');
+
+  let pricingMode = 'sale'; // 'sale' (margen s/venta) | 'cost' (markup s/costo)
+  let userEditedFixed = false;
+
+  function fmtMoney(n){
+    return '₡' + Math.round(n).toLocaleString('es-CR');
+  }
+
+  function renderPricing(){
+    const cost = parseFloat(priceCost.value) || 0;
+    const pct = parseFloat(priceMargin.value);
+    priceMarginLabel.innerHTML = `${pct}<small>%</small>`;
+
+    let price;
+    if(pricingMode === 'sale'){
+      price = pct >= 100 ? cost : cost / (1 - pct/100);
+    } else {
+      price = cost * (1 + pct/100);
+    }
+    suggestedPrice.textContent = fmtMoney(price);
+
+    if(!userEditedFixed){
+      priceFixed.value = Math.round(price);
+    }
+    renderFixed();
+  }
+
+  function renderFixed(){
+    const cost = parseFloat(priceCost.value) || 0;
+    const fixed = parseFloat(priceFixed.value) || 0;
+    const profit = fixed - cost;
+    const marginSale = fixed !== 0 ? (profit/fixed)*100 : 0;
+    const marginCost = cost !== 0 ? (profit/cost)*100 : 0;
+
+    fixedProfit.textContent = fmtMoney(profit);
+    fixedMarginSale.textContent = (Math.round(marginSale*10)/10) + '%';
+    fixedMarginCost.textContent = (Math.round(marginCost*10)/10) + '%';
+    fixedCostEcho.textContent = fmtMoney(cost);
+  }
+
+  priceCost.addEventListener('input', renderPricing);
+  priceMargin.addEventListener('input', renderPricing);
+  marginOnSaleBtn.addEventListener('click', ()=>{ pricingMode='sale'; marginOnSaleBtn.classList.add('active'); markupOnCostBtn.classList.remove('active'); renderPricing(); });
+  markupOnCostBtn.addEventListener('click', ()=>{ pricingMode='cost'; markupOnCostBtn.classList.add('active'); marginOnSaleBtn.classList.remove('active'); renderPricing(); });
+  priceFixed.addEventListener('input', ()=>{ userEditedFixed = true; renderFixed(); });
+
+  renderPricing();
+})();
+</script>
+</body>
+</html>
