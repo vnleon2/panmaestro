@@ -1801,7 +1801,14 @@ function pmCostoReceta(r, targetMass, _visited, _cache) {
 
   // Addons: rellenos y coberturas — g por unidad × costo/g, NOT baker's %
   // Their grams DO sum to the total product weight (a golfeado IS masa + relleno)
+  // FIX SESIÓN 2 (B1): el costo de addons se acumula en un acumulador
+  // APARTE (addonCostTotal), NO en `total`. Antes se sumaba a `total` y
+  // luego `total` completo (masa + addons) se multiplicaba por
+  // (1 + merma/100) de la receta padre — así un addon (que ya trae su
+  // propia merma incluida en `ca.totalMerma`) recibía la merma del padre
+  // encima, inflando el costo de cualquier receta con relleno/cobertura.
   let addonMassTotal = 0;
+  let addonCostTotal = 0;
   for (const addon of (r.addons||[])) {
     // SESIÓN 11 fix: resolver SOLO por código — mismo motivo que sub-recetas
     const ref = (_sbRecLista()||[]).find(x => x.code === addon.recId);
@@ -1810,7 +1817,7 @@ function pmCostoReceta(r, targetMass, _visited, _cache) {
     const totalG   = addon.gPorUnidad * units_r;
     const ca       = pmCostoReceta(ref, totalG, _visited, _cache);
     const label    = addon.label || (addon.tipo === 'cobertura' ? '🍫 ' : '🍯 ') + ref.name;
-    total += ca.totalMerma;
+    addonCostTotal += ca.totalMerma;
     addonMassTotal += totalG;
     lines.push({
       name: label, pct: 0, g: totalG,
@@ -1821,8 +1828,10 @@ function pmCostoReceta(r, targetMass, _visited, _cache) {
 
   const merma      = r.merma || 0;
   const massTotal  = mass + addonMassTotal; // full product weight including addons
-  // Only masa ingredients get merma applied; addons are already at final weight
-  const totalMerma = total * (1 + merma / 100);
+  // Only masa ingredients (flour+other+subrecs, acumulados en `total`) get
+  // merma aplicada; los addons ya están a su peso final y se suman después,
+  // sin merma adicional.
+  const totalMerma = total * (1 + merma / 100) + addonCostTotal;
   const units      = r.units || 1;
   const perUnit    = units > 0 ? totalMerma / units : 0;
 
@@ -5505,6 +5514,9 @@ function recNuevo() {
   document.getElementById('cv-nueva-titulo').textContent = 'Nueva receta';
   document.getElementById('mr-id').value = '';
   document.getElementById('mr-code').value = 'R-' + String(_sbRecLista().filter(r=>r.code&&r.code.startsWith('R-')).length+1).padStart(4,'0');
+  // FIX SESIÓN 2 (B2): reactivar el campo código — solo queda bloqueado
+  // al editar una receta ya existente (ver recEditar).
+  document.getElementById('mr-code').disabled = false;
   document.getElementById('mr-name').value = '';
   document.getElementById('mr-masa').value = 1000;
   document.getElementById('mr-units').value = 1;
@@ -5534,6 +5546,15 @@ async function recEditar(id) {
   document.getElementById('cv-nueva-titulo').textContent = 'Editar: ' + r.name;
   document.getElementById('mr-id').value = r.id;
   document.getElementById('mr-code').value = r.code;
+  // FIX SESIÓN 2 (B2): el código queda BLOQUEADO al editar una receta ya
+  // existente. Antes se podía cambiar aquí, se actualizaba solo en
+  // G.recetas (local), pero el payload de actualización a Supabase nunca
+  // incluye `codigo` — quedaba desincronizado entre el navegador y
+  // Supabase, y como sub-recetas/addons resuelven por código (Sesión 11),
+  // eso podía romper esa resolución en otros dispositivos sin aviso.
+  // Opción "simple" del informe de auditoría: no se puede editar el
+  // código de una receta que ya existe.
+  document.getElementById('mr-code').disabled = true;
   document.getElementById('mr-name').value = r.name;
   document.getElementById('mr-masa').value = r.totalMass||1000;
   document.getElementById('mr-units').value = r.units||1;
@@ -6545,6 +6566,10 @@ function gmDoTransfer(name, toEditor) {
     // Check if already transferred — use existing code
     const existingGm = (G.recetas||[]).find(x => x.gmSource === name);
     document.getElementById('mr-code').value = existingGm ? existingGm.code : _pmNextRecCode();
+    // FIX SESIÓN 2 (B2): mismo bloqueo — si esta receta GM ya fue
+    // transferida antes, su código ya existe y no debe editarse aquí,
+    // por el mismo motivo que en recEditar().
+    document.getElementById('mr-code').disabled = !!existingGm;
     document.getElementById('mr-name').value = rec.name;
     document.getElementById('mr-masa').value = rec.totalMass||1000;
     document.getElementById('mr-units').value = rec.units||1;
@@ -8738,9 +8763,10 @@ async function _sbCosteoCargar() {
           if (item.es_harina) flour.push(entry);
           else other.push(entry);
         });
-        // Ordenar por campo orden si existe
-        flour.sort((a,b) => 0);
-        other.sort((a,b) => 0);
+        // FIX SESIÓN 2 (B4): se eliminó el sort() sin efecto (comparador
+        // (a,b)=>0 siempre devolvía 0, no ordenaba nada — solo confundía
+        // a quien leyera el código). Si algún día se quiere ordenar por
+        // un campo 'orden' real, implementarlo aquí.
       } else {
         // Fallback a localStorage si no hay items en Supabase
         flour = local.flour || [];
@@ -8754,9 +8780,14 @@ async function _sbCosteoCargar() {
         name:      row.nombre,
         cat:       row.categoria,
         totalMass: row.masa_total_g  || local.totalMass || 1000,
-        units:     row.unidades      || local.units     || 1,
-        merma:     row.merma_pct     || local.merma     || 0,
-        margen:    row.margen_pct    || local.margen,
+        // FIX SESIÓN 2 (B3): antes usaba `row.x || local.x || 0` — si el
+        // valor en Supabase era legítimamente 0 (merma 0%, margen 0%,
+        // 0 unidades), el OR lógico lo trataba como falso y caía al valor
+        // local viejo en su lugar, sin que se notara el motivo. Ahora se
+        // comprueba explícitamente null/undefined.
+        units:     row.unidades   != null ? row.unidades   : (local.units  || 1),
+        merma:     row.merma_pct  != null ? row.merma_pct  : (local.merma  || 0),
+        margen:    row.margen_pct != null ? row.margen_pct : local.margen,
         notes:     row.notas         || local.notes     || '',
         flour,
         other,
