@@ -2239,9 +2239,24 @@ function ppAdd() {
 }
 
 // ── Carga pedidos de pan desde Supabase (fuente primaria) ──
+// FIX: condición de carrera al agregar línea de pedido de pan.
+// ppAddLinea() escribe local al instante y sincroniza a Supabase en
+// segundo plano (fire-and-forget). Si el usuario navega a otra pestaña
+// y regresa a Pedidos ANTES de que esa escritura termine, ppCargarSb()
+// recarga desde Supabase como "fuente primaria" y — si la escritura
+// todavía estaba en vuelo o falló en silencio — la línea recién
+// agregada desaparece, aunque el pedido (header) sí quedó guardado.
+// Este arreglo registra cada escritura pendiente y hace que
+// ppCargarSb() espere a que terminen antes de confiar en Supabase.
+let _sbPedidoLineasPendientes = [];
+
 async function ppCargarSb() {
   if (pmDB.disponible()) {
     try {
+      if (_sbPedidoLineasPendientes.length) {
+        await Promise.allSettled(_sbPedidoLineasPendientes);
+        _sbPedidoLineasPendientes = [];
+      }
       const fecha = document.getElementById('pp-fecha').value || pmHoy();
       await _sbProdEnsureMap();
       const rows = await pmDB.get('pedidos', { tipo: 'pan', fecha }, '*');
@@ -2591,18 +2606,33 @@ function ppAddLinea(pedId) {
   pmToast('Línea agregada ✓');
   // Supabase — agregar línea
   if (pmDB.disponible() && ped._sbId) {
-    _sbProdEnsureMap().then(() => {
+    const escritura = _sbProdEnsureMap().then(() => {
       const prodUuid = _sbProdMap?.[pid];
       const precio = G.tiposPan.find(x=>x.id===pid)?.precio || 0;
       if (prodUuid) {
-        pmDB.pedidos.lineas.agregar({
+        return pmDB.pedidos.lineas.agregar({
           pedido_id: ped._sbId,
           producto_id: prodUuid,
           cantidad: cant,
           precio_applied: precio,
           instruccion: inst || null
-        }).catch(e => console.warn('[pmDB] ppAddLinea error:', e.message));
+        });
+      } else {
+        // FIX: antes esto se saltaba en silencio si el producto no estaba
+        // en el mapa cacheado (ej. producto creado después de cargar el
+        // mapa) — la línea quedaba solo local y desaparecía en el
+        // siguiente reload desde Supabase, sin ningún aviso.
+        throw new Error('Producto no encontrado en Supabase (mapa desactualizado)');
       }
+    }).catch(e => {
+      console.warn('[pmDB] ppAddLinea error:', e.message);
+      pmToast('⚠️ Línea guardada solo local — no se sincronizó a Supabase: ' + e.message, 'err');
+    });
+    // Registrar como pendiente para que ppCargarSb() espere antes de
+    // recargar y pisar esta línea con datos viejos de Supabase.
+    _sbPedidoLineasPendientes.push(escritura);
+    escritura.finally(() => {
+      _sbPedidoLineasPendientes = _sbPedidoLineasPendientes.filter(p => p !== escritura);
     });
   }
 }
