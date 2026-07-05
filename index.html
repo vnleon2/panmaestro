@@ -1650,7 +1650,18 @@ function pmImport(input) {
   r.readAsText(file);
 }
 
-function pmHoy() { return new Date().toISOString().slice(0,10); }
+function pmHoy() {
+  // FIX SESIÓN 1 (E1): antes usaba new Date().toISOString().slice(0,10),
+  // que convierte a UTC. Costa Rica es UTC-6, así que entre las 6:00pm
+  // y medianoche hora local, toISOString() ya reportaba la fecha del
+  // día siguiente. Se arma la fecha con getFullYear/getMonth/getDate,
+  // que sí respetan la hora local del navegador.
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 function pmMoney(n) { return '₡' + Number(n||0).toLocaleString('es-CR'); }
 
 const DIAS   = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
@@ -3316,7 +3327,7 @@ async function pcChgSt(sbId, st, cliNom) {
       if (!ventaExist.length) {
         const res = await pmDB.ventas.crear({
           pedido_id:   sbId,
-          fecha_pago:  new Date().toISOString().slice(0,10),
+          fecha_pago:  pmHoy(), // FIX SESIÓN 1 (E1): usaba new Date().toISOString() directo (bug UTC), instancia no listada en el informe pero mismo root cause
           total,
           metodo_pago: 'efectivo',
           cliente_nom: nombreCliente,

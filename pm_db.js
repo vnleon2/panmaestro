@@ -21,6 +21,19 @@ const pmDB = (() => {
 
   let _disponible = true; // se pone false si Supabase falla
 
+  // FIX SESIÓN 1 (E1): fecha de "hoy" en hora LOCAL, no UTC.
+  // new Date().toISOString().slice(0,10) convierte a UTC — en Costa Rica
+  // (UTC-6) eso hace que entre las 6:00pm y medianoche la fecha reportada
+  // ya sea la del día siguiente. Este helper arma la fecha con
+  // getFullYear/getMonth/getDate, que respetan la hora local.
+  function _hoyLocal() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
   // ─── TOKEN DE SESIÓN ─────────────────────────────────────────────────────
   // Usa el JWT de sesión si está disponible, si no usa la anon key.
   // Compatible con file:// y http://
@@ -244,7 +257,7 @@ const pmDB = (() => {
   const pedidos = {
     listar:      (filtros = {}) => get('pedidos', filtros),
     listarHoy:   ()             => {
-      const hoy = new Date().toISOString().slice(0,10);
+      const hoy = _hoyLocal();
       return get('pedidos', { fecha: hoy });
     },
     obtener:     (id)           => getById('pedidos', id),
@@ -323,7 +336,7 @@ const pmDB = (() => {
   const lotes = {
     listar:     (filtros = {}) => get('lotes_produccion', filtros),
     listarHoy:  ()             => get('lotes_produccion', {
-      fecha: new Date().toISOString().slice(0,10)
+      fecha: _hoyLocal()
     }),
     crear:      (datos)        => insert('lotes_produccion', datos),
     cerrar:     (id)           => update('lotes_produccion', id, { status: 'cerrado' }),
