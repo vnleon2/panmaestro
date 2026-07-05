@@ -2626,13 +2626,18 @@ function ppAddLinea(pedId) {
         throw new Error('el pedido todavía no se creó en Supabase');
       }
       await _sbProdEnsureMap();
-      const prodUuid = _sbProdMap?.[pid];
+      let prodUuid = _sbProdMap?.[pid];
       const precio = G.tiposPan.find(x=>x.id===pid)?.precio || 0;
       if (!prodUuid) {
-        // FIX: antes esto se saltaba en silencio si el producto no estaba
-        // en el mapa cacheado (ej. producto creado después de cargar el
-        // mapa) — la línea quedaba solo local y desaparecía en el
-        // siguiente reload desde Supabase, sin ningún aviso.
+        // FIX: antes se daba por vencido de una — si el mapa cacheado
+        // estaba desactualizado (producto sincronizado después de la
+        // primera carga), esto fallaba en silencio o con este error
+        // aunque el producto SÍ existiera ya en Supabase. Se fuerza un
+        // refresco del mapa una vez antes de reportar el error real.
+        await _sbProdEnsureMap(true);
+        prodUuid = _sbProdMap?.[pid];
+      }
+      if (!prodUuid) {
         throw new Error('producto no encontrado en Supabase (mapa desactualizado)');
       }
       return pmDB.pedidos.lineas.agregar({
@@ -7362,14 +7367,26 @@ function mTab(tab, btn) {
 // _sbProdMapInv: inverso { uuid → codigo } para lookup en lotes
 let _sbProdMap = null;
 let _sbProdMapInv = null;
-async function _sbProdEnsureMap() {
-  if (_sbProdMap) return;
+async function _sbProdEnsureMap(forzar = false) {
+  // FIX: antes, si la carga fallaba (red, error), igual se guardaba
+  // `_sbProdMap = {}` — un objeto vacío es "verdadero" en JS, así que la
+  // condición de arriba nunca volvía a intentar cargar el mapa el resto
+  // de la sesión. Además, si un producto se creaba/sincronizaba DESPUÉS
+  // de la primera carga, el mapa quedaba desactualizado sin forma de
+  // refrescarlo. Ahora se puede forzar un refresco (forzar=true) y un
+  // fallo real ya no se cachea como si fuera un mapa válido.
+  if (_sbProdMap && !forzar) return;
   try {
     const rows = await pmDB.productos.listar();
-    _sbProdMap = {};
-    _sbProdMapInv = {};
-    (rows||[]).forEach(r => { _sbProdMap[r.codigo] = r.id; _sbProdMapInv[r.id] = r.codigo; });
-  } catch(e) { _sbProdMap = {}; _sbProdMapInv = {}; }
+    const map = {}, inv = {};
+    (rows||[]).forEach(r => { map[r.codigo] = r.id; inv[r.id] = r.codigo; });
+    _sbProdMap = map;
+    _sbProdMapInv = inv;
+  } catch(e) {
+    console.warn('[pmDB] _sbProdEnsureMap error:', e.message);
+    // No se cachea el fallo — _sbProdMap queda como estaba (null la
+    // primera vez) para poder reintentar en la próxima llamada.
+  }
 }
 
 function panAdd() {
@@ -7391,9 +7408,18 @@ function panAdd() {
   pmToast('Tipo de pan agregado ✓');
   // Supabase — dual write
   if (pmDB.disponible()) {
+    // FIX: antes un fallo acá solo dejaba un console.warn — invisible.
+    // Si esto falla, el tipo de pan queda SOLO local (como pasó con
+    // "Pan del Día") y cualquier pedido que lo use nunca podrá
+    // sincronizar su línea a Supabase, sin ninguna pista de por qué.
     pmDB.productos.crear({ codigo:newId, nombre:nom, tipo:'pan', presentacion:'unidad', peso_g:peso||null, precio_full:pr, receta_cod:rec||null, activo:true })
-      .then(rows => { if (rows?.[0]) { if(!_sbProdMap)_sbProdMap={}; _sbProdMap[newId]=rows[0].id; } })
-      .catch(e => console.warn('[pmDB] panAdd sync error:', e.message));
+      .then(rows => { if (rows?.[0]) { if(!_sbProdMap)_sbProdMap={}; _sbProdMap[newId]=rows[0].id; } else {
+        pmToast('⚠️ "' + nom + '" guardado solo local — revisá la sincronización con Supabase', 'err');
+      } })
+      .catch(e => {
+        console.warn('[pmDB] panAdd sync error:', e.message);
+        pmToast('⚠️ "' + nom + '" guardado solo local — no se sincronizó a Supabase: ' + e.message, 'err');
+      });
   }
 }
 
