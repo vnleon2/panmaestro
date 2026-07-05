@@ -2232,9 +2232,13 @@ function ppAdd() {
   }, 50);
   // Supabase — dual write
   if (pmDB.disponible()) {
-    pmDB.pedidos.crear({ fecha, cliente_nom:cli, tipo:'pan', status:newPed.status, total:0 })
-      .then(rows => { if (rows?.[0]) newPed._sbId = rows[0].id; })
-      .catch(e => console.warn('[pmDB] ppAdd error:', e.message));
+    // FIX: se guarda la promesa de creación (no solo el resultado) para
+    // que ppAddLinea() pueda esperarla si el usuario agrega un producto
+    // antes de que el pedido termine de crearse en Supabase — ver fix
+    // más abajo, en ppAddLinea().
+    newPed._sbCreatePromise = pmDB.pedidos.crear({ fecha, cliente_nom:cli, tipo:'pan', status:newPed.status, total:0 })
+      .then(rows => { if (rows?.[0]) newPed._sbId = rows[0].id; return rows; })
+      .catch(e => { console.warn('[pmDB] ppAdd error:', e.message); throw e; });
   }
 }
 
@@ -2605,26 +2609,40 @@ function ppAddLinea(pedId) {
   cantEl.focus();
   pmToast('Línea agregada ✓');
   // Supabase — agregar línea
-  if (pmDB.disponible() && ped._sbId) {
-    const escritura = _sbProdEnsureMap().then(() => {
+  // FIX: antes la condición era `pmDB.disponible() && ped._sbId` — si el
+  // pedido todavía no tenía _sbId (su creación en Supabase seguía en
+  // camino, algo muy probable porque la UI enfoca el campo de cantidad
+  // para seguir escribiendo rápido), este bloque completo se saltaba EN
+  // SILENCIO: ni error, ni toast, nada. La línea quedaba solo local y
+  // desaparecía en el siguiente reload desde Supabase. Ahora, si no hay
+  // _sbId todavía pero existe la promesa de creación, se espera esa
+  // promesa antes de decidir que no se puede sincronizar.
+  if (pmDB.disponible() && (ped._sbId || ped._sbCreatePromise)) {
+    const escritura = (async () => {
+      if (!ped._sbId && ped._sbCreatePromise) {
+        await ped._sbCreatePromise.catch(() => {});
+      }
+      if (!ped._sbId) {
+        throw new Error('el pedido todavía no se creó en Supabase');
+      }
+      await _sbProdEnsureMap();
       const prodUuid = _sbProdMap?.[pid];
       const precio = G.tiposPan.find(x=>x.id===pid)?.precio || 0;
-      if (prodUuid) {
-        return pmDB.pedidos.lineas.agregar({
-          pedido_id: ped._sbId,
-          producto_id: prodUuid,
-          cantidad: cant,
-          precio_applied: precio,
-          instruccion: inst || null
-        });
-      } else {
+      if (!prodUuid) {
         // FIX: antes esto se saltaba en silencio si el producto no estaba
         // en el mapa cacheado (ej. producto creado después de cargar el
         // mapa) — la línea quedaba solo local y desaparecía en el
         // siguiente reload desde Supabase, sin ningún aviso.
-        throw new Error('Producto no encontrado en Supabase (mapa desactualizado)');
+        throw new Error('producto no encontrado en Supabase (mapa desactualizado)');
       }
-    }).catch(e => {
+      return pmDB.pedidos.lineas.agregar({
+        pedido_id: ped._sbId,
+        producto_id: prodUuid,
+        cantidad: cant,
+        precio_applied: precio,
+        instruccion: inst || null
+      });
+    })().catch(e => {
       console.warn('[pmDB] ppAddLinea error:', e.message);
       pmToast('⚠️ Línea guardada solo local — no se sincronizó a Supabase: ' + e.message, 'err');
     });
