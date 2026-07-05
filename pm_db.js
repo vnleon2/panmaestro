@@ -292,13 +292,19 @@ const pmDB = (() => {
         `plan_produccion?fecha=gte.${inicio}&fecha=lte.${fin}&select=*`
       );
     },
-    guardar: async (datos) => {
-      if (!datos || !datos.length) return;
-      const fecha = datos[0].fecha;
-      const tipo  = datos[0].tipo;
-      // Delete existing rows for this fecha+tipo, then insert fresh
+    guardar: async (datos, fechaOverride, tipoOverride) => {
+      // SESIÓN 11 fix crítico: antes, si "datos" venía vacío (ej. porque el
+      // usuario puso todo en 0 para borrar), la función se salía ANTES de
+      // borrar los registros viejos — el plan de producción quedaba
+      // "pegado" para siempre, sin forma de vaciarlo desde la app.
+      const fecha = fechaOverride || (datos && datos[0] && datos[0].fecha);
+      const tipo  = tipoOverride  || (datos && datos[0] && datos[0].tipo);
+      if (!fecha || !tipo) return; // sin info suficiente para saber qué borrar
+      // Delete existing rows for this fecha+tipo — SIEMPRE, haya o no datos nuevos
       await _fetch(`plan_produccion?fecha=eq.${fecha}&tipo=eq.${tipo}`, { method: 'DELETE', headers: { 'Prefer': 'return=minimal' } });
-      return await insert('plan_produccion', datos, false);
+      if (datos && datos.length) {
+        return await insert('plan_produccion', datos, false);
+      }
     },
     eliminar: (id)   => hardDelete('plan_produccion', id),
   };

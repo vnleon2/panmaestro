@@ -3680,15 +3680,30 @@ async function prodGuardar() {
     if ((v.prod || 0) === 0 && !v.nota) return null; // no insertar filas vacías
     return { fecha, producto_id: sbId, cantidad: v.prod || 0, tipo: 'pedido', nota: v.nota || null };
   }).filter(Boolean);
+  const mapaProdOk = _sbProdMap && Object.keys(_sbProdMap).length > 0;
   if (rows.length) {
     try {
-      await pmDB.planProduccion.guardar(rows);
+      await pmDB.planProduccion.guardar(rows, fecha, 'pedido');
       pmToast(`Plan guardado en Supabase ✓ (${rows.length} productos)`);
     } catch(e) {
       pmToast('Error al guardar en Supabase: ' + e.message, 'err');
       console.warn('[pmDB] plan_produccion upsert:', e.message);
     }
+  } else if (mapaProdOk) {
+    // SESIÓN 11 fix: el mapa de productos sí cargó bien, así que una lista
+    // vacía es un vaciado INTENCIONAL (todo en 0 / todo borrado) — hay que
+    // avisarle a Supabase para que limpie lo que había antes, si no, el
+    // plan viejo queda "pegado" para siempre.
+    try {
+      await pmDB.planProduccion.guardar([], fecha, 'pedido');
+      pmToast('Plan vaciado en Supabase ✓');
+    } catch(e) {
+      pmToast('Error al vaciar en Supabase: ' + e.message, 'err');
+      console.warn('[pmDB] plan_produccion clear:', e.message);
+    }
   } else {
+    // El mapa de productos no cargó — no tocamos Supabase para no borrar
+    // por error un plan válido a causa de un fallo temporal de conexión.
     pmToast('⚠️ Sin productos para guardar en Supabase — mapa de productos vacío', 'err');
   }
   await prodRenderConSb();
@@ -8292,8 +8307,13 @@ function planLibreGuardar() {
       if (!sbId) return null;
       return { fecha, producto_id: sbId, cantidad: r.cant || 0, tipo: 'libre', nota: r.nota || null };
     }).filter(Boolean);
+    const mapaProdOk = _sbProdMap && Object.keys(_sbProdMap).length > 0;
     if (rows.length) {
-      pmDB.planProduccion.guardar(rows).catch(e => console.warn('[pmDB] plan_produccion libre upsert:', e.message));
+      pmDB.planProduccion.guardar(rows, fecha, 'libre').catch(e => console.warn('[pmDB] plan_produccion libre upsert:', e.message));
+    } else if (mapaProdOk) {
+      // SESIÓN 11 fix: mismo bug que en el plan normal — si quedó vacío
+      // (todo borrado) había que avisar a Supabase para limpiar lo viejo.
+      pmDB.planProduccion.guardar([], fecha, 'libre').catch(e => console.warn('[pmDB] plan_produccion libre clear:', e.message));
     }
   }
 }
