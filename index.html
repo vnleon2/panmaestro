@@ -8024,8 +8024,25 @@ async function estAdd() {
   document.getElementById('est-nuevo').value='';
   estRender(); pmToast('Estado agregado ✓');
   if (pmDB.disponible()) {
-    pmDB.insert('estados_pedido', { nombre: v, activo: true }, false)
-      .catch(e => console.warn('[estAdd SB]', e.message));
+    // FIX: si este estado ya existía y se había "borrado" (borrado suave,
+    // activo:false — ver estDel), insertar una fila nueva con el mismo
+    // nombre choca con la restricción de unicidad en Supabase (409
+    // Conflict). Se revisa primero si ya hay una fila con este nombre
+    // (activa o no) y, si existe, se reactiva en vez de insertar una
+    // duplicada.
+    (async () => {
+      try {
+        const existing = await pmDB.get('estados_pedido', { nombre: v });
+        if (existing?.[0]) {
+          await pmDB.update('estados_pedido', existing[0].id, { activo: true });
+        } else {
+          await pmDB.insert('estados_pedido', { nombre: v, activo: true }, false);
+        }
+      } catch(e) {
+        console.warn('[estAdd SB]', e.message);
+        pmToast('⚠️ "' + v + '" se guardó local pero no en Supabase: ' + e.message, 'err');
+      }
+    })();
   }
 }
 
@@ -8037,8 +8054,21 @@ async function instAdd() {
   document.getElementById('inst-nuevo').value='';
   estRender(); pmToast('Instrucción agregada ✓');
   if (pmDB.disponible()) {
-    pmDB.insert('instrucciones_especiales', { texto: v, activo: true }, false)
-      .catch(e => console.warn('[instAdd SB]', e.message));
+    // FIX: mismo caso que estAdd() — reactivar en vez de insertar
+    // duplicado si ya existe una fila (activa o no) con este texto.
+    (async () => {
+      try {
+        const existing = await pmDB.get('instrucciones_especiales', { texto: v });
+        if (existing?.[0]) {
+          await pmDB.update('instrucciones_especiales', existing[0].id, { activo: true });
+        } else {
+          await pmDB.insert('instrucciones_especiales', { texto: v, activo: true }, false);
+        }
+      } catch(e) {
+        console.warn('[instAdd SB]', e.message);
+        pmToast('⚠️ "' + v + '" se guardó local pero no en Supabase: ' + e.message, 'err');
+      }
+    })();
   }
 }
 
