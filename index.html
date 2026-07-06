@@ -840,6 +840,11 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
       <button class="btn btn-out btn-sm" onclick="_backfillRecetasFaltantes()" style="margin-left:6px">Verificar / crear recetas faltantes en Supabase</button>
       <button class="btn btn-out btn-sm" onclick="_backfillItemsFaltantes()" style="margin-left:6px">Completar ingredientes en recetas vacías (Supabase)</button>
       <button class="btn btn-out btn-sm" onclick="_backfillSubrecsAddons()" style="margin-left:6px">Sincronizar rellenos/coberturas locales → Supabase</button>
+      <div style="font-size:10px;color:var(--gold);margin-top:4px">
+        ⚠️ Usa el navegador donde tengas la versión MÁS RECIENTE de cada receta —
+        este botón ya no pisa datos que Supabase tenga, pero si Supabase está
+        vacío ahí, copia lo que vea en ESTE navegador.
+      </div>
       <div id="backfill-log" style="margin-top:10px;font-family:'DM Mono',monospace;font-size:11px;white-space:pre-wrap"></div>
     </div>
     <div id="ing-list"></div>
@@ -3700,7 +3705,7 @@ function prodRender(pedsCom = []) {
         <tr style="background:rgba(200,146,42,.08);font-weight:700">
           <td style="padding:8px 10px">TOTAL</td>
           <td style="padding:8px 10px;text-align:center;font-family:'DM Mono',monospace">${totalPedido}</td>
-          <td style="padding:8px 10px;text-align:center;font-family:'DM Mono',monospace;color:var(--gold)">${totalProd}</td>
+          <td id="prod-tfoot-total" style="padding:8px 10px;text-align:center;font-family:'DM Mono',monospace;color:var(--gold)">${totalProd}</td>
           <td colspan="2"></td>
         </tr>
       </tfoot>
@@ -3726,6 +3731,12 @@ function prodActualizar(pid) {
     const cells = statEl.querySelectorAll('.stat');
     if (cells[2]) cells[2].querySelector('.stat-val').textContent = totalProd + ' ud';
   }
+  // FIX: el TOTAL del pie de la tabla (tfoot) se calculaba solo en
+  // prodRender() y no se refrescaba al cambiar una cantidad — quedaba
+  // desactualizado hasta guardar (o navegar y volver). Ahora se actualiza
+  // en vivo junto con el total de la tarjeta de arriba.
+  const tfootTotal = document.getElementById('prod-tfoot-total');
+  if (tfootTotal) tfootTotal.textContent = totalProd;
 }
 
 async function prodGuardar() {
@@ -5932,11 +5943,19 @@ function mrSubCostPreview(uid) {
 async function _sbSaveRecetaItems(sbRecId, flour, other) {
   if (!pmDB.disponible() || !sbRecId) return;
   try {
-    // Eliminar items anteriores
+    // FIX SESIÓN 3 (D2): antes se borraba todo primero y se insertaba
+    // después — un corte de red a mitad de camino dejaba la receta con
+    // ingredientes borrados y no reemplazados (pérdida real de datos,
+    // mismo tipo de riesgo que causó el problema de plan_producción
+    // antes del fix de Sesión 11). Ahora se guardan los ids viejos,
+    // se insertan los NUEVOS items primero, y solo se borran los viejos
+    // al final, ya confirmado que los nuevos se guardaron bien. Si algo
+    // falla a mitad de camino, en el peor caso quedan ingredientes
+    // duplicados (se puede volver a guardar para corregir), nunca
+    // borrados sin reemplazo.
     const existing = await pmDB.get('receta_items', { receta_id: sbRecId });
-    for (const item of (existing || [])) {
-      await pmDB.hardDelete('receta_items', item.id);
-    }
+    const oldIds = (existing || []).map(item => item.id);
+
     // Insertar nuevos items
     // SESIÓN 11 fix real: 'tipo' en esta tabla NO distingue harina/otro — solo
     // acepta 'ingrediente' | 'subreceta' | 'addon' (confirmado con el constraint
@@ -5964,6 +5983,12 @@ async function _sbSaveRecetaItems(sbRecId, flour, other) {
         tipo:           'ingrediente',
         es_harina:      false
       }, false);
+    }
+
+    // Recién ahora, con los nuevos ya insertados y confirmados, borrar
+    // los viejos.
+    for (const id of oldIds) {
+      await pmDB.hardDelete('receta_items', id);
     }
     console.log(`[pmDB] ✅ receta_items guardados: ${(flour||[]).length} harinas, ${(other||[]).length} otros`);
   } catch(e) {
@@ -6178,9 +6203,24 @@ async function _backfillSubrecsAddons() {
 
   let actualizadas = 0;
   const sinFila = [];
+  const omitidas = [];
   for (const rec of candidatos) {
     const sb = byCode[rec.code];
     if (!sb) { sinFila.push(rec.code); continue; }
+    // FIX SESIÓN 3 (D1): antes esto sobrescribía subrecs/addons en Supabase
+    // con lo que hubiera en ESTE navegador, sin comparar antes si Supabase
+    // ya tenía algo distinto. Corrido desde un navegador desactualizado,
+    // podía pisar rellenos/coberturas correctos ya sincronizados desde
+    // otro dispositivo, sin ningún aviso. Ahora solo se sincroniza si
+    // Supabase todavía tiene el campo vacío — nunca se pisa un dato que
+    // ya existe ahí.
+    const sbTieneSubrecs = Array.isArray(sb.subrecs) && sb.subrecs.length > 0;
+    const sbTieneAddons  = Array.isArray(sb.addons)  && sb.addons.length  > 0;
+    if (sbTieneSubrecs || sbTieneAddons) {
+      omitidas.push(rec.code);
+      log(`⏭ ${rec.code} · ${rec.name} — Supabase ya tiene datos ahí, NO se toca (revisar a mano si hace falta)`);
+      continue;
+    }
     try {
       await pmDB.recetas.editar(sb.id, { subrecs: rec.subrecs || [], addons: rec.addons || [] });
       actualizadas++;
@@ -6192,6 +6232,9 @@ async function _backfillSubrecsAddons() {
 
   log('──────────');
   log(`✅ Listo. ${actualizadas} de ${candidatos.length} sincronizadas.`);
+  if (omitidas.length) {
+    log(`⏭ ${omitidas.length} omitidas porque Supabase ya tenía datos: ${omitidas.join(', ')}`);
+  }
   if (sinFila.length) {
     log(`⚠️ Sin fila en Supabase (revisar a mano): ${sinFila.join(', ')}`);
   }
@@ -8042,8 +8085,14 @@ async function estDel(i) {
     try {
       const rows = await pmDB.get('estados_pedido', { nombre });
       if (rows?.[0]) pmDB.update('estados_pedido', rows[0].id, { activo: false })
-        .catch(e => console.warn('[estDel SB]', e.message));
-    } catch(e) { console.warn('[estDel SB]', e.message); }
+        .catch(e => {
+          console.warn('[estDel SB]', e.message);
+          pmToast('⚠️ "' + nombre + '" se borró local pero no en Supabase: ' + e.message, 'err');
+        });
+    } catch(e) {
+      console.warn('[estDel SB]', e.message);
+      pmToast('⚠️ "' + nombre + '" se borró local pero no en Supabase: ' + e.message, 'err');
+    }
   }
 }
 async function instDel(i) {
@@ -8053,8 +8102,14 @@ async function instDel(i) {
     try {
       const rows = await pmDB.get('instrucciones_especiales', { texto });
       if (rows?.[0]) pmDB.update('instrucciones_especiales', rows[0].id, { activo: false })
-        .catch(e => console.warn('[instDel SB]', e.message));
-    } catch(e) { console.warn('[instDel SB]', e.message); }
+        .catch(e => {
+          console.warn('[instDel SB]', e.message);
+          pmToast('⚠️ Instrucción borrada local pero no en Supabase: ' + e.message, 'err');
+        });
+    } catch(e) {
+      console.warn('[instDel SB]', e.message);
+      pmToast('⚠️ Instrucción borrada local pero no en Supabase: ' + e.message, 'err');
+    }
   }
 }
 
