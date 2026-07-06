@@ -2278,7 +2278,7 @@ async function ppCargarSb() {
             const lins = await pmDB.get('pedido_lineas', { pedido_id: sb.id }, '*');
             lineas = (lins||[]).map(l => {
               const pid = _sbProdMapInv?.[l.producto_id] || '';
-              return { lid: l.id, pid, cant: l.cantidad||1, inst: l.instruccion||'' };
+              return { lid: l.id, _sbId: l.id, pid, cant: l.cantidad||1, inst: l.instruccion||'' };
             }).filter(l => l.pid);
           } catch(e) { console.warn('[ppCargarSb] lineas:', e.message); }
           // Preservar id local si ya existía
@@ -2561,6 +2561,26 @@ function ppDesbloquear(id) {
   }
 }
 
+// FIX A1: espejo exacto de ppDesbloquear() para pedidos de galletas —
+// antes no existía y un pedido de galletas marcado "Pagado" (o el
+// último estado) por error quedaba bloqueado para siempre sin forma de
+// revertirlo desde la interfaz.
+function pgDesbloquear(id) {
+  const p = G.pedidosGalletas.find(x=>x.id===id);
+  if (!p) return;
+  const estados = G.estados||[];
+  const prevSt = estados.length > 1 ? estados[estados.length-2] : estados[0];
+  if (prevSt) {
+    p.status = prevSt; pmSave('pedidos'); pgRender();
+    setTimeout(()=>{ const b=document.getElementById('pgb-'+id); if(b) b.style.display='block'; },20);
+    pmToast('Pedido desbloqueado ✓');
+    if (pmDB.disponible() && p._sbId) {
+      pmDB.pedidos.cambiarStatus(p._sbId, prevSt)
+        .catch(e => console.warn('[pmDB] pgDesbloquear error:', e.message));
+    }
+  }
+}
+
 function ppAddLinea(pedId) {
   const ped = G.pedidosPan.find(p=>p.id===pedId);
   if (!ped) return;
@@ -2645,13 +2665,18 @@ function ppAddLinea(pedId) {
       if (!prodUuid) {
         throw new Error('producto no encontrado en Supabase (mapa desactualizado)');
       }
-      return pmDB.pedidos.lineas.agregar({
+      const rows = await pmDB.pedidos.lineas.agregar({
         pedido_id: ped._sbId,
         producto_id: prodUuid,
         cantidad: cant,
         precio_applied: precio,
         instruccion: inst || null
       });
+      if (rows?.[0]) {
+        const lineaLocal = ped.lineas.find(x => x.lid === lid);
+        if (lineaLocal) lineaLocal._sbId = rows[0].id;
+      }
+      return rows;
     })().catch(e => {
       console.warn('[pmDB] ppAddLinea error:', e.message);
       pmToast('⚠️ Línea guardada solo local — no se sincronizó a Supabase: ' + e.message, 'err');
@@ -2659,6 +2684,12 @@ function ppAddLinea(pedId) {
     // Registrar como pendiente para que ppCargarSb() espere antes de
     // recargar y pisar esta línea con datos viejos de Supabase.
     _sbPedidoLineasPendientes.push(escritura);
+    // FIX: también se guarda la referencia en la propia línea — si el
+    // usuario la borra MUY rápido, antes de que esto termine, ppDelLinea
+    // puede esperar esta misma promesa antes de decidir si hay que
+    // borrarla en Supabase también.
+    const lineaRef = ped.lineas.find(x => x.lid === lid);
+    if (lineaRef) lineaRef._sbPendingPromise = escritura;
     escritura.finally(() => {
       _sbPedidoLineasPendientes = _sbPedidoLineasPendientes.filter(p => p !== escritura);
     });
@@ -2698,14 +2729,78 @@ function ppSaveLinea(pedId, lid) {
   pmSave('pedidos'); ppRender();
   setTimeout(()=>{ const b=document.getElementById('pb-'+pedId); if(b) b.style.display='block'; },20);
   pmToast('Línea actualizada ✓');
+
+  // FIX: antes editar una línea nunca se sincronizaba a Supabase — el
+  // cambio quedaba solo local. Mismo patrón que ppAddLinea: espera la
+  // creación del pedido si hace falta, refresca el mapa de productos si
+  // no encuentra el producto, y si la línea nunca se había sincronizado
+  // (_sbId ausente), la inserta ahora en vez de intentar un update.
+  if (pmDB.disponible() && (ped._sbId || ped._sbCreatePromise)) {
+    const escritura = (async () => {
+      if (!ped._sbId && ped._sbCreatePromise) {
+        await ped._sbCreatePromise.catch(() => {});
+      }
+      if (!ped._sbId) throw new Error('el pedido todavía no se creó en Supabase');
+      await _sbProdEnsureMap();
+      let prodUuid = _sbProdMap?.[l.pid];
+      const precio = G.tiposPan.find(x=>x.id===l.pid)?.precio || 0;
+      if (!prodUuid) {
+        await _sbProdEnsureMap(true);
+        prodUuid = _sbProdMap?.[l.pid];
+      }
+      if (!prodUuid) throw new Error('producto no encontrado en Supabase (mapa desactualizado)');
+      if (l._sbId) {
+        return pmDB.pedidos.lineas.editar(l._sbId, {
+          producto_id: prodUuid, cantidad: l.cant, precio_applied: precio, instruccion: l.inst || null
+        });
+      } else {
+        const rows = await pmDB.pedidos.lineas.agregar({
+          pedido_id: ped._sbId, producto_id: prodUuid, cantidad: l.cant,
+          precio_applied: precio, instruccion: l.inst || null
+        });
+        if (rows?.[0]) l._sbId = rows[0].id;
+        return rows;
+      }
+    })().catch(e => {
+      console.warn('[pmDB] ppSaveLinea error:', e.message);
+      pmToast('⚠️ Edición guardada solo local — no se sincronizó a Supabase: ' + e.message, 'err');
+    });
+    _sbPedidoLineasPendientes.push(escritura);
+    escritura.finally(() => {
+      _sbPedidoLineasPendientes = _sbPedidoLineasPendientes.filter(p => p !== escritura);
+    });
+  }
 }
 
 function ppDelLinea(pedId, lid) {
   const p = G.pedidosPan.find(x=>x.id===pedId);
   if (!p) return;
-  p.lineas = p.lineas.filter(l=>l.lid!==lid);
+  const l = p.lineas.find(x=>x.lid===lid);
+  p.lineas = p.lineas.filter(x=>x.lid!==lid);
   pmSave('pedidos'); ppRender();
   setTimeout(()=>{ const b=document.getElementById('pb-'+pedId); if(b) b.style.display='block'; },20);
+  // FIX: antes borrar una línea nunca se sincronizaba a Supabase — la
+  // línea seguía viva ahí después de "borrarla" en pantalla. Si la línea
+  // se había agregado hace instantes y su sincronización todavía está en
+  // vuelo (_sbPendingPromise), se espera a que termine antes de decidir
+  // si hace falta un delete — así no queda huérfana en Supabase por
+  // haberla borrado demasiado rápido.
+  if (pmDB.disponible() && l) {
+    const escritura = (async () => {
+      if (!l._sbId && l._sbPendingPromise) {
+        await l._sbPendingPromise.catch(() => {});
+      }
+      if (!l._sbId) return; // nunca llegó a existir en Supabase, nada que borrar
+      return pmDB.pedidos.lineas.eliminar(l._sbId);
+    })().catch(e => {
+      console.warn('[pmDB] ppDelLinea error:', e.message);
+      pmToast('⚠️ Línea borrada solo local — no se borró en Supabase: ' + e.message, 'err');
+    });
+    _sbPedidoLineasPendientes.push(escritura);
+    escritura.finally(() => {
+      _sbPedidoLineasPendientes = _sbPedidoLineasPendientes.filter(p2 => p2 !== escritura);
+    });
+  }
 }
 
 function ppDel(id) {
@@ -2858,16 +2953,30 @@ function pgAdd() {
   }, 50);
   // Supabase — dual write
   if (pmDB.disponible()) {
-    pmDB.pedidos.crear({ fecha, cliente_nom:cli, tipo:'galleta', status:newPed.status, total:0 })
-      .then(rows => { if (rows?.[0]) newPed._sbId = rows[0].id; })
-      .catch(e => console.warn('[pmDB] pgAdd error:', e.message));
+    // FIX A2/mismo patrón que Pan: se guarda la promesa de creación (no
+    // solo el resultado) para que pgAddLinea() pueda esperarla si el
+    // usuario agrega una galleta antes de que el pedido termine de
+    // crearse en Supabase.
+    newPed._sbCreatePromise = pmDB.pedidos.crear({ fecha, cliente_nom:cli, tipo:'galleta', status:newPed.status, total:0 })
+      .then(rows => { if (rows?.[0]) newPed._sbId = rows[0].id; return rows; })
+      .catch(e => { console.warn('[pmDB] pgAdd error:', e.message); throw e; });
   }
 }
 
 // ── Carga pedidos de galleta desde Supabase (fuente primaria) ──
+// FIX A2: mismo patrón de condición de carrera que se arregló en Pan
+// (ver _sbPedidoLineasPendientes) — pgAddLinea() ahora sí sincroniza a
+// Supabase, y este registro evita que pgCargarSb() pise una línea que
+// todavía está en camino.
+let _sbLineasPendientesGalletas = [];
+
 async function pgCargarSb() {
   if (pmDB.disponible()) {
     try {
+      if (_sbLineasPendientesGalletas.length) {
+        await Promise.allSettled(_sbLineasPendientesGalletas);
+        _sbLineasPendientesGalletas = [];
+      }
       const fecha = document.getElementById('pg-fecha').value || pmHoy();
       await _sbProdEnsureMap();
       const rows = await pmDB.get('pedidos', { tipo: 'galleta', fecha }, '*');
@@ -2879,7 +2988,7 @@ async function pgCargarSb() {
             const lins = await pmDB.get('pedido_lineas', { pedido_id: sb.id }, '*');
             lineas = (lins||[]).map(l => {
               const pid = _sbProdMapInv?.[l.producto_id] || '';
-              return { lid: l.id, pid, cant: l.cantidad||1, inst: l.instruccion||'' };
+              return { lid: l.id, _sbId: l.id, pid, cant: l.cantidad||1, inst: l.instruccion||'' };
             }).filter(l => l.pid);
           } catch(e) { console.warn('[pgCargarSb] lineas:', e.message); }
           const local = G.pedidosGalletas.find(p => p._sbId === sb.id);
@@ -2986,7 +3095,7 @@ function pgCard(p) {
         ${pmBadge(p.status)}
       </div>
       <div style="display:flex;gap:6px;align-items:center" onclick="event.stopPropagation()">
-        ${locked?'':`<select style="font-size:11px;padding:4px 6px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--cream)" onchange="pgChgSt(${p.id},this.value)">${estOpts}</select>`}
+        ${locked?`<button class="btn btn-out btn-sm" onclick="pgDesbloquear(${p.id})">🔓</button>`:`<select style="font-size:11px;padding:4px 6px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--cream)" onchange="pgChgSt(${p.id},this.value)">${estOpts}</select>`}
         ${locked?'':`<button class="btn btn-out btn-sm" onclick="pgToggleForm(${p.id})">＋ Producto</button>`}
         ${locked?'':`<button class="btn btn-gold btn-sm" onclick="pgListo(${p.id})">✓ Listo</button>`}
         <button class="btn btn-red btn-sm" onclick="pgDel(${p.id})">✕</button>
@@ -3099,10 +3208,11 @@ async function pgChgSt(id, st) {
       const refId = 'GALL-' + id;
       const exist = await pmDB.get('ventas', { notas: refId }).catch(()=>[]);
       if (!exist || !exist.length) {
-        const total = (p.lineas||[]).reduce((s,l) => {
-          const g = G.tiposGalleta.find(x=>x.id===l.pid);
-          return s + (g?.precio||0) * (l.cant||1);
-        }, 0);
+        // FIX SESIÓN 4 (A3): antes esto recalculaba el total con un reduce
+        // manual en vez de reusar pmTotalGall(p), que ya existe y se usa
+        // en el resto del módulo — mismo resultado, pero duplicaba lógica
+        // que podía desincronizarse si pmTotalGall cambiara en el futuro.
+        const total = pmTotalGall(p);
         await pmDB.ventas.crear({
           fecha_pago:  pmHoy(),
           total,
@@ -3179,6 +3289,54 @@ function pgAddLinea(pedId) {
   cantEl.value = 1;
   cantEl.focus();
   pmToast('Línea agregada ✓');
+
+  // Supabase — agregar línea (FIX A2: antes esto no existía — pgAddLinea
+  // nunca sincronizaba a Supabase, ni siquiera lo intentaba. Se copia acá
+  // el mismo bloque de ppAddLinea, ya con todos los fixes de la sesión de
+  // hoy incluidos: esperar la creación del pedido si todavía está en
+  // camino, refrescar el mapa de productos si no encuentra la galleta, y
+  // avisar con toast visible si algo falla en vez de fallar en silencio.
+  if (pmDB.disponible() && (ped._sbId || ped._sbCreatePromise)) {
+    const escritura = (async () => {
+      if (!ped._sbId && ped._sbCreatePromise) {
+        await ped._sbCreatePromise.catch(() => {});
+      }
+      if (!ped._sbId) {
+        throw new Error('el pedido todavía no se creó en Supabase');
+      }
+      await _sbProdEnsureMap();
+      let prodUuid = _sbProdMap?.[pid];
+      const precio = G.tiposGalleta.find(x=>x.id===pid)?.precio || 0;
+      if (!prodUuid) {
+        await _sbProdEnsureMap(true);
+        prodUuid = _sbProdMap?.[pid];
+      }
+      if (!prodUuid) {
+        throw new Error('producto no encontrado en Supabase (mapa desactualizado)');
+      }
+      const rows = await pmDB.pedidos.lineas.agregar({
+        pedido_id: ped._sbId,
+        producto_id: prodUuid,
+        cantidad: cant,
+        precio_applied: precio,
+        instruccion: inst || null
+      });
+      if (rows?.[0]) {
+        const lineaLocal = ped.lineas.find(x => x.lid === lid);
+        if (lineaLocal) lineaLocal._sbId = rows[0].id;
+      }
+      return rows;
+    })().catch(e => {
+      console.warn('[pmDB] pgAddLinea error:', e.message);
+      pmToast('⚠️ Línea guardada solo local — no se sincronizó a Supabase: ' + e.message, 'err');
+    });
+    _sbLineasPendientesGalletas.push(escritura);
+    const lineaRef = ped.lineas.find(x => x.lid === lid);
+    if (lineaRef) lineaRef._sbPendingPromise = escritura;
+    escritura.finally(() => {
+      _sbLineasPendientesGalletas = _sbLineasPendientesGalletas.filter(p => p !== escritura);
+    });
+  }
 }
 
 function pgEditLinea(pedId, lid) {
@@ -3207,13 +3365,72 @@ function pgSaveLinea(pedId, lid) {
   pmSave('pedidos'); pgRender();
   setTimeout(()=>{ const b=document.getElementById('pgb-'+pedId); if(b) b.style.display='block'; },20);
   pmToast('Línea actualizada ✓');
+
+  // FIX: mismo patrón que ppSaveLinea — antes editar una línea de
+  // galletas nunca se sincronizaba a Supabase.
+  if (pmDB.disponible() && (ped._sbId || ped._sbCreatePromise)) {
+    const escritura = (async () => {
+      if (!ped._sbId && ped._sbCreatePromise) {
+        await ped._sbCreatePromise.catch(() => {});
+      }
+      if (!ped._sbId) throw new Error('el pedido todavía no se creó en Supabase');
+      await _sbProdEnsureMap();
+      let prodUuid = _sbProdMap?.[l.pid];
+      const precio = G.tiposGalleta.find(x=>x.id===l.pid)?.precio || 0;
+      if (!prodUuid) {
+        await _sbProdEnsureMap(true);
+        prodUuid = _sbProdMap?.[l.pid];
+      }
+      if (!prodUuid) throw new Error('producto no encontrado en Supabase (mapa desactualizado)');
+      if (l._sbId) {
+        return pmDB.pedidos.lineas.editar(l._sbId, {
+          producto_id: prodUuid, cantidad: l.cant, precio_applied: precio, instruccion: l.inst || null
+        });
+      } else {
+        const rows = await pmDB.pedidos.lineas.agregar({
+          pedido_id: ped._sbId, producto_id: prodUuid, cantidad: l.cant,
+          precio_applied: precio, instruccion: l.inst || null
+        });
+        if (rows?.[0]) l._sbId = rows[0].id;
+        return rows;
+      }
+    })().catch(e => {
+      console.warn('[pmDB] pgSaveLinea error:', e.message);
+      pmToast('⚠️ Edición guardada solo local — no se sincronizó a Supabase: ' + e.message, 'err');
+    });
+    _sbLineasPendientesGalletas.push(escritura);
+    escritura.finally(() => {
+      _sbLineasPendientesGalletas = _sbLineasPendientesGalletas.filter(p => p !== escritura);
+    });
+  }
 }
 function pgDelLinea(pedId, lid) {
   const p = G.pedidosGalletas.find(x=>x.id===pedId);
   if (!p) return;
-  p.lineas = p.lineas.filter(l=>l.lid!==lid);
+  const l = p.lineas.find(x=>x.lid===lid);
+  p.lineas = p.lineas.filter(x=>x.lid!==lid);
   pmSave('pedidos'); pgRender();
   setTimeout(()=>{ const b=document.getElementById('pgb-'+pedId); if(b) b.style.display='block'; },20);
+  // FIX: mismo patrón que ppDelLinea — antes borrar una línea de
+  // galletas nunca se sincronizaba a Supabase, y una línea borrada muy
+  // rápido (antes de que su alta terminara de sincronizar) podía quedar
+  // huérfana ahí.
+  if (pmDB.disponible() && l) {
+    const escritura = (async () => {
+      if (!l._sbId && l._sbPendingPromise) {
+        await l._sbPendingPromise.catch(() => {});
+      }
+      if (!l._sbId) return;
+      return pmDB.pedidos.lineas.eliminar(l._sbId);
+    })().catch(e => {
+      console.warn('[pmDB] pgDelLinea error:', e.message);
+      pmToast('⚠️ Línea borrada solo local — no se borró en Supabase: ' + e.message, 'err');
+    });
+    _sbLineasPendientesGalletas.push(escritura);
+    escritura.finally(() => {
+      _sbLineasPendientesGalletas = _sbLineasPendientesGalletas.filter(p2 => p2 !== escritura);
+    });
+  }
 }
 function pgDel(id) {
   if (!confirm('¿Eliminar este pedido?')) return;
