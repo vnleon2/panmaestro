@@ -1669,6 +1669,19 @@ function pmHoy() {
 }
 function pmMoney(n) { return '₡' + Number(n||0).toLocaleString('es-CR'); }
 
+// FIX D3: selector de método de pago — valores EXACTOS que acepta el
+// constraint ventas_metodo_pago_check en Supabase (confirmado por SQL):
+// 'efectivo' | 'sinpe' | 'transferencia' | 'otro'. No agregar otros
+// valores acá sin antes confirmar que el constraint los acepta.
+function pmMetodoPagoOpts(selected='efectivo') {
+  const opts = [
+    ['efectivo','Efectivo'], ['sinpe','SINPE'],
+    ['transferencia','Transferencia'], ['otro','Otro']
+  ];
+  return opts.map(([v,label]) =>
+    `<option value="${v}"${v===selected?' selected':''}>${label}</option>`).join('');
+}
+
 const DIAS   = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
 const MESES  = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 const DIAS_L = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
@@ -2391,6 +2404,7 @@ function ppCard(p) {
         ${pmBadge(p.status)}
       </div>
       <div style="display:flex;gap:6px;align-items:center" onclick="event.stopPropagation()">
+        ${locked?'':`<select title="Método de pago" style="font-size:11px;padding:4px 6px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--cream)" onchange="ppSetMetodoPago(${p.id},this.value)">${pmMetodoPagoOpts(p.metodoPago)}</select>`}
         ${locked?`<button class="btn btn-out btn-sm" onclick="ppDesbloquear(${p.id})">🔓</button>`:`<select style="font-size:11px;padding:4px 6px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--cream)" onchange="ppChgStatus(${p.id},this.value)">${estOpts}</select>`}
         ${locked?'':`<button class="btn btn-out btn-sm" onclick="ppToggleForm(${p.id})">＋ Producto</button>`}
         ${locked?'':`<button class="btn btn-gold btn-sm" onclick="ppListo(${p.id})">✓ Listo</button>`}
@@ -2505,6 +2519,15 @@ function ppListo(id) {
   document.getElementById('pp-cli').focus();
 }
 
+// FIX D3: guardar el método de pago elegido para este pedido (se usa
+// al crear la venta cuando se marca como Pagado).
+function ppSetMetodoPago(id, v) {
+  const p = G.pedidosPan.find(x=>x.id===id);
+  if (!p) return;
+  p.metodoPago = v;
+  pmSave('pedidos');
+}
+
 async function ppChgStatus(id, st) {
   const p = G.pedidosPan.find(x=>x.id===id);
   if (!p) return;
@@ -2523,7 +2546,7 @@ async function ppChgStatus(id, st) {
         await pmDB.ventas.crear({
           fecha_pago:  pmHoy(),
           total,
-          metodo_pago: 'efectivo',
+          metodo_pago: p.metodoPago || 'efectivo',
           cliente_nom: p.cli,
           tipo:        'pan',
           notas:       refId
@@ -3095,6 +3118,7 @@ function pgCard(p) {
         ${pmBadge(p.status)}
       </div>
       <div style="display:flex;gap:6px;align-items:center" onclick="event.stopPropagation()">
+        ${locked?'':`<select title="Método de pago" style="font-size:11px;padding:4px 6px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--cream)" onchange="pgSetMetodoPago(${p.id},this.value)">${pmMetodoPagoOpts(p.metodoPago)}</select>`}
         ${locked?`<button class="btn btn-out btn-sm" onclick="pgDesbloquear(${p.id})">🔓</button>`:`<select style="font-size:11px;padding:4px 6px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--cream)" onchange="pgChgSt(${p.id},this.value)">${estOpts}</select>`}
         ${locked?'':`<button class="btn btn-out btn-sm" onclick="pgToggleForm(${p.id})">＋ Producto</button>`}
         ${locked?'':`<button class="btn btn-gold btn-sm" onclick="pgListo(${p.id})">✓ Listo</button>`}
@@ -3196,6 +3220,14 @@ function pgListo(id) {
   document.getElementById('pg-galletas').scrollTo({ top:0, behavior:'smooth' });
   document.getElementById('pg-cli').focus();
 }
+// FIX D3: guardar el método de pago elegido para este pedido de galletas.
+function pgSetMetodoPago(id, v) {
+  const p = G.pedidosGalletas.find(x=>x.id===id);
+  if (!p) return;
+  p.metodoPago = v;
+  pmSave('pedidos');
+}
+
 async function pgChgSt(id, st) {
   const p = G.pedidosGalletas.find(x=>x.id===id);
   if (!p) return;
@@ -3216,7 +3248,7 @@ async function pgChgSt(id, st) {
         await pmDB.ventas.crear({
           fecha_pago:  pmHoy(),
           total,
-          metodo_pago: 'efectivo',
+          metodo_pago: p.metodoPago || 'efectivo',
           cliente_nom: p.cli,
           tipo:        'galleta',
           notas:       refId
@@ -3578,6 +3610,7 @@ async function pcRender() {
       <div class="ped-body${lineas.length ? ' open' : ''}" id="pb-sb-${p.id}">
         ${lineasHtml}
         <div class="row" style="margin-top:10px;gap:6px">
+          <select title="Método de pago" onchange="pcSetMetodoPago('${p.id}',this.value)" style="font-size:12px;flex:0 0 auto">${pmMetodoPagoOpts(_pcMetodoPagoSel[p.id])}</select>
           <select onchange="pcChgSt('${p.id}',this.value,'${(p.cliente_nom||'').replace(/'/g,"\\'")}')" style="flex:1;font-size:12px">${estOpts}</select>
           <button class="btn btn-out btn-sm" onclick="pcOpenLinea('${p.id}','${p.cliente_id||''}','${(p.cliente_nom||'').replace(/'/g,"\\'")}')">+ Producto</button>
           <button class="btn btn-red btn-sm" onclick="pcDel('${p.id}')">🗑</button>
@@ -3585,6 +3618,14 @@ async function pcRender() {
       </div>
     </div>`;
   }).join('');
+}
+
+// FIX D3: Comercial trabaja directo contra Supabase (no hay copia local
+// persistente del pedido), así que el método de pago elegido se guarda
+// en memoria por id de pedido hasta el momento de crear la venta.
+let _pcMetodoPagoSel = {};
+function pcSetMetodoPago(id, v) {
+  _pcMetodoPagoSel[id] = v;
 }
 
 // ── Cambiar estado pedido ──
@@ -3613,7 +3654,7 @@ async function pcChgSt(sbId, st, cliNom) {
           pedido_id:   sbId,
           fecha_pago:  pmHoy(), // FIX SESIÓN 1 (E1): usaba new Date().toISOString() directo (bug UTC), instancia no listada en el informe pero mismo root cause
           total,
-          metodo_pago: 'efectivo',
+          metodo_pago: _pcMetodoPagoSel[sbId] || 'efectivo',
           cliente_nom: nombreCliente,
           tipo:        'comercial'
         });
