@@ -790,13 +790,20 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
       case '+': return a + b;
       case '-': return a - b;
       case '*': return a * b;
-      case '/': return b === 0 ? 0 : a / b;
+      // FIX F1: antes, dividir entre 0 devolvía 0 en silencio, como si
+      // fuera un resultado válido. Ahora se deja que la división dé
+      // Infinity/-Infinity/NaN (comportamiento normal de JS) y es
+      // formatResult() quien lo muestra como 'Error' en vez de un 0
+      // engañoso.
+      case '/': return a / b;
       default: return b;
     }
   }
 
   function formatResult(n){
-    if(!isFinite(n)) return '0';
+    // FIX F1: antes devolvía '0' para cualquier resultado no finito
+    // (Infinity, -Infinity, NaN) — indistinguible de un resultado real.
+    if(!isFinite(n)) return 'Error';
     const rounded = Math.round(n * 1e10) / 1e10;
     return rounded.toString();
   }
@@ -898,6 +905,11 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
     const pct = parseFloat(priceMargin.value);
     priceMarginLabel.innerHTML = `${pct}<small>%</small>`;
 
+    // NOTA F2: la guarda pct>=100 es defensiva — el slider #priceMargin
+    // tiene max="80" (línea ~437), así que en la práctica esta rama
+    // nunca se activa hoy. Se deja intacta a propósito: si algún día se
+    // sube el máximo del slider a 100 o más, esto evita una división
+    // entre cero o un precio negativo/absurdo. No requiere cambios.
     let price;
     if(pricingMode === 'sale'){
       price = pct >= 100 ? cost : cost / (1 - pct/100);
