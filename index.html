@@ -2296,10 +2296,26 @@ async function ppCargarSb() {
           } catch(e) { console.warn('[ppCargarSb] lineas:', e.message); }
           // Preservar id local si ya existía
           const local = G.pedidosPan.find(p => p._sbId === sb.id);
+          // FIX: antes el vínculo con cliente (cliId/cliCod/cliNom) se
+          // descartaba por completo acá, aunque `local` ya lo tuviera —
+          // por eso "se perdía" el vínculo cada vez que se recargaba
+          // desde Supabase (por ejemplo, al salir y volver a la pestaña).
+          // Ahora se usa sb.cliente_id si Supabase ya lo tiene (por
+          // ejemplo, sincronizado desde otro dispositivo), y si no, se
+          // preserva lo que ya había local.
+          let cliId  = sb.cliente_id || local?.cliId  || null;
+          let cliCod = local?.cliCod || null;
+          let cliNom = local?.cliNom || null;
+          if (sb.cliente_id && sb.cliente_id !== local?.cliId) {
+            if (!_sbCliCache) { try { await _sbCliCargar(); } catch(e) {} }
+            const c = (_sbCliCache || []).find(x => x.id === sb.cliente_id);
+            if (c) { cliCod = c.codigo || cliCod; cliNom = c.nombre || cliNom; }
+          }
           sbPeds.push({
             id: local?.id || pmId(),
             date: sb.fecha, cli: sb.cliente_nom,
-            status: sb.status, lineas, _sbId: sb.id
+            status: sb.status, lineas, _sbId: sb.id,
+            cliId, cliCod, cliNom
           });
         }
         // Mantener pedidos locales sin _sbId (creados offline) + pedidos de otras fechas
@@ -2476,6 +2492,23 @@ function ppConfirmarVinculo(pedId, cliId, cliCod, cliNom) {
   mClose('m-vincular-cli');
   ppRender();
   pmToast(`Vinculado con ${cliNom} ✓`, 'ok');
+  // FIX: antes esto NUNCA se sincronizaba a Supabase — el vínculo vivía
+  // solo en localStorage. Cualquier recarga desde Supabase (ppCargarSb,
+  // al salir y volver a la pestaña) reconstruye el pedido desde cero sin
+  // este dato, así que el vínculo "se perdía" aunque nunca hubiera
+  // fallado nada — simplemente nunca se había guardado de verdad.
+  if (pmDB.disponible() && (p._sbId || p._sbCreatePromise)) {
+    (async () => {
+      try {
+        if (!p._sbId && p._sbCreatePromise) await p._sbCreatePromise.catch(()=>{});
+        if (!p._sbId) throw new Error('el pedido todavía no se creó en Supabase');
+        await pmDB.pedidos.editar(p._sbId, { cliente_id: cliId });
+      } catch(e) {
+        console.warn('[pmDB] ppConfirmarVinculo error:', e.message);
+        pmToast('⚠️ Vínculo guardado solo local — no se sincronizó a Supabase: ' + e.message, 'err');
+      }
+    })();
+  }
 }
 
 async function ppCrearYVincular() {
@@ -3015,10 +3048,21 @@ async function pgCargarSb() {
             }).filter(l => l.pid);
           } catch(e) { console.warn('[pgCargarSb] lineas:', e.message); }
           const local = G.pedidosGalletas.find(p => p._sbId === sb.id);
+          // FIX: mismo patrón que ppCargarSb — antes se descartaba el
+          // vínculo con cliente por completo en cada reload.
+          let cliId  = sb.cliente_id || local?.cliId  || null;
+          let cliCod = local?.cliCod || null;
+          let cliNom = local?.cliNom || null;
+          if (sb.cliente_id && sb.cliente_id !== local?.cliId) {
+            if (!_sbCliCache) { try { await _sbCliCargar(); } catch(e) {} }
+            const c = (_sbCliCache || []).find(x => x.id === sb.cliente_id);
+            if (c) { cliCod = c.codigo || cliCod; cliNom = c.nombre || cliNom; }
+          }
           sbPeds.push({
             id: local?.id || pmId(),
             date: sb.fecha, cli: sb.cliente_nom,
-            status: sb.status, lineas, _sbId: sb.id
+            status: sb.status, lineas, _sbId: sb.id,
+            cliId, cliCod, cliNom
           });
         }
         const otrosFechas = G.pedidosGalletas.filter(p => p.date !== fecha);
@@ -3184,6 +3228,21 @@ function pgConfirmarVinculo(pedId, cliId, cliCod, cliNom) {
   mClose('m-vincular-cli');
   pgRender();
   pmToast(`Vinculado con ${cliNom} ✓`, 'ok');
+  // FIX: mismo patrón que ppConfirmarVinculo — antes esto nunca se
+  // sincronizaba a Supabase, así que el vínculo se perdía en el
+  // siguiente reload desde Supabase.
+  if (pmDB.disponible() && (p._sbId || p._sbCreatePromise)) {
+    (async () => {
+      try {
+        if (!p._sbId && p._sbCreatePromise) await p._sbCreatePromise.catch(()=>{});
+        if (!p._sbId) throw new Error('el pedido todavía no se creó en Supabase');
+        await pmDB.pedidos.editar(p._sbId, { cliente_id: cliId });
+      } catch(e) {
+        console.warn('[pmDB] pgConfirmarVinculo error:', e.message);
+        pmToast('⚠️ Vínculo guardado solo local — no se sincronizó a Supabase: ' + e.message, 'err');
+      }
+    })();
+  }
 }
 
 async function pgCrearYVincular() {
@@ -9434,6 +9493,20 @@ async function cliSave() {
           p.cliNom = nom;
           pmSave('pedidos');
           pmToast(`Vinculado con pedido de ${p.cli} ✓`, 'ok');
+          // FIX: mismo bug que ppConfirmarVinculo — antes esto tampoco
+          // se sincronizaba a Supabase.
+          if (pmDB.disponible() && (p._sbId || p._sbCreatePromise)) {
+            (async () => {
+              try {
+                if (!p._sbId && p._sbCreatePromise) await p._sbCreatePromise.catch(()=>{});
+                if (!p._sbId) throw new Error('el pedido todavía no se creó en Supabase');
+                await pmDB.pedidos.editar(p._sbId, { cliente_id: rows[0].id });
+              } catch(e) {
+                console.warn('[pmDB] ppVincular (nuevo cliente) error:', e.message);
+                pmToast('⚠️ Vínculo guardado solo local — no se sincronizó a Supabase: ' + e.message, 'err');
+              }
+            })();
+          }
         }
         window._ppVincularPedId = null;
       }
@@ -9446,6 +9519,19 @@ async function cliSave() {
           p.cliNom = nom;
           pmSave('pedidos');
           pmToast(`Vinculado con pedido de ${p.cli} ✓`, 'ok');
+          // FIX: mismo bug — antes tampoco se sincronizaba a Supabase.
+          if (pmDB.disponible() && (p._sbId || p._sbCreatePromise)) {
+            (async () => {
+              try {
+                if (!p._sbId && p._sbCreatePromise) await p._sbCreatePromise.catch(()=>{});
+                if (!p._sbId) throw new Error('el pedido todavía no se creó en Supabase');
+                await pmDB.pedidos.editar(p._sbId, { cliente_id: rows[0].id });
+              } catch(e) {
+                console.warn('[pmDB] pgVincular (nuevo cliente) error:', e.message);
+                pmToast('⚠️ Vínculo guardado solo local — no se sincronizó a Supabase: ' + e.message, 'err');
+              }
+            })();
+          }
         }
         window._pgVincularPedId = null;
       }
