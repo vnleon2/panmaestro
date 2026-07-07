@@ -2367,8 +2367,8 @@ function ppCard(p) {
         <td style="padding:6px 10px">${l.inst?`<span style="font-size:11px;color:var(--blue)">📌 ${l.inst}</span>`:''}</td>
         ${locked
           ? `<td colspan="2" style="padding:6px 10px;font-size:11px;color:var(--cream2)">🔒 Bloqueado</td>`
-          : `<td style="padding:6px 4px"><button class="btn btn-out btn-sm" onclick="ppEditLinea(${p.id},${l.lid})">✏</button></td>
-             <td style="padding:6px 4px"><button class="btn btn-red btn-sm" onclick="ppDelLinea(${p.id},${l.lid})">✕</button></td>`
+          : `<td style="padding:6px 4px"><button class="btn btn-out btn-sm" onclick="ppEditLinea(${p.id},'${l.lid}')">✏</button></td>
+             <td style="padding:6px 4px"><button class="btn btn-red btn-sm" onclick="ppDelLinea(${p.id},'${l.lid}')">✕</button></td>`
         }
       </tr>`;
     });
@@ -2669,8 +2669,8 @@ function ppAddLinea(pedId) {
       <td style="padding:6px 10px;font-weight:600">${pmNombrePan(pid)}</td>
       <td style="padding:6px 10px"><strong>${cant}</strong></td>
       <td style="padding:6px 10px">${inst?`<span style="font-size:11px;color:var(--blue)">📌 ${inst}</span>`:''}</td>
-      <td style="padding:6px 4px"><button class="btn btn-out btn-sm" onclick="ppEditLinea(${pedId},${lid})">✏</button></td>
-      <td style="padding:6px 4px"><button class="btn btn-red btn-sm" onclick="ppDelLinea(${pedId},${lid})">✕</button></td>`;
+      <td style="padding:6px 4px"><button class="btn btn-out btn-sm" onclick="ppEditLinea(${pedId},'${lid}')">✏</button></td>
+      <td style="padding:6px 4px"><button class="btn btn-red btn-sm" onclick="ppDelLinea(${pedId},'${lid}')">✕</button></td>`;
     tbody.appendChild(tr);
     const totTr = document.createElement('tr');
     totTr.id = 'ltot-' + pedId;
@@ -2755,7 +2755,7 @@ function ppAddLinea(pedId) {
 function ppEditLinea(pedId, lid) {
   const ped = G.pedidosPan.find(p=>p.id===pedId);
   if (!ped) return;
-  const l = ped.lineas.find(x=>x.lid===lid);
+  const l = ped.lineas.find(x=>String(x.lid)===String(lid));
   if (!l) return;
   const tr = document.getElementById('lr-' + lid);
   if (!tr) return;
@@ -2770,14 +2770,14 @@ function ppEditLinea(pedId, lid) {
     <td style="padding:4px 6px">
       <select id="ep-inst-${lid}" style="font-size:12px;padding:4px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream)">${ppInstOpts(l.inst)}</select>
     </td>
-    <td style="padding:4px 4px"><button class="btn btn-gold btn-sm" onclick="ppSaveLinea(${pedId},${lid})">💾</button></td>
+    <td style="padding:4px 4px"><button class="btn btn-gold btn-sm" onclick="ppSaveLinea(${pedId},'${lid}')">💾</button></td>
     <td style="padding:4px 4px"><button class="btn btn-out btn-sm" onclick="ppRender()">✕</button></td>`;
 }
 
 function ppSaveLinea(pedId, lid) {
   const ped = G.pedidosPan.find(p=>p.id===pedId);
   if (!ped) return;
-  const l = ped.lineas.find(x=>x.lid===lid);
+  const l = ped.lineas.find(x=>String(x.lid)===String(lid));
   if (!l) return;
   l.pid  = document.getElementById('ep-pan-'  + lid).value;
   l.cant = parseInt(document.getElementById('ep-cant-' + lid).value)||1;
@@ -2831,8 +2831,8 @@ function ppSaveLinea(pedId, lid) {
 function ppDelLinea(pedId, lid) {
   const p = G.pedidosPan.find(x=>x.id===pedId);
   if (!p) return;
-  const l = p.lineas.find(x=>x.lid===lid);
-  p.lineas = p.lineas.filter(x=>x.lid!==lid);
+  const l = p.lineas.find(x=>String(x.lid)===String(lid));
+  p.lineas = p.lineas.filter(x=>String(x.lid)!==String(lid));
   pmSave('pedidos'); ppRender();
   setTimeout(()=>{ const b=document.getElementById('pb-'+pedId); if(b) b.style.display='block'; },20);
   // FIX: antes borrar una línea nunca se sincronizaba a Supabase — la
@@ -3109,8 +3109,8 @@ function pgCard(p) {
         <td style="padding:6px 10px">${l.inst?`<span style="font-size:11px;color:var(--blue)">📌 ${l.inst}</span>`:''}</td>
         ${locked
           ? `<td colspan="2" style="padding:6px 10px;font-size:11px;color:var(--cream2)">🔒 Bloqueado</td>`
-          : `<td style="padding:6px 4px"><button class="btn btn-out btn-sm" onclick="pgEditLinea(${p.id},${l.lid})">✏</button></td>
-             <td style="padding:6px 4px"><button class="btn btn-red btn-sm" onclick="pgDelLinea(${p.id},${l.lid})">✕</button></td>`
+          : `<td style="padding:6px 4px"><button class="btn btn-out btn-sm" onclick="pgEditLinea(${p.id},'${l.lid}')">✏</button></td>
+             <td style="padding:6px 4px"><button class="btn btn-red btn-sm" onclick="pgDelLinea(${p.id},'${l.lid}')">✕</button></td>`
         }
       </tr>`;
     });
@@ -3360,8 +3360,8 @@ function pgAddLinea(pedId) {
       <td style="padding:6px 10px;font-weight:600">${pmNombreGall(pid)}</td>
       <td style="padding:6px 10px"><strong>${cant}</strong></td>
       <td style="padding:6px 10px">${inst?`<span style="font-size:11px;color:var(--blue)">📌 ${inst}</span>`:''}</td>
-      <td style="padding:6px 4px"><button class="btn btn-out btn-sm" onclick="pgEditLinea(${pedId},${lid})">✏</button></td>
-      <td style="padding:6px 4px"><button class="btn btn-red btn-sm" onclick="pgDelLinea(${pedId},${lid})">✕</button></td>`;
+      <td style="padding:6px 4px"><button class="btn btn-out btn-sm" onclick="pgEditLinea(${pedId},'${lid}')">✏</button></td>
+      <td style="padding:6px 4px"><button class="btn btn-red btn-sm" onclick="pgDelLinea(${pedId},'${lid}')">✕</button></td>`;
     tbody.appendChild(tr);
     const totTr = document.createElement('tr');
     totTr.id = 'lgtot-' + pedId;
@@ -3433,7 +3433,7 @@ function pgAddLinea(pedId) {
 function pgEditLinea(pedId, lid) {
   const ped = G.pedidosGalletas.find(p=>p.id===pedId);
   if (!ped) return;
-  const l = ped.lineas.find(x=>x.lid===lid);
+  const l = ped.lineas.find(x=>String(x.lid)===String(lid));
   if (!l) return;
   const tr = document.getElementById('lgr-' + lid);
   if (!tr) return;
@@ -3442,13 +3442,13 @@ function pgEditLinea(pedId, lid) {
     <td style="padding:4px 6px"><select id="eg-pan-${lid}" style="font-size:12px;padding:4px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream)">${galOpts}</select></td>
     <td style="padding:4px 6px"><input type="number" id="eg-cant-${lid}" value="${l.cant}" min="1" style="width:56px;font-size:12px;padding:4px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream)"></td>
     <td style="padding:4px 6px"><select id="eg-inst-${lid}" style="font-size:12px;padding:4px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream)">${pgInstOpts(l.inst)}</select></td>
-    <td style="padding:4px 4px"><button class="btn btn-gold btn-sm" onclick="pgSaveLinea(${pedId},${lid})">💾</button></td>
+    <td style="padding:4px 4px"><button class="btn btn-gold btn-sm" onclick="pgSaveLinea(${pedId},'${lid}')">💾</button></td>
     <td style="padding:4px 4px"><button class="btn btn-out btn-sm" onclick="pgRender()">✕</button></td>`;
 }
 function pgSaveLinea(pedId, lid) {
   const ped = G.pedidosGalletas.find(p=>p.id===pedId);
   if (!ped) return;
-  const l = ped.lineas.find(x=>x.lid===lid);
+  const l = ped.lineas.find(x=>String(x.lid)===String(lid));
   if (!l) return;
   l.pid  = document.getElementById('eg-pan-'  + lid).value;
   l.cant = parseInt(document.getElementById('eg-cant-' + lid).value)||1;
@@ -3498,8 +3498,8 @@ function pgSaveLinea(pedId, lid) {
 function pgDelLinea(pedId, lid) {
   const p = G.pedidosGalletas.find(x=>x.id===pedId);
   if (!p) return;
-  const l = p.lineas.find(x=>x.lid===lid);
-  p.lineas = p.lineas.filter(x=>x.lid!==lid);
+  const l = p.lineas.find(x=>String(x.lid)===String(lid));
+  p.lineas = p.lineas.filter(x=>String(x.lid)!==String(lid));
   pmSave('pedidos'); pgRender();
   setTimeout(()=>{ const b=document.getElementById('pgb-'+pedId); if(b) b.style.display='block'; },20);
   // FIX: mismo patrón que ppDelLinea — antes borrar una línea de
