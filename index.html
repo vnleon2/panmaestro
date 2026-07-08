@@ -583,6 +583,12 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
           <option value="otro">📦 Otros</option>
         </select>
       </div>
+      <div class="col sm">
+        <select id="rec-orden" onchange="recRender()" title="Ordenar por">
+          <option value="codigo">Ordenar: Código</option>
+          <option value="nombre">Ordenar: Alfabético</option>
+        </select>
+      </div>
     </div>
     <div id="rec-list"></div>
   </div>
@@ -5668,7 +5674,20 @@ function recRender() {
   });
 
   if (cat) list = list.filter(r => r.cat === cat);
-  list = list.sort((a,b) => (a.code||'').localeCompare(b.code||''));
+
+  // Orden elegido: código (por defecto) o alfabético. Se recuerda en
+  // localStorage para que quede como el usuario lo dejó la última vez.
+  const ordenEl = document.getElementById('rec-orden');
+  let orden = ordenEl ? ordenEl.value : (localStorage.getItem('pm_rec_orden') || 'codigo');
+  if (ordenEl && !ordenEl.dataset.init) {
+    ordenEl.value = localStorage.getItem('pm_rec_orden') || 'codigo';
+    orden = ordenEl.value;
+    ordenEl.dataset.init = '1';
+  }
+  localStorage.setItem('pm_rec_orden', orden);
+  list = orden === 'nombre'
+    ? list.sort((a,b) => (a.name||'').localeCompare(b.name||'', 'es'))
+    : list.sort((a,b) => (a.code||'').localeCompare(b.code||''));
 
   const el = document.getElementById('rec-list');
   if (!el) return;
