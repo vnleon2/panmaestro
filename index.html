@@ -2582,15 +2582,26 @@ async function ppChgStatus(id, st) {
       const exist = await pmDB.get('ventas', { notas: refId }).catch(()=>[]);
       if (!exist || !exist.length) {
         const total = pmTotalPan(p);
-        await pmDB.ventas.crear({
-          fecha_pago:  pmHoy(),
-          total,
-          metodo_pago: p.metodoPago || 'efectivo',
-          cliente_nom: p.cli,
-          tipo:        'pan',
-          notas:       refId
-        }).catch(e => console.warn('[pmDB] ppVenta crear:', e.message));
-        pmToast('Venta registrada ✓', 'ok');
+        try {
+          await pmDB.ventas.crear({
+            fecha_pago:  pmHoy(),
+            total,
+            metodo_pago: p.metodoPago || 'efectivo',
+            cliente_nom: p.cliNom || p.cli,
+            tipo:        'pan',
+            notas:       refId,
+            pedido_id:   p._sbId || null
+          });
+          pmToast('Venta registrada ✓', 'ok');
+        } catch(e) {
+          // FIX: antes el toast de éxito se mostraba SIEMPRE, incluso si
+          // esto fallaba — el .catch() de la versión anterior "absorbía"
+          // el error antes de llegar al toast, así que una venta que
+          // fallaba en silencio se veía igual que una exitosa. Ahora si
+          // falla, se avisa de verdad.
+          console.warn('[pmDB] ppVenta crear:', e.message);
+          pmToast('⚠️ No se pudo registrar la venta: ' + e.message, 'err');
+        }
       }
     }
     // Anular venta al desmarcar Pagado
@@ -3310,15 +3321,21 @@ async function pgChgSt(id, st) {
         // en el resto del módulo — mismo resultado, pero duplicaba lógica
         // que podía desincronizarse si pmTotalGall cambiara en el futuro.
         const total = pmTotalGall(p);
-        await pmDB.ventas.crear({
-          fecha_pago:  pmHoy(),
-          total,
-          metodo_pago: p.metodoPago || 'efectivo',
-          cliente_nom: p.cli,
-          tipo:        'galleta',
-          notas:       refId
-        }).catch(e => console.warn('[pmDB] pgVenta crear:', e.message));
-        pmToast('Venta registrada ✓', 'ok');
+        try {
+          await pmDB.ventas.crear({
+            fecha_pago:  pmHoy(),
+            total,
+            metodo_pago: p.metodoPago || 'efectivo',
+            cliente_nom: p.cliNom || p.cli,
+            tipo:        'galleta',
+            notas:       refId,
+            pedido_id:   p._sbId || null
+          });
+          pmToast('Venta registrada ✓', 'ok');
+        } catch(e) {
+          console.warn('[pmDB] pgVenta crear:', e.message);
+          pmToast('⚠️ No se pudo registrar la venta: ' + e.message, 'err');
+        }
       }
     }
     // Anular venta al desmarcar Pagado
@@ -5363,9 +5380,14 @@ async function repVentas(mes) {
   });
 
   // Agrupar por cliente (para ventas comerciales)
+  // FIX: antes se descartaban en silencio las ventas sin cliente_nom
+  // (con .filter(v => v.cliente_nom)) — el dinero seguía sumando en el
+  // total general de arriba, pero desaparecía de esta tabla sin ningún
+  // aviso, lo que hacía parecer que "faltaba" plata. Ahora esas ventas
+  // se agrupan bajo un rótulo visible en vez de excluirse.
   const byCliente = {};
-  ventas.filter(v => v.cliente_nom).forEach(v => {
-    const cli = v.cliente_nom;
+  ventas.forEach(v => {
+    const cli = v.cliente_nom || '(sin nombre de cliente)';
     if (!byCliente[cli]) byCliente[cli] = { total: 0, count: 0 };
     byCliente[cli].total += parseFloat(v.total) || 0;
     byCliente[cli].count++;
