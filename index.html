@@ -7947,7 +7947,8 @@ async function panCargarSb() {
             nombre: r.nombre,
             precio: r.precio_full || r.precio || 0,
             peso: r.peso_g || local?.peso || 0,
-            recetaCod: r.receta_cod || local?.recetaCod || ''
+            recetaCod: r.receta_cod || local?.recetaCod || '',
+            esMM: !!r.es_masa_madre
           };
         });
         // Mantener panes locales que no estén en SB (offline)
@@ -8022,6 +8023,7 @@ function panRender() {
       <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--gold3);min-width:44px">${p.id}</div>
       <div class="item-name">${p.nombre}</div>
       <div class="item-meta">${pmMoney(p.precio)} · ${p.peso}g</div>
+      ${p.esMM ? `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--gold);background:rgba(200,146,42,.12);padding:2px 7px;border-radius:10px;border:1px solid rgba(200,146,42,.3)">MM</div>` : `<div style="font-size:10px;color:var(--cream2);opacity:.4">—</div>`}
       ${p.recetaCod ? `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--blue);background:rgba(74,128,192,.12);padding:2px 7px;border-radius:10px;border:1px solid rgba(74,128,192,.3)">${p.recetaCod}</div>` : `<div style="font-size:10px;color:var(--cream2);opacity:.4">—</div>`}
       ${cpgCell}
       ${costoCell}
@@ -8073,6 +8075,10 @@ function panEdit(id) {
       <label style="font-size:11px;color:var(--cream2)">Receta</label>
       <select id="pe-rec-${id}" style="font-size:12px;padding:4px 7px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream)">${recOpts}</select>
     </div>
+    <div style="display:flex;flex-direction:column;gap:2px;align-items:center">
+      <label style="font-size:11px;color:var(--cream2)">Masa madre</label>
+      <input id="pe-mm-${id}" type="checkbox" ${p.esMM?'checked':''} style="width:18px;height:18px;accent-color:var(--gold);cursor:pointer">
+    </div>
     <div style="display:flex;gap:4px;padding-bottom:1px">
       <button class="btn btn-gold btn-sm" onclick="panEditSave('${id}')">💾 Guardar</button>
       <button class="btn btn-out btn-sm" onclick="panEditCancelar()">✕</button>
@@ -8092,15 +8098,16 @@ function panEditSave(id) {
   const pr   = parseFloat(document.getElementById('pe-pr-'   + id)?.value)||0;
   const peso = parseFloat(document.getElementById('pe-peso-' + id)?.value)||0;
   const rec  = document.getElementById('pe-rec-'  + id)?.value || '';
+  const esMM = !!document.getElementById('pe-mm-' + id)?.checked;
   if (!nom) { pmToast('El nombre no puede estar vacío','err'); return; }
-  p.nombre = nom; p.precio = pr; p.peso = peso; p.recetaCod = rec;
+  p.nombre = nom; p.precio = pr; p.peso = peso; p.recetaCod = rec; p.esMM = esMM;
   pmSave('sistema');
   panRender();
   pmToast('Actualizado ✓');
   if (pmDB.disponible()) {
     _sbProdEnsureMap().then(() => {
       const uuid = _sbProdMap?.[id];
-      if (uuid) pmDB.productos.editar(uuid, { nombre:p.nombre, precio_full:p.precio, peso_g:p.peso||null, receta_cod:p.recetaCod||null })
+      if (uuid) pmDB.productos.editar(uuid, { nombre:p.nombre, precio_full:p.precio, peso_g:p.peso||null, receta_cod:p.recetaCod||null, es_masa_madre:p.esMM })
         .catch(e => console.warn('[pmDB] panEditSave sync error:', e.message));
     });
   }
