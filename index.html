@@ -2433,14 +2433,83 @@ function ppCard(p) {
         <button class="btn btn-red btn-sm" onclick="ppDel(${p.id})">✕</button>
       </div>
     </div>
-    <div style="padding:4px 16px 8px;background:var(--sf);border-top:1px solid var(--border)">
+    <div style="padding:4px 16px 8px;background:var(--sf);border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn btn-out btn-sm" onclick="ppVincularCliente(${p.id})" style="font-size:11px">🔗 Vincular cliente</button>
+      ${(p.lineas||[]).length ? `<button class="btn btn-out btn-sm" onclick="ppImprimirEtiquetas(${p.id})" style="font-size:11px">🏷 Etiquetas</button>` : ''}
     </div>
     <div id="pb-${p.id}" style="display:none">
       ${subform}
       ${lineasHtml}
     </div>
   </div>`;
+}
+
+// ── Imprimir etiquetas de producto para un pedido (cliente + pan + peso + precio + mm) ──
+async function ppImprimirEtiquetas(pedId) {
+  const p = G.pedidosPan.find(x => x.id === pedId);
+  if (!p) return;
+  if (!(p.lineas||[]).length) { pmToast('Este pedido no tiene líneas', 'err'); return; }
+
+  // La bandera de masa madre vive en Supabase (productos_terminados.es_masa_madre),
+  // no en el caché local G.tiposPan — se consulta fresca al momento de imprimir
+  // para no depender de que el caché esté actualizado.
+  let mmMap = {};
+  if (pmDB.disponible()) {
+    try {
+      const prods = await pmDB.productos.listar();
+      (prods||[]).forEach(pr => { mmMap[pr.codigo] = !!pr.es_masa_madre; });
+    } catch(e) {
+      console.warn('[ppImprimirEtiquetas] no se pudo consultar masa madre:', e.message);
+      pmToast('⚠️ No se pudo verificar masa madre, se imprime sin esa marca', 'err');
+    }
+  }
+
+  const etiquetas = [];
+  p.lineas.forEach(l => {
+    const nombre = pmNombrePan(l.pid);
+    const peso   = pmGetPan(l.pid)?.peso || '';
+    const precio = pmPrecioPan(l.pid);
+    const esMM   = !!mmMap[l.pid];
+    for (let i = 0; i < (l.cant||1); i++) {
+      etiquetas.push({ cliente: p.cli, nombre, peso, precio, esMM });
+    }
+  });
+
+  _etqAbrirVentana(etiquetas);
+}
+
+// ── Ventana de impresión de etiquetas 7x4cm (compartida) ──
+function _etqAbrirVentana(etiquetas) {
+  const ETQ_CSS = `
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;background:#fff}
+    .label{width:7cm;height:4cm;border:2px solid #000;padding:0.3cm;display:flex;flex-direction:column;justify-content:space-between}
+    .label + .label{page-break-before:always}
+    .cli{border:1.5px solid #000;padding:2px 8px;font-size:13px;font-weight:600}
+    .nombre{font-size:20px;font-weight:600;line-height:1.15}
+    .fila{display:flex;gap:0.25cm}
+    .campo{border:1px solid #000;border-radius:4px;padding:0.12cm 0.25cm;flex:1}
+    .campo .k{font-size:9px;color:#555}
+    .campo .v{font-size:15px;font-weight:600}
+    .mm{border:2px solid #000;border-radius:20px;padding:0.1cm 0.3cm;font-size:11px;font-weight:700;text-align:center;white-space:nowrap}
+    @page{size:7cm 4cm;margin:0}
+  `;
+  const paginas = etiquetas.map(e => `
+    <div class="label">
+      <div class="cli">${e.cliente}</div>
+      <div class="nombre">${e.nombre}</div>
+      <div class="fila">
+        <div class="campo"><div class="k">peso</div><div class="v">${e.peso?e.peso+' g':'—'}</div></div>
+        <div class="campo"><div class="k">precio</div><div class="v">₡${(e.precio||0).toLocaleString('es-CR')}</div></div>
+        ${e.esMM ? '<div class="mm">MASA MADRE</div>' : ''}
+      </div>
+    </div>`).join('');
+
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Etiquetas</title>
+    <style>${ETQ_CSS}</style>
+  </head><body>${paginas}<script>window.onload=()=>{window.print();}<\/script></body></html>`);
+  win.document.close();
 }
 
 // ── Vincular pedido de pan con cliente del maestro ──
@@ -3186,14 +3255,46 @@ function pgCard(p) {
         <button class="btn btn-red btn-sm" onclick="pgDel(${p.id})">✕</button>
       </div>
     </div>
-    <div style="padding:4px 16px 8px;background:var(--sf);border-top:1px solid var(--border)">
+    <div style="padding:4px 16px 8px;background:var(--sf);border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn btn-out btn-sm" onclick="pgVincularCliente(${p.id})" style="font-size:11px">🔗 Vincular cliente</button>
+      ${(p.lineas||[]).length ? `<button class="btn btn-out btn-sm" onclick="pgImprimirEtiquetas(${p.id})" style="font-size:11px">🏷 Etiquetas</button>` : ''}
     </div>
     <div id="pgb-${p.id}" style="display:none">
       ${subform}
       ${lineasHtml}
     </div>
   </div>`;
+}
+
+// ── Imprimir etiquetas de producto para un pedido de galleta ──
+async function pgImprimirEtiquetas(pedId) {
+  const p = G.pedidosGalletas.find(x => x.id === pedId);
+  if (!p) return;
+  if (!(p.lineas||[]).length) { pmToast('Este pedido no tiene líneas', 'err'); return; }
+
+  let mmMap = {};
+  if (pmDB.disponible()) {
+    try {
+      const prods = await pmDB.productos.listar();
+      (prods||[]).forEach(pr => { mmMap[pr.codigo] = !!pr.es_masa_madre; });
+    } catch(e) {
+      console.warn('[pgImprimirEtiquetas] no se pudo consultar masa madre:', e.message);
+      pmToast('⚠️ No se pudo verificar masa madre, se imprime sin esa marca', 'err');
+    }
+  }
+
+  const etiquetas = [];
+  p.lineas.forEach(l => {
+    const nombre = pmNombreGall(l.pid);
+    const peso   = pmGetGall(l.pid)?.peso || '';
+    const precio = pmPrecioGall(l.pid);
+    const esMM   = !!mmMap[l.pid];
+    for (let i = 0; i < (l.cant||1); i++) {
+      etiquetas.push({ cliente: p.cli, nombre, peso, precio, esMM });
+    }
+  });
+
+  _etqAbrirVentana(etiquetas);
 }
 
 // ── Vincular pedido de galleta con cliente del maestro ──
