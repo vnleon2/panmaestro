@@ -557,6 +557,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
       <div style="display:flex;gap:8px">
         <button class="btn btn-out btn-sm" onclick="cvMostrar('cv-maestro');cvMaestroRender()">📋 Maestro</button>
         <button class="btn btn-out btn-sm" onclick="cvMostrar('cv-gm');gmRenderList()">🌾 Gluten Morgen</button>
+        <button class="btn btn-out btn-sm" onclick="cvMostrar('cv-personal');personalRenderPreview()">📝 Recetas Personales</button>
         <button class="btn btn-gold" onclick="cvMostrar('cv-nueva');recNuevo()">+ Nueva receta</button>
       </div>
     </div>
@@ -715,6 +716,24 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
       <input type="text" id="gm-search" placeholder="Buscar receta GM..." oninput="gmRenderList()" style="width:100%">
     </div>
     <div id="gm-list"></div>
+  </div>
+
+  <!-- VISTA: RECETA PERSONAL (una a la vez, sin biblioteca) -->
+  <div id="cv-personal" style="display:none">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+      <button class="btn btn-out btn-sm" onclick="cvMostrar('cv-lista');recRender()">‹ Recetas</button>
+      <span style="font-size:12px;color:var(--cream2)">›</span>
+      <span style="font-size:13px;font-weight:600;color:var(--cream)">📝 Receta Personal</span>
+    </div>
+    <div class="card" style="margin-bottom:12px">
+      <div class="ctitle">Cargar receta</div>
+      <p style="font-size:13px;color:var(--cream2);margin-bottom:12px;line-height:1.6">
+        Pegá el JSON que armaste con la herramienta <strong>Recetas Personales</strong> (standalone). Se ve acá abajo para revisar, y desde ahí la transferís — el JSON ya te queda guardado en tu dispositivo como respaldo, así que acá no se acumula nada.
+      </p>
+      <textarea id="personal-json-input" placeholder='Pegá acá el JSON exportado...' style="width:100%;min-height:90px;font-family:'DM Mono',monospace;font-size:12px;margin-bottom:8px"></textarea>
+      <button class="btn btn-out" onclick="personalCargarJson()">⬇ Cargar receta</button>
+    </div>
+    <div id="personal-preview"></div>
   </div>
 
 </div>
@@ -1335,6 +1354,7 @@ const SEED = {
   planProduccion: {},
   planLibre: {},
   gmRecipes: [],
+  recetaPersonalActual: null,
   pedidosPan: [],
   pedidosGalletas: [],
   pedidosCom: [],
@@ -2433,83 +2453,14 @@ function ppCard(p) {
         <button class="btn btn-red btn-sm" onclick="ppDel(${p.id})">✕</button>
       </div>
     </div>
-    <div style="padding:4px 16px 8px;background:var(--sf);border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap">
+    <div style="padding:4px 16px 8px;background:var(--sf);border-top:1px solid var(--border)">
       <button class="btn btn-out btn-sm" onclick="ppVincularCliente(${p.id})" style="font-size:11px">🔗 Vincular cliente</button>
-      ${(p.lineas||[]).length ? `<button class="btn btn-out btn-sm" onclick="ppImprimirEtiquetas(${p.id})" style="font-size:11px">🏷 Etiquetas</button>` : ''}
     </div>
     <div id="pb-${p.id}" style="display:none">
       ${subform}
       ${lineasHtml}
     </div>
   </div>`;
-}
-
-// ── Imprimir etiquetas de producto para un pedido (cliente + pan + peso + precio + mm) ──
-async function ppImprimirEtiquetas(pedId) {
-  const p = G.pedidosPan.find(x => x.id === pedId);
-  if (!p) return;
-  if (!(p.lineas||[]).length) { pmToast('Este pedido no tiene líneas', 'err'); return; }
-
-  // La bandera de masa madre vive en Supabase (productos_terminados.es_masa_madre),
-  // no en el caché local G.tiposPan — se consulta fresca al momento de imprimir
-  // para no depender de que el caché esté actualizado.
-  let mmMap = {};
-  if (pmDB.disponible()) {
-    try {
-      const prods = await pmDB.productos.listar();
-      (prods||[]).forEach(pr => { mmMap[pr.codigo] = !!pr.es_masa_madre; });
-    } catch(e) {
-      console.warn('[ppImprimirEtiquetas] no se pudo consultar masa madre:', e.message);
-      pmToast('⚠️ No se pudo verificar masa madre, se imprime sin esa marca', 'err');
-    }
-  }
-
-  const etiquetas = [];
-  p.lineas.forEach(l => {
-    const nombre = pmNombrePan(l.pid);
-    const peso   = pmGetPan(l.pid)?.peso || '';
-    const precio = pmPrecioPan(l.pid);
-    const esMM   = !!mmMap[l.pid];
-    for (let i = 0; i < (l.cant||1); i++) {
-      etiquetas.push({ cliente: p.cli, nombre, peso, precio, esMM });
-    }
-  });
-
-  _etqAbrirVentana(etiquetas);
-}
-
-// ── Ventana de impresión de etiquetas 7x4cm (compartida) ──
-function _etqAbrirVentana(etiquetas) {
-  const ETQ_CSS = `
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;background:#fff}
-    .label{width:7cm;height:4cm;border:2px solid #000;padding:0.3cm;display:flex;flex-direction:column;justify-content:space-between}
-    .label + .label{page-break-before:always}
-    .cli{border:1.5px solid #000;padding:2px 8px;font-size:13px;font-weight:600}
-    .nombre{font-size:20px;font-weight:600;line-height:1.15}
-    .fila{display:flex;gap:0.25cm}
-    .campo{border:1px solid #000;border-radius:4px;padding:0.12cm 0.25cm;flex:1}
-    .campo .k{font-size:9px;color:#555}
-    .campo .v{font-size:15px;font-weight:600}
-    .mm{border:2px solid #000;border-radius:20px;padding:0.1cm 0.3cm;font-size:11px;font-weight:700;text-align:center;white-space:nowrap}
-    @page{size:7cm 4cm;margin:0}
-  `;
-  const paginas = etiquetas.map(e => `
-    <div class="label">
-      <div class="cli">${e.cliente}</div>
-      <div class="nombre">${e.nombre}</div>
-      <div class="fila">
-        <div class="campo"><div class="k">peso</div><div class="v">${e.peso?e.peso+' g':'—'}</div></div>
-        <div class="campo"><div class="k">precio</div><div class="v">₡${(e.precio||0).toLocaleString('es-CR')}</div></div>
-        ${e.esMM ? '<div class="mm">MASA MADRE</div>' : ''}
-      </div>
-    </div>`).join('');
-
-  const win = window.open('', '_blank');
-  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Etiquetas</title>
-    <style>${ETQ_CSS}</style>
-  </head><body>${paginas}<script>window.onload=()=>{window.print();}<\/script></body></html>`);
-  win.document.close();
 }
 
 // ── Vincular pedido de pan con cliente del maestro ──
@@ -3255,46 +3206,14 @@ function pgCard(p) {
         <button class="btn btn-red btn-sm" onclick="pgDel(${p.id})">✕</button>
       </div>
     </div>
-    <div style="padding:4px 16px 8px;background:var(--sf);border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap">
+    <div style="padding:4px 16px 8px;background:var(--sf);border-top:1px solid var(--border)">
       <button class="btn btn-out btn-sm" onclick="pgVincularCliente(${p.id})" style="font-size:11px">🔗 Vincular cliente</button>
-      ${(p.lineas||[]).length ? `<button class="btn btn-out btn-sm" onclick="pgImprimirEtiquetas(${p.id})" style="font-size:11px">🏷 Etiquetas</button>` : ''}
     </div>
     <div id="pgb-${p.id}" style="display:none">
       ${subform}
       ${lineasHtml}
     </div>
   </div>`;
-}
-
-// ── Imprimir etiquetas de producto para un pedido de galleta ──
-async function pgImprimirEtiquetas(pedId) {
-  const p = G.pedidosGalletas.find(x => x.id === pedId);
-  if (!p) return;
-  if (!(p.lineas||[]).length) { pmToast('Este pedido no tiene líneas', 'err'); return; }
-
-  let mmMap = {};
-  if (pmDB.disponible()) {
-    try {
-      const prods = await pmDB.productos.listar();
-      (prods||[]).forEach(pr => { mmMap[pr.codigo] = !!pr.es_masa_madre; });
-    } catch(e) {
-      console.warn('[pgImprimirEtiquetas] no se pudo consultar masa madre:', e.message);
-      pmToast('⚠️ No se pudo verificar masa madre, se imprime sin esa marca', 'err');
-    }
-  }
-
-  const etiquetas = [];
-  p.lineas.forEach(l => {
-    const nombre = pmNombreGall(l.pid);
-    const peso   = pmGetGall(l.pid)?.peso || '';
-    const precio = pmPrecioGall(l.pid);
-    const esMM   = !!mmMap[l.pid];
-    for (let i = 0; i < (l.cant||1); i++) {
-      etiquetas.push({ cliente: p.cli, nombre, peso, precio, esMM });
-    }
-  });
-
-  _etqAbrirVentana(etiquetas);
 }
 
 // ── Vincular pedido de galleta con cliente del maestro ──
@@ -5745,7 +5664,7 @@ function gastoDel(id) {
 
 // ── 📖 COSTEO ──────────────────────────────────────────
 function cvMostrar(id) {
-  ['cv-lista','cv-nueva','cv-gm','cv-maestro'].forEach(v => {
+  ['cv-lista','cv-nueva','cv-gm','cv-maestro','cv-personal'].forEach(v => {
     const el = document.getElementById(v);
     if (el) el.style.display = v===id ? 'block' : 'none';
   });
@@ -6794,15 +6713,49 @@ function recSave() {
     notes, flour, other, subrecs, addons};
 
   if (!G.recetas) G.recetas = [];
-  // Parse id — may carry gmsource marker
-  let realId = id, gmSource = null;
+  // Parse id — may carry gmsource or personalsource marker
+  let realId = id, gmSource = null, personalSourceName = null;
   if (id && id.includes('|gmsource|')) {
     const parts = id.split('|gmsource|');
     realId  = parts[0];
     gmSource= parts[1];
+  } else if (id && id.includes('|personalsource|')) {
+    const parts = id.split('|personalsource|');
+    realId = parts[0];
+    personalSourceName = decodeURIComponent(parts[1]);
   }
 
-  if (gmSource) {
+  if (personalSourceName) {
+    // Guardando desde el editor de Recetas Personales. A diferencia de
+    // Gluten Morgen, acá no hay biblioteca que rastrear — cada receta
+    // personal se usa una sola vez y se descarta (ver personalTransferir),
+    // así que esto siempre es una receta NUEVA. Solo se etiqueta de
+    // dónde vino, a modo informativo.
+    const newCode = code || _pmNextRecCode();
+    G.recetas.push({ id: String(Date.now()), code: newCode, personalSource: personalSourceName, ...obj });
+    pmToast(newCode + ' · "' + obj.name + '" guardada ✓');
+
+    if (pmDB.disponible()) {
+      const target = G.recetas[G.recetas.length - 1];
+      // NOTA: no se manda personal_source a Supabase (columna que
+      // probablemente no existe todavía) — mismo criterio que la
+      // columna receta_cod que faltó hoy.
+      pmDB.recetas.crear({
+        codigo: target.code, nombre: obj.name, categoria: obj.cat,
+        masa_total_g: obj.totalMass, unidades: obj.units,
+        merma_pct: obj.merma, margen_pct: obj.margen || null,
+        notas: obj.notes, origen: 'propia', activo: true,
+        subrecs: obj.subrecs || [], addons: obj.addons || []
+      }).then(rows => {
+        if (rows?.[0]) {
+          target.sbId = rows[0].id;
+          console.log('[pmDB] ✅ Receta personal creada en Supabase:', target.code);
+          _sbSaveRecetaItems(rows[0].id, obj.flour, obj.other).catch(e => console.warn('[pmDB] items personalSource error:', e.message));
+        }
+      }).catch(e => console.warn('[pmDB] recSave personalSource create error:', e.message));
+      _sbRecCache = null;
+    }
+  } else if (gmSource) {
     // Saving from GM editor — find by gmSource to preserve id/code
     const exIdx = G.recetas.findIndex(x => x.gmSource === gmSource);
     if (exIdx >= 0) {
@@ -7087,6 +7040,168 @@ function gmOpenModal(encodedName) {
 
 function gmCloseModal() {
   document.getElementById('gm-modal').style.display = 'none';
+}
+
+// ══════════════════════════════════════════════════════════════
+// RECETA PERSONAL — una sola a la vez, sin biblioteca. El JSON ya
+// vive en el dispositivo del usuario (lo bajó de la herramienta
+// standalone) como respaldo — acá solo se guarda "la que está en
+// proceso ahora mismo", y se vacía sola en cuanto se transfiere.
+// ══════════════════════════════════════════════════════════════
+
+function personalCargarJson() {
+  const raw = document.getElementById('personal-json-input').value.trim();
+  if (!raw) { pmToast('Pegá el JSON de la receta primero', 'err'); return; }
+  let data;
+  try { data = JSON.parse(raw); } catch(err) {
+    pmToast('Error al leer JSON: ' + err.message, 'err'); return;
+  }
+  if (!data || !data.name || !Array.isArray(data.flour)) {
+    pmToast('Ese JSON no tiene la forma de una receta personal válida', 'err'); return;
+  }
+  G.recetaPersonalActual = data;
+  pmSave('costeo');
+  document.getElementById('personal-json-input').value = '';
+  personalRenderPreview();
+  pmToast('✓ Receta cargada — revisala abajo');
+}
+
+function personalDescartar() {
+  G.recetaPersonalActual = null;
+  pmSave('costeo');
+  personalRenderPreview();
+}
+
+function personalRenderPreview() {
+  const el = document.getElementById('personal-preview');
+  const r = G.recetaPersonalActual;
+  if (!el) return;
+  if (!r) { el.innerHTML = ''; return; }
+
+  const ingrs = [...(r.flour||[]).map(i=>({...i,esHarina:true})), ...(r.other||[]).map(i=>({...i,esHarina:false}))];
+
+  let body = `<div class="card">`;
+  body += `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:4px">
+    <div style="font-family:'Playfair Display',serif;font-size:19px;font-weight:700;color:var(--gold)">${r.name}</div>
+    <button class="btn btn-out btn-sm" onclick="personalDescartar()" title="Descartar">✕</button>
+  </div>`;
+  body += `<div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--cream2);margin-bottom:14px">
+    ${r.totalMass||'?'}g · ${r.units||1} unidad(es) · ${ingrs.length} ingredientes${r.merma?' · merma '+r.merma+'%':''}
+  </div>`;
+
+  body += `<div style="font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--gold);margin-bottom:8px">Ingredientes</div>`;
+  body += ingrs.map(ing => {
+    const pct  = parseFloat(ing.pct)||0;
+    const g    = ((r.totalMass||1000) * pct / 100).toFixed(1);
+    const nom  = ing.manualName || ing.productName || '(sin nombre)';
+    const inMaestro = G.ingredientes && G.ingredientes[nom];
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);font-size:13px">
+      <span>
+        <span style="font-size:10px;padding:2px 6px;border-radius:4px;margin-right:6px;font-family:'DM Mono',monospace;
+          background:${ing.esHarina?'rgba(200,146,42,.15)':'rgba(74,128,192,.15)'};
+          color:${ing.esHarina?'var(--gold)':'var(--blue)'}">${pct}%</span>
+        ${nom}
+        ${inMaestro?'<span style="font-size:10px;color:var(--green);margin-left:4px">✓</span>':''}
+      </span>
+      <span style="font-family:'DM Mono',monospace;color:var(--cream2)">≈${g}g</span>
+    </div>`;
+  }).join('');
+
+  if (r.notes && r.notes.trim()) {
+    body += `<div style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--gold);margin-bottom:6px">Notas</div>
+      <pre style="font-size:12px;color:var(--cream2);line-height:1.7;white-space:pre-wrap;font-family:'DM Mono',monospace">${r.notes}</pre>
+    </div>`;
+  }
+
+  body += `<div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
+    <button class="btn btn-gold" style="flex:1" onclick="personalTransferir(false)">→ Transferir a PanMaestro</button>
+    <button class="btn btn-out btn-sm" onclick="personalTransferir(true)">✏️ Editar y transferir</button>
+  </div>`;
+  body += `</div>`;
+
+  el.innerHTML = body;
+}
+
+function _personalConvert(r) {
+  return {
+    id:         'personal_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
+    code:       '',
+    personalSource: r.personalSource || r.name,
+    name:       r.name,
+    cat:        r.cat || 'pan',
+    totalMass:  r.totalMass || 1000,
+    units:      r.units || 1,
+    merma:      r.merma || 0,
+    notes:      r.notes || '',
+    flour: (r.flour||[]).map(i => ({ pct: i.pct, manualName: i.manualName||'', productName: G.ingredientes?.[i.manualName] ? i.manualName : (i.productName||'') })),
+    other: (r.other||[]).map(i => ({ pct: i.pct, manualName: i.manualName||'', productName: G.ingredientes?.[i.manualName] ? i.manualName : (i.productName||'') })),
+    subrecs: []
+  };
+}
+
+function personalTransferir(toEditor) {
+  const r = G.recetaPersonalActual;
+  if (!r) return;
+  const rec = _personalConvert(r);
+
+  if (toEditor) {
+    document.getElementById('cv-nueva-titulo').textContent = 'Importando: ' + rec.name;
+    document.getElementById('mr-id').value = rec.id;
+    document.getElementById('mr-code').value = _pmNextRecCode();
+    document.getElementById('mr-code').disabled = false;
+    document.getElementById('mr-name').value = rec.name;
+    document.getElementById('mr-masa').value = rec.totalMass||1000;
+    document.getElementById('mr-units').value = rec.units||1;
+    document.getElementById('mr-merma').value = rec.merma||0;
+    document.getElementById('mr-notes').value = rec.notes||'';
+    document.getElementById('mr-cat').value = rec.cat||'pan';
+    document.getElementById('mr-ing-list').innerHTML = '';
+    document.getElementById('mr-sub-list').innerHTML = '';
+    mrIngCount = 0; mrSubCount = 0;
+    (rec.flour||[]).forEach(i => mrAddIng(i.manualName||i.productName||'', i.pct, true));
+    (rec.other||[]).forEach(i => mrAddIng(i.manualName||i.productName||'', i.pct, false));
+    mrRefreshEmpty();
+    // Marcar el origen (solo informativo, ver recSave) — no hace falta
+    // rastrear "ya transferida" porque no hay biblioteca persistente.
+    document.getElementById('mr-id').value = rec.id + '|personalsource|' + encodeURIComponent(rec.personalSource);
+    cvMostrar('cv-nueva');
+    // Se vacía la casilla apenas se entrega al editor — el trabajo ya
+    // pasó a manos del formulario normal de recetas.
+    G.recetaPersonalActual = null;
+    pmSave('costeo');
+    pmToast('Receta en editor — revisá ingredientes y guardá ✓');
+    return;
+  }
+
+  // Transferencia directa — siempre crea una receta nueva con código R-xxxx
+  if (!G.recetas) G.recetas = [];
+  rec.code = _pmNextRecCode();
+  G.recetas.push(rec);
+  pmSave('recetas');
+
+  if (pmDB.disponible()) {
+    // NOTA: no se manda personal_source a Supabase — esa columna
+    // probablemente no existe todavía en la tabla recetas (mismo tipo
+    // de problema que tuvimos hoy con receta_cod faltante).
+    pmDB.recetas.crear({
+      codigo: rec.code, nombre: rec.name, categoria: rec.cat,
+      masa_total_g: rec.totalMass, unidades: rec.units, merma_pct: rec.merma || 0,
+      notas: rec.notes || '', origen: 'propia', activo: true,
+      subrecs: rec.subrecs||[], addons: []
+    }).then(rows => {
+      if (rows?.[0]) {
+        const idx = G.recetas.findIndex(x=>x.id===rec.id);
+        if (idx >= 0) { G.recetas[idx]._sbId = rows[0].id; pmSave('recetas'); }
+        _sbSaveRecetaItems(rows[0].id, rec.flour, rec.other).catch(e => console.warn('[pmDB] items personal error:', e.message));
+      }
+    }).catch(e => console.warn('[pmDB] personal transfer crear error:', e.message));
+  }
+
+  G.recetaPersonalActual = null;
+  pmSave('costeo');
+  personalRenderPreview();
+  pmToast('✓ "' + rec.name + '" transferida como ' + rec.code);
 }
 
 function _gmConvert(r) {
@@ -7947,8 +8062,7 @@ async function panCargarSb() {
             nombre: r.nombre,
             precio: r.precio_full || r.precio || 0,
             peso: r.peso_g || local?.peso || 0,
-            recetaCod: r.receta_cod || local?.recetaCod || '',
-            esMM: !!r.es_masa_madre
+            recetaCod: r.receta_cod || local?.recetaCod || ''
           };
         });
         // Mantener panes locales que no estén en SB (offline)
@@ -8023,7 +8137,6 @@ function panRender() {
       <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--gold3);min-width:44px">${p.id}</div>
       <div class="item-name">${p.nombre}</div>
       <div class="item-meta">${pmMoney(p.precio)} · ${p.peso}g</div>
-      ${p.esMM ? `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--gold);background:rgba(200,146,42,.12);padding:2px 7px;border-radius:10px;border:1px solid rgba(200,146,42,.3)">MM</div>` : `<div style="font-size:10px;color:var(--cream2);opacity:.4">—</div>`}
       ${p.recetaCod ? `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--blue);background:rgba(74,128,192,.12);padding:2px 7px;border-radius:10px;border:1px solid rgba(74,128,192,.3)">${p.recetaCod}</div>` : `<div style="font-size:10px;color:var(--cream2);opacity:.4">—</div>`}
       ${cpgCell}
       ${costoCell}
@@ -8075,10 +8188,6 @@ function panEdit(id) {
       <label style="font-size:11px;color:var(--cream2)">Receta</label>
       <select id="pe-rec-${id}" style="font-size:12px;padding:4px 7px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream)">${recOpts}</select>
     </div>
-    <div style="display:flex;flex-direction:column;gap:2px;align-items:center">
-      <label style="font-size:11px;color:var(--cream2)">Masa madre</label>
-      <input id="pe-mm-${id}" type="checkbox" ${p.esMM?'checked':''} style="width:18px;height:18px;accent-color:var(--gold);cursor:pointer">
-    </div>
     <div style="display:flex;gap:4px;padding-bottom:1px">
       <button class="btn btn-gold btn-sm" onclick="panEditSave('${id}')">💾 Guardar</button>
       <button class="btn btn-out btn-sm" onclick="panEditCancelar()">✕</button>
@@ -8098,16 +8207,15 @@ function panEditSave(id) {
   const pr   = parseFloat(document.getElementById('pe-pr-'   + id)?.value)||0;
   const peso = parseFloat(document.getElementById('pe-peso-' + id)?.value)||0;
   const rec  = document.getElementById('pe-rec-'  + id)?.value || '';
-  const esMM = !!document.getElementById('pe-mm-' + id)?.checked;
   if (!nom) { pmToast('El nombre no puede estar vacío','err'); return; }
-  p.nombre = nom; p.precio = pr; p.peso = peso; p.recetaCod = rec; p.esMM = esMM;
+  p.nombre = nom; p.precio = pr; p.peso = peso; p.recetaCod = rec;
   pmSave('sistema');
   panRender();
   pmToast('Actualizado ✓');
   if (pmDB.disponible()) {
     _sbProdEnsureMap().then(() => {
       const uuid = _sbProdMap?.[id];
-      if (uuid) pmDB.productos.editar(uuid, { nombre:p.nombre, precio_full:p.precio, peso_g:p.peso||null, receta_cod:p.recetaCod||null, es_masa_madre:p.esMM })
+      if (uuid) pmDB.productos.editar(uuid, { nombre:p.nombre, precio_full:p.precio, peso_g:p.peso||null, receta_cod:p.recetaCod||null })
         .catch(e => console.warn('[pmDB] panEditSave sync error:', e.message));
     });
   }
