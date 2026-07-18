@@ -731,7 +731,13 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
         Pegá el JSON que armaste con la herramienta <strong>Recetas Personales</strong> (standalone). Se ve acá abajo para revisar, y desde ahí la transferís — el JSON ya te queda guardado en tu dispositivo como respaldo, así que acá no se acumula nada.
       </p>
       <textarea id="personal-json-input" placeholder='Pegá acá el JSON exportado...' style="width:100%;min-height:90px;font-family:'DM Mono',monospace;font-size:12px;margin-bottom:8px"></textarea>
-      <button class="btn btn-out" onclick="personalCargarJson()">⬇ Cargar receta</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-out" onclick="personalCargarJson()">⬇ Cargar receta</button>
+        <label class="btn btn-out" style="cursor:pointer">
+          📁 Subir archivo .json
+          <input type="file" accept=".json" id="personal-file-input" style="display:none" onchange="personalCargarArchivo(event)">
+        </label>
+      </div>
     </div>
     <div id="personal-preview"></div>
   </div>
@@ -7052,6 +7058,22 @@ function gmCloseModal() {
 function personalCargarJson() {
   const raw = document.getElementById('personal-json-input').value.trim();
   if (!raw) { pmToast('Pegá el JSON de la receta primero', 'err'); return; }
+  personalProcesarTexto(raw);
+}
+
+function personalCargarArchivo(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    personalProcesarTexto(ev.target.result);
+  };
+  reader.onerror = () => pmToast('No se pudo leer el archivo', 'err');
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+function personalProcesarTexto(raw) {
   let data;
   try { data = JSON.parse(raw); } catch(err) {
     pmToast('Error al leer JSON: ' + err.message, 'err'); return;
