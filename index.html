@@ -558,6 +558,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
         <button class="btn btn-out btn-sm" onclick="cvMostrar('cv-maestro');cvMaestroRender()">📋 Maestro</button>
         <button class="btn btn-out btn-sm" onclick="cvMostrar('cv-gm');gmRenderList()">🌾 Gluten Morgen</button>
         <button class="btn btn-out btn-sm" onclick="cvMostrar('cv-personal');personalRenderPreview()">📝 Recetas Personales</button>
+        <button class="btn btn-out btn-sm" onclick="repRecProductoImprimir()">📊 Reporte × Producto</button>
         <button class="btn btn-gold" onclick="cvMostrar('cv-nueva');recNuevo()">+ Nueva receta</button>
       </div>
     </div>
@@ -7785,6 +7786,102 @@ function recetarioImprimir() {
   </head><body>`);
   w.document.write(area.innerHTML.replace(/var\(--[^)]+\)/g,'inherit').replace(/class="cpill"/g,''));
   w.document.write('</body></html>');
+  w.document.close();
+  w.focus();
+  setTimeout(() => w.print(), 600);
+}
+
+// ══════════════════════════════════════════════════════════
+// REPORTE — Recetas × Producto terminado
+// Solo reporte (no persiste nada) — se genera al vuelo y se
+// imprime en ventana aparte, igual patrón que recetarioImprimir().
+// Por ahora solo cubre "Tipos de pan" (G.tiposPan), que es el
+// único catálogo con receta_cod vinculada desde la UI. Los tipos
+// de galleta (G.tiposGalleta) todavía no tienen ese campo expuesto
+// — ver nota en el pie del reporte.
+// ══════════════════════════════════════════════════════════
+function _repCostoProducto(r, p) {
+  if (!p || !p.peso) return null;
+  const c = pmCostoReceta(r);
+  if (!c.totalMerma || !r.totalMass) return null;
+  const modPct = r.modPct !== undefined ? r.modPct : 80;
+  const ggPct  = r.ggPct  !== undefined ? r.ggPct  : 45;
+  const costTotal = c.totalMerma * (1 + (modPct + ggPct) / 100);
+  const cpg = costTotal / r.totalMass;
+  const costoUd = cpg * p.peso;
+  const margen  = p.precio > 0 ? (p.precio - costoUd) / p.precio * 100 : null;
+  return { costoUd, margen };
+}
+
+function repRecProductoImprimir() {
+  const recetas = (_sbRecLista() || []).slice().sort((a,b) => (a.code||'').localeCompare(b.code||''));
+  const filas = [];
+  recetas.forEach(r => {
+    const vinculados = (G.tiposPan||[]).filter(p => p.recetaCod === r.code);
+    if (!vinculados.length) filas.push({ r, prod: null });
+    else vinculados.forEach(p => filas.push({ r, prod: p }));
+  });
+
+  const conProducto = filas.filter(f => f.prod);
+  const sinProducto = filas.filter(f => !f.prod);
+
+  const rowCon = f => {
+    const costo = _repCostoProducto(f.r, f.prod);
+    const margenColor = costo && costo.margen !== null
+      ? (costo.margen >= 40 ? '#2e7d32' : costo.margen >= 20 ? '#b8860b' : '#b91c1c')
+      : '#8a7050';
+    return `<tr>
+      <td class="mono">${f.r.code||'—'}</td>
+      <td>${f.r.name||''}</td>
+      <td>${f.prod.nombre}</td>
+      <td style="text-align:right" class="mono">${f.prod.peso||'—'}g</td>
+      <td style="text-align:right" class="mono gold">${costo ? pmMoney(Math.round(costo.costoUd)) : '—'}</td>
+      <td style="text-align:right" class="mono">${f.prod.precio ? pmMoney(f.prod.precio) : '—'}</td>
+      <td style="text-align:right" class="mono" style="color:${margenColor}">${costo && costo.margen!==null ? costo.margen.toFixed(1)+'%' : '—'}</td>
+    </tr>`;
+  };
+  const rowSin = f => `<tr>
+      <td class="mono">${f.r.code||'—'}</td>
+      <td colspan="6" style="color:#9a8560;font-style:italic">${f.r.name||''} — sin producto terminado vinculado</td>
+    </tr>`;
+
+  const bodyCon = conProducto.map(rowCon).join('') || '<tr><td colspan="7" style="text-align:center;color:#9a8560;padding:16px">Ningún tipo de pan tiene receta vinculada todavía</td></tr>';
+  const bodySin = sinProducto.map(rowSin).join('');
+  const fecha = new Date().toLocaleDateString('es-CR', { year:'numeric', month:'long', day:'numeric' });
+
+  const w = window.open('', '_blank', 'width=1000,height=700');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
+    <title>Reporte Recetas × Producto — ${fecha}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@400;600&family=DM+Mono&display=swap" rel="stylesheet">
+    <style>
+      *{box-sizing:border-box;margin:0;padding:0}
+      body{font-family:'DM Sans',sans-serif;font-size:12px;color:#1a1006;padding:28px;background:#fff}
+      h1{font-family:'Playfair Display',serif;font-size:22px;font-weight:900;margin-bottom:2px}
+      .sub{font-size:11px;color:#8a7050;margin-bottom:18px}
+      table{width:100%;border-collapse:collapse;margin-bottom:20px}
+      th{background:#f5e8d0;padding:7px 9px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.6px}
+      td{padding:7px 9px;border-bottom:1px solid #e8dcc8;vertical-align:middle;font-size:12px}
+      .mono{font-family:'DM Mono',monospace}
+      .gold{color:#a8721a;font-weight:700}
+      h2{font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:#8a5a10;margin:18px 0 8px;border-bottom:1px solid #e0c88a;padding-bottom:4px}
+      .foot{font-size:10px;color:#9a8560;margin-top:10px;line-height:1.6}
+      @media print{body{padding:16px} .foot{page-break-inside:avoid}}
+    </style>
+  </head><body>
+    <h1>🍞 Recetas × Producto terminado</h1>
+    <div class="sub">Generado ${fecha} · PanMaestro — reporte, no se guarda</div>
+    <h2>Con producto terminado vinculado</h2>
+    <table>
+      <thead><tr><th>Código</th><th>Receta</th><th>Producto</th><th style="text-align:right">Peso</th><th style="text-align:right">Costo/ud</th><th style="text-align:right">Precio</th><th style="text-align:right">Margen</th></tr></thead>
+      <tbody>${bodyCon}</tbody>
+    </table>
+    ${sinProducto.length ? `<h2>Sin producto vinculado (sub-recetas, masas madre, rellenos, coberturas, etc.)</h2>
+    <table>
+      <thead><tr><th>Código</th><th colspan="6">Receta</th></tr></thead>
+      <tbody>${bodySin}</tbody>
+    </table>` : ''}
+    <div class="foot">Costo/ud incluye mano de obra y gastos generales de cada receta (ver % en el editor). Los tipos de galleta todavía no tienen receta vinculada en este reporte.</div>
+  </body></html>`);
   w.document.close();
   w.focus();
   setTimeout(() => w.print(), 600);
