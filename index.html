@@ -1811,8 +1811,13 @@ function pmCostoReceta(r, targetMass, _visited, _cache) {
   for (const ing of (r.flour||[])) {
     const pct  = parseFloat(ing.pct)||0;
     const g    = flourW * pct / 100;
-    const name = ing.productName || ing.manualName || '';
-    const cpg  = (() => { const i = _sbResolveIng(ing); return i && i.price && i.qty ? i.price/i.qty : 0; })();
+    // Fix rename: si la línea resuelve por ingredientId (o por nombre
+    // exacto), mostrar el nombre ACTUAL del maestro — no el que quedó
+    // guardado en la receta cuando se agregó la línea. Así renombrar un
+    // ingrediente no deja nombres viejos "congelados" en las recetas.
+    const i    = _sbResolveIng(ing);
+    const name = i?.nombre || ing.productName || ing.manualName || '';
+    const cpg  = i && i.price && i.qty ? i.price/i.qty : 0;
     const cost = cpg * g;
     total += cost;
     lines.push({ name, pct, g, cost, flour: true });
@@ -1822,8 +1827,9 @@ function pmCostoReceta(r, targetMass, _visited, _cache) {
   for (const ing of (r.other||[])) {
     const pct  = parseFloat(ing.pct)||0;
     const g    = flourW * pct / 100;
-    const name = ing.productName || ing.manualName || '';
-    const cpg  = (() => { const i = _sbResolveIng(ing); return i && i.price && i.qty ? i.price/i.qty : 0; })();
+    const i    = _sbResolveIng(ing);
+    const name = i?.nombre || ing.productName || ing.manualName || '';
+    const cpg  = i && i.price && i.qty ? i.price/i.qty : 0;
     const cost = cpg * g;
     total += cost;
     lines.push({ name, pct, g, cost, flour: false });
@@ -8647,13 +8653,16 @@ async function ingEdit(nom) {
   });
   if (!targetRow) return;
   const cod = _sbIngCache?.[nom]?.codigo || '—';
+  const key = nom.replace(/[^a-z0-9]/gi,'_');
   targetRow.innerHTML = `
     <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--gold3);min-width:60px">${cod}</span>
-    <div class="item-name" style="flex:1">${nom}</div>
-    <input type="number" id="ie-price-${nom.replace(/[^a-z0-9]/gi,'_')}" value="${ing.price||0}" min="0"
-      style="width:90px;padding:5px 8px;background:var(--sf);border:1px solid var(--gold);border-radius:6px;color:var(--cream);font-size:12px"
+    <input type="text" id="ie-nom-${key}" value="${nom.replace(/"/g,'&quot;')}"
+      style="flex:1;min-width:120px;padding:5px 8px;background:var(--sf);border:1px solid var(--gold);border-radius:6px;color:var(--cream);font-size:12px"
+      placeholder="Nombre">
+    <input type="number" id="ie-price-${key}" value="${ing.price||0}" min="0"
+      style="width:90px;padding:5px 8px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream);font-size:12px"
       placeholder="Precio">
-    <input type="number" id="ie-qty-${nom.replace(/[^a-z0-9]/gi,'_')}" value="${ing.qty||1000}" min="1"
+    <input type="number" id="ie-qty-${key}" value="${ing.qty||1000}" min="1"
       style="width:80px;padding:5px 8px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream);font-size:12px"
       placeholder="g base">
     <button class="btn btn-gold btn-xs" onclick="ingEditSave('${nom}')">💾</button>
@@ -8661,24 +8670,78 @@ async function ingEdit(nom) {
   targetRow.querySelector('input').focus();
 }
 
-function ingEditSave(nom) {
-  const key = nom.replace(/[^a-z0-9]/gi,'_');
+/**
+ * Renombrar es seguro para el costeo: pmCostoReceta() ya resuelve por
+ * ingredientId (estable) y ahora también toma el NOMBRE en vivo del
+ * maestro cuando hay id — ver fix en pmCostoReceta(). Las líneas de
+ * receta guardan el texto viejo (productName/manualName) pero eso ya
+ * no importa para costear ni para mostrar el nombre en Costeo.
+ *
+ * Lo único que hay que migrar con cuidado son los CACHÉS LOCALES
+ * (G.ingredientes, _sbIngMap, _sbIngCache, _sbIngById) — todos están
+ * indexados por nombre salvo _sbIngById. Si solo escribiéramos la
+ * clave nueva sin borrar la vieja, quedaría un ingrediente "fantasma"
+ * duplicado con el nombre anterior (mismo bug que ya vimos con otros
+ * módulos). Por eso el rename borra la clave vieja explícitamente en
+ * los 3 cachés keyed-by-name, además de actualizar Supabase por uuid.
+ */
+async function ingEditSave(nomOriginal) {
+  const key   = nomOriginal.replace(/[^a-z0-9]/gi,'_');
+  const nomEl = document.getElementById('ie-nom-'   + key);
   const prEl  = document.getElementById('ie-price-' + key);
   const qtyEl = document.getElementById('ie-qty-'   + key);
   if (!prEl || !qtyEl) return;
+
+  const nuevoNombre = (nomEl?.value || nomOriginal).trim();
   const price = parseFloat(prEl.value)  || 0;
   const qty   = parseFloat(qtyEl.value) || 1000;
-  G.ingredientes[nom] = { price, qty };
+
+  if (!nuevoNombre) { pmToast('El nombre no puede quedar vacío','err'); return; }
+
+  const renombrando = nuevoNombre !== nomOriginal;
+  if (renombrando && G.ingredientes[nuevoNombre]) {
+    pmToast(`Ya existe un ingrediente llamado "${nuevoNombre}" — elegí otro nombre o borrá el duplicado primero`, 'err');
+    return;
+  }
+
+  // Local — mismo patrón "local primero, avisar si falla Supabase" que ya usa panAdd/panEditSave
+  if (renombrando) {
+    G.ingredientes[nuevoNombre] = { price, qty };
+    delete G.ingredientes[nomOriginal];
+  } else {
+    G.ingredientes[nomOriginal] = { price, qty };
+  }
   pmSave('maestros');
   ingRender();
-  pmToast(nom + ' actualizado ✓');
-  // Supabase — dual write
+  pmToast(renombrando ? `Renombrado a "${nuevoNombre}" ✓` : nomOriginal + ' actualizado ✓');
+
   if (pmDB.disponible()) {
-    _sbIngEnsureMap().then(() => {
-      const uuid = _sbIngMap?.[nom];
-      if (uuid) pmDB.ingredientes.editar(uuid, { precio_ref:price, qty_base:qty })
-        .catch(e => console.warn('[pmDB] ingEditSave sync error:', e.message));
-    });
+    await _sbIngEnsureMap();
+    const uuid = _sbIngMap?.[nomOriginal] || (renombrando ? _sbIngMap?.[nuevoNombre] : null);
+    if (!uuid) {
+      console.warn('[pmDB] ingEditSave: no se encontró uuid para', nomOriginal);
+      if (renombrando) pmToast('⚠️ Renombrado solo local — no se encontró el registro en Supabase, revisá la sincronización', 'err');
+      return;
+    }
+    const payload = { precio_ref:price, qty_base:qty };
+    if (renombrando) payload.nombre = nuevoNombre;
+    try {
+      await pmDB.ingredientes.editar(uuid, payload);
+      if (renombrando) {
+        // Migrar claves en los 3 cachés locales indexados por nombre —
+        // sin esto queda una entrada fantasma con el nombre viejo.
+        if (_sbIngMap) { _sbIngMap[nuevoNombre] = uuid; delete _sbIngMap[nomOriginal]; }
+        if (_sbIngCache) {
+          const row = _sbIngCache[nomOriginal];
+          if (row) { _sbIngCache[nuevoNombre] = { ...row, nombre: nuevoNombre }; delete _sbIngCache[nomOriginal]; }
+        }
+        if (_sbIngById && _sbIngById[uuid]) _sbIngById[uuid].nombre = nuevoNombre;
+        ingRender();
+      }
+    } catch(e) {
+      console.warn('[pmDB] ingEditSave sync error:', e.message);
+      pmToast('⚠️ "' + nuevoNombre + '" guardado local pero no se sincronizó a Supabase: ' + e.message, 'err');
+    }
   }
 }
 
