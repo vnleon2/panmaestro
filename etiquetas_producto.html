@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Etiquetas de producto — PanMaestro</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root { --border:#000; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 24px 16px 80px;
+    color: #1a1a1a;
+  }
+  h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+  p.sub { color: #666; font-size: 13px; margin-top: 0; margin-bottom: 24px; }
+  label { display:block; font-size:13px; color:#444; margin: 14px 0 4px; }
+  select, input {
+    width: 100%; padding: 10px; font-size: 15px;
+    border: 1px solid #ccc; border-radius: 6px;
+  }
+  .row { display: flex; gap: 12px; }
+  .row > div { flex: 1; }
+  .badge {
+    display: inline-block; margin-top: 10px; padding: 4px 12px;
+    border: 2px solid #000; border-radius: 20px; font-size: 12px; font-weight: 600;
+  }
+  .badge.off { border-color: #ccc; color: #ccc; }
+  button {
+    margin-top: 24px; width: 100%; padding: 14px; font-size: 16px; font-weight: 600;
+    background: #000; color: #fff; border: none; border-radius: 8px; cursor: pointer;
+  }
+  button:disabled { background: #ccc; cursor: not-allowed; }
+  #status { font-size: 13px; color: #888; margin-top: 8px; }
+
+  /* Vista previa en pantalla */
+  #preview-wrap { margin-top: 28px; }
+  #preview-wrap h2 { font-size: 14px; color:#666; font-weight: 500; margin-bottom: 8px; }
+
+  .label {
+    width: 7cm; height: 4cm;
+    border: 2px solid #000;
+    padding: 0.3cm;
+    font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+    display: flex; flex-direction: column; justify-content: space-between;
+    background: #fff;
+  }
+  .label .nombre { font-size: 22px; font-weight: 600; line-height: 1.15; }
+  .label .fila { display: flex; gap: 0.25cm; }
+  .label .campo {
+    border: 1px solid #000; border-radius: 4px; padding: 0.12cm 0.25cm; flex: 1;
+  }
+  .label .campo .k { font-size: 9px; color: #555; }
+  .label .campo .v { font-size: 15px; font-weight: 600; }
+  .label .mm {
+    border: 2px solid #000; border-radius: 20px; padding: 0.1cm 0.3cm;
+    font-size: 11px; font-weight: 700; text-align: center; white-space: nowrap;
+  }
+
+  @media print {
+    body * { visibility: hidden; }
+    #print-area, #print-area * { visibility: visible; }
+    #print-area { position: absolute; top: 0; left: 0; }
+    @page { size: 7cm 4cm; margin: 0; }
+    .label { page-break-after: always; border: 2px solid #000; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Etiquetas de producto</h1>
+<p class="sub">Genera etiquetas 7x4cm para producción genérica (sin cliente)</p>
+
+<label for="producto">Producto</label>
+<select id="producto"><option>Cargando catálogo…</option></select>
+
+<div class="row">
+  <div>
+    <label for="peso">Peso (g)</label>
+    <input type="number" id="peso" step="1">
+  </div>
+  <div>
+    <label for="precio">Precio (₡)</label>
+    <input type="number" id="precio" step="1">
+  </div>
+</div>
+
+<label for="cantidad">Cantidad de etiquetas</label>
+<input type="number" id="cantidad" value="1" min="1" step="1">
+
+<div id="mm-badge" class="badge off">MASA MADRE</div>
+
+<div id="status"></div>
+<button id="btn-imprimir" disabled>Imprimir etiquetas</button>
+
+<div id="preview-wrap">
+  <h2>Vista previa</h2>
+  <div class="label" id="preview">
+    <div class="nombre" id="p-nombre">—</div>
+    <div class="fila">
+      <div class="campo"><div class="k">peso</div><div class="v" id="p-peso">—</div></div>
+      <div class="campo"><div class="k">precio</div><div class="v" id="p-precio">—</div></div>
+    </div>
+  </div>
+</div>
+
+<div id="print-area"></div>
+
+<script>
+const SUPABASE_URL = "https://xmhokxmuxfkfypttvkjz.supabase.co";
+const SUPABASE_KEY = "sb_publishable_pmKVIGa_lNxtzRos-iY_0Q_LXEcj77v";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let productos = [];
+let actual = null;
+
+const $ = id => document.getElementById(id);
+
+async function cargarCatalogo() {
+  const { data, error } = await sb
+    .from('productos_terminados')
+    .select('codigo,nombre,peso_g,precio_full,es_masa_madre')
+    .eq('activo', true)
+    .order('codigo');
+
+  const sel = $('producto');
+  if (error) {
+    sel.innerHTML = '<option>Error cargando catálogo</option>';
+    $('status').textContent = 'Error: ' + error.message;
+    return;
+  }
+
+  productos = data;
+  sel.innerHTML = '<option value="">Selecciona un producto…</option>' +
+    data.map((p, i) => `<option value="${i}">${p.codigo} — ${p.nombre}</option>`).join('');
+}
+
+function seleccionar(idx) {
+  actual = productos[idx];
+  if (!actual) return;
+  $('peso').value = actual.peso_g ?? '';
+  $('precio').value = actual.precio_full ?? '';
+  actualizarPreview();
+  $('btn-imprimir').disabled = false;
+}
+
+function actualizarPreview() {
+  const nombre = actual ? actual.nombre : '—';
+  const peso = $('peso').value ? `${$('peso').value} g` : '—';
+  const precio = $('precio').value ? `₡${Number($('precio').value).toLocaleString('es-CR')}` : '—';
+  const esMM = actual ? !!actual.es_masa_madre : false;
+
+  $('p-nombre').textContent = nombre;
+  $('p-peso').textContent = peso;
+  $('p-precio').textContent = precio;
+
+  const badge = $('mm-badge');
+  badge.classList.toggle('off', !esMM);
+
+  const preview = $('preview');
+  let mmEl = preview.querySelector('.mm');
+  if (esMM) {
+    if (!mmEl) {
+      mmEl = document.createElement('div');
+      mmEl.className = 'mm';
+      mmEl.textContent = 'MASA MADRE';
+      preview.querySelector('.fila').appendChild(mmEl);
+    }
+  } else if (mmEl) {
+    mmEl.remove();
+  }
+}
+
+function imprimir() {
+  if (!actual) return;
+  const cantidad = Math.max(1, parseInt($('cantidad').value) || 1);
+  const peso = $('peso').value ? `${$('peso').value} g` : '';
+  const precio = $('precio').value ? `₡${Number($('precio').value).toLocaleString('es-CR')}` : '';
+  const esMM = !!actual.es_masa_madre;
+
+  const unaEtiqueta = `
+    <div class="label">
+      <div class="nombre">${actual.nombre}</div>
+      <div class="fila">
+        <div class="campo"><div class="k">peso</div><div class="v">${peso}</div></div>
+        <div class="campo"><div class="k">precio</div><div class="v">${precio}</div></div>
+        ${esMM ? '<div class="mm">MASA MADRE</div>' : ''}
+      </div>
+    </div>`;
+
+  $('print-area').innerHTML = unaEtiqueta.repeat(cantidad);
+  window.print();
+}
+
+$('producto').addEventListener('change', e => {
+  if (e.target.value === '') { actual = null; $('btn-imprimir').disabled = true; return; }
+  seleccionar(Number(e.target.value));
+});
+$('peso').addEventListener('input', actualizarPreview);
+$('precio').addEventListener('input', actualizarPreview);
+$('btn-imprimir').addEventListener('click', imprimir);
+
+cargarCatalogo();
+</script>
+
+</body>
+</html>
