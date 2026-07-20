@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Consulta de Recetas · PanMaestro</title>
+<style>
+  :root{
+    --masa:#F6F0E4;
+    --corteza:#3B2A1E;
+    --miga:#FFFFFF;
+    --gold:#C8922A;
+    --gold-dark:#9C6F1C;
+    --linea:#E4D9C4;
+    --rojo:#B0473C;
+    --verde:#4E7A51;
+    --sombra: 0 8px 24px rgba(59,42,30,.10);
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    min-height:100vh;
+    background:
+      radial-gradient(circle at 15% 0%, rgba(200,146,42,.08), transparent 45%),
+      var(--masa);
+    color:var(--corteza);
+    font-family:'Georgia','DM Sans',ui-serif,serif;
+    padding:28px 16px 60px;
+  }
+  .wrap{max-width:640px;margin:0 auto}
+  header{margin-bottom:22px;text-align:center}
+  header .icon{font-size:34px;line-height:1}
+  h1{
+    font-size:22px;
+    margin:8px 0 2px;
+    letter-spacing:.3px;
+    font-family:Georgia, 'Times New Roman', serif;
+    font-weight:700;
+    color:var(--corteza);
+  }
+  header p{
+    margin:0;
+    font-size:12.5px;
+    letter-spacing:1.5px;
+    text-transform:uppercase;
+    color:var(--gold-dark);
+    font-family:'DM Sans',Arial,sans-serif;
+  }
+
+  .buscador{
+    display:flex;
+    gap:8px;
+    background:var(--miga);
+    border:1px solid var(--linea);
+    border-radius:14px;
+    padding:8px;
+    box-shadow:var(--sombra);
+  }
+  .buscador input{
+    flex:1;
+    border:none;
+    outline:none;
+    background:transparent;
+    font-size:17px;
+    padding:10px 8px;
+    font-family:'DM Mono', monospace;
+    letter-spacing:.5px;
+    color:var(--corteza);
+    text-transform:uppercase;
+  }
+  .buscador input::placeholder{color:#B8AC98;text-transform:none;font-family:'DM Sans',sans-serif}
+  .buscador button{
+    border:none;
+    background:var(--corteza);
+    color:var(--masa);
+    padding:0 20px;
+    border-radius:10px;
+    font-size:14px;
+    font-family:'DM Sans',Arial,sans-serif;
+    font-weight:600;
+    cursor:pointer;
+    transition:background .15s ease, transform .1s ease;
+  }
+  .buscador button:active{transform:scale(.97)}
+  .buscador button:hover{background:var(--gold-dark)}
+
+  #estado{
+    margin-top:14px;
+    font-size:13px;
+    font-family:'DM Sans',Arial,sans-serif;
+    color:#8A7A64;
+    min-height:18px;
+    text-align:center;
+  }
+  #estado.err{color:var(--rojo)}
+
+  .receta{
+    margin-top:22px;
+    background:var(--miga);
+    border:1px solid var(--linea);
+    border-radius:16px;
+    padding:22px 20px 8px;
+    box-shadow:var(--sombra);
+    display:none;
+  }
+  .receta.show{display:block}
+
+  .receta-top{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:12px;
+    padding-bottom:16px;
+    border-bottom:1px dashed var(--linea);
+    margin-bottom:6px;
+  }
+  .receta-top .codigo{
+    font-family:'DM Mono',monospace;
+    font-size:11px;
+    color:var(--gold-dark);
+    letter-spacing:1px;
+    background:rgba(200,146,42,.12);
+    padding:3px 8px;
+    border-radius:6px;
+    display:inline-block;
+    margin-bottom:6px;
+  }
+  .receta-top h2{
+    margin:0;
+    font-size:20px;
+    line-height:1.25;
+    font-family:Georgia,serif;
+  }
+  .receta-meta{
+    text-align:right;
+    font-family:'DM Sans',Arial,sans-serif;
+    font-size:12px;
+    color:#8A7A64;
+    white-space:nowrap;
+  }
+  .receta-meta b{color:var(--corteza);font-size:14px;display:block}
+
+  .grupo{margin:18px 0}
+  .grupo h3{
+    font-family:'DM Sans',Arial,sans-serif;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:1.5px;
+    color:var(--gold-dark);
+    margin:0 0 8px;
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .linea-ing{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    padding:8px 0;
+    border-bottom:1px solid #F0E9DA;
+    font-family:'DM Sans',Arial,sans-serif;
+    font-size:14.5px;
+  }
+  .linea-ing:last-child{border-bottom:none}
+  .linea-ing .nombre{color:var(--corteza)}
+  .linea-ing .nombre.suelto::after{
+    content:'· sin enganchar';
+    font-size:10px;
+    color:#B8AC98;
+    margin-left:6px;
+    font-style:italic;
+  }
+  .linea-ing .pct{
+    font-family:'DM Mono',monospace;
+    color:var(--gold-dark);
+    font-weight:600;
+    white-space:nowrap;
+    margin-left:12px;
+  }
+
+  .notas{
+    margin:18px 0 16px;
+    padding:12px 14px;
+    background:#FBF7EE;
+    border-radius:10px;
+    font-family:'DM Sans',Arial,sans-serif;
+    font-size:13px;
+    color:#5A4B3A;
+    white-space:pre-wrap;
+    line-height:1.5;
+  }
+
+  footer{
+    text-align:center;
+    margin-top:34px;
+    font-family:'DM Sans',Arial,sans-serif;
+    font-size:11px;
+    color:#B8AC98;
+  }
+
+  @media (max-width:420px){
+    .receta-top{flex-direction:column}
+    .receta-meta{text-align:left}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="icon">🔍🍞</div>
+    <h1>Consulta de Recetas</h1>
+    <p>Lectura directa desde Supabase</p>
+  </header>
+
+  <div class="buscador">
+    <input id="inp-codigo" type="text" placeholder="Código, ej. R-0001" autocomplete="off" autocapitalize="characters">
+    <button onclick="buscarReceta()">Buscar</button>
+  </div>
+  <div id="estado"></div>
+
+  <div class="receta" id="receta">
+    <div class="receta-top">
+      <div>
+        <span class="codigo" id="r-codigo">R-0000</span>
+        <h2 id="r-nombre">—</h2>
+      </div>
+      <div class="receta-meta">
+        <b id="r-masa">—</b>
+        <span id="r-cat">—</span>
+      </div>
+    </div>
+
+    <div class="grupo" id="grupo-harina">
+      <h3>🌾 Harinas</h3>
+      <div id="lista-harina"></div>
+    </div>
+
+    <div class="grupo" id="grupo-otro">
+      <h3>💧 Otros ingredientes</h3>
+      <div id="lista-otro"></div>
+    </div>
+
+    <div class="grupo" id="grupo-subrecs" style="display:none">
+      <h3>🔗 Sub-recetas</h3>
+      <div id="lista-subrecs"></div>
+    </div>
+
+    <div class="grupo" id="grupo-addons" style="display:none">
+      <h3>🎂 Rellenos / Coberturas</h3>
+      <div id="lista-addons"></div>
+    </div>
+
+    <div class="notas" id="r-notas" style="display:none"></div>
+  </div>
+
+  <footer>PanMaestro — solo lectura, no modifica datos</footer>
+</div>
+
+<script>
+const SB_URL = 'https://xmhokxmuxfkfypttvkjz.supabase.co';
+const SB_KEY = 'sb_publishable_pmKVIGa_lNxtzRos-iY_0Q_LXEcj77v';
+
+const $ = id => document.getElementById(id);
+
+async function sbGet(path) {
+  const res = await fetch(`${SB_URL}/rest/v1/${path}`, {
+    headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` }
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const text = await res.text();
+  return text ? JSON.parse(text) : [];
+}
+
+function pintarLista(el, items) {
+  el.innerHTML = '';
+  if (!items.length) {
+    el.innerHTML = '<div class="linea-ing" style="color:#B8AC98">— ninguno —</div>';
+    return;
+  }
+  items.sort((a,b) => (b.porcentaje||0) - (a.porcentaje||0));
+  items.forEach(it => {
+    const nombre = it.ingredientes?.nombre || it.nombre_manual || '(sin nombre)';
+    const suelto = !it.ingredientes?.nombre;
+    const row = document.createElement('div');
+    row.className = 'linea-ing';
+    row.innerHTML = `<span class="nombre${suelto?' suelto':''}">${nombre}</span><span class="pct">${(it.porcentaje||0)}%</span>`;
+    el.appendChild(row);
+  });
+}
+
+async function buscarReceta() {
+  const codigo = $('inp-codigo').value.trim().toUpperCase();
+  const estado = $('estado');
+  const receta = $('receta');
+  estado.className = ''; estado.textContent = '';
+  receta.classList.remove('show');
+
+  if (!codigo) { estado.textContent = 'Escribí un código para buscar.'; return; }
+
+  estado.textContent = 'Buscando...';
+  try {
+    const recs = await sbGet(`recetas?codigo=eq.${encodeURIComponent(codigo)}&select=*`);
+    if (!recs.length) {
+      estado.className = 'err';
+      estado.textContent = `No se encontró ninguna receta con código "${codigo}".`;
+      return;
+    }
+    const r = recs[0];
+    const items = await sbGet(`receta_items?receta_id=eq.${r.id}&select=porcentaje,es_harina,nombre_manual,ingredientes(nombre)`);
+
+    $('r-codigo').textContent = r.codigo;
+    $('r-nombre').textContent = r.nombre;
+    $('r-masa').textContent = `${r.masa_total_g||0} g`;
+    $('r-cat').textContent = r.categoria || '—';
+
+    pintarLista($('lista-harina'), items.filter(i => i.es_harina));
+    pintarLista($('lista-otro'), items.filter(i => !i.es_harina));
+
+    // SESIÓN 11: rellenos/coberturas — guardados como JSON en la propia receta
+    const subrecs = Array.isArray(r.subrecs) ? r.subrecs : [];
+    const addons  = Array.isArray(r.addons)  ? r.addons  : [];
+
+    const grupoSub = $('grupo-subrecs');
+    if (subrecs.length) {
+      grupoSub.style.display = 'block';
+      $('lista-subrecs').innerHTML = subrecs.map(s => `
+        <div class="linea-ing">
+          <span class="nombre">${s.label || '(sin etiqueta)'}</span>
+          <span class="pct">${s.pct ? s.pct+'%' : (s.gFijos ? s.gFijos+'g fijos' : '—')}</span>
+        </div>`).join('');
+    } else {
+      grupoSub.style.display = 'none';
+    }
+
+    const grupoAdd = $('grupo-addons');
+    if (addons.length) {
+      grupoAdd.style.display = 'block';
+      $('lista-addons').innerHTML = addons.map(a => `
+        <div class="linea-ing">
+          <span class="nombre">${a.label || a.tipo || '(sin etiqueta)'}</span>
+          <span class="pct">${a.gPorUnidad ? a.gPorUnidad+'g/ud' : '—'}</span>
+        </div>`).join('');
+    } else {
+      grupoAdd.style.display = 'none';
+    }
+
+    const notas = $('r-notas');
+    if (r.notas && r.notas.trim()) {
+      notas.style.display = 'block';
+      notas.textContent = r.notas;
+    } else {
+      notas.style.display = 'none';
+    }
+
+    estado.textContent = items.length ? '' : '⚠️ Esta receta no tiene ingredientes guardados.';
+    receta.classList.add('show');
+  } catch (e) {
+    estado.className = 'err';
+    estado.textContent = 'Error de conexión: ' + e.message;
+  }
+}
+
+$('inp-codigo').addEventListener('keydown', e => { if (e.key === 'Enter') buscarReceta(); });
+</script>
+</body>
+</html>
