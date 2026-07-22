@@ -171,9 +171,8 @@ async function pcChgSt(sbId, st, cliNom) {
       // Verificar si ya existe venta para este pedido
       let ventaExist = [];
       try { ventaExist = await pmDB.get('ventas', { pedido_id: sbId }) || []; } catch(e) { ventaExist = []; }
-      console.log('[venta] ventaExist:', ventaExist, 'length:', ventaExist.length);
       if (!ventaExist.length) {
-        const res = await pmDB.ventas.crear({
+        await pmDB.ventas.crear({
           pedido_id:   sbId,
           fecha_pago:  pmHoy(), // FIX SESIÓN 1 (E1): usaba new Date().toISOString() directo (bug UTC), instancia no listada en el informe pero mismo root cause
           total,
@@ -181,10 +180,7 @@ async function pcChgSt(sbId, st, cliNom) {
           cliente_nom: nombreCliente,
           tipo:        'comercial'
         });
-        console.log('[venta] creada:', nombreCliente, res);
         pmToast('Venta registrada ✓', 'ok');
-      } else {
-        console.log('[venta] ya existe para este pedido');
       }
     }
     _sbPedComCache = null;

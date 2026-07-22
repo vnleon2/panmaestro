@@ -704,7 +704,6 @@ async function _sbSaveRecetaItems(sbRecId, flour, other) {
     for (const id of oldIds) {
       await pmDB.hardDelete('receta_items', id);
     }
-    console.log(`[pmDB] ✅ receta_items guardados: ${(flour||[]).length} harinas, ${(other||[]).length} otros`);
   } catch(e) {
     console.warn('[pmDB] _sbSaveRecetaItems error:', e.message);
     throw e; // SESIÓN 11 fix: antes se tragaba el error en silencio y quien
@@ -1085,7 +1084,6 @@ function recSave() {
       }).then(rows => {
         if (rows?.[0]) {
           target.sbId = rows[0].id;
-          console.log('[pmDB] ✅ Receta personal creada en Supabase:', target.code);
           _sbSaveRecetaItems(rows[0].id, obj.flour, obj.other).catch(e => console.warn('[pmDB] items personalSource error:', e.message));
         }
       }).catch(e => console.warn('[pmDB] recSave personalSource create error:', e.message));
@@ -1126,7 +1124,6 @@ function recSave() {
         }).then(rows => {
           if (rows?.[0]) {
             target.sbId = rows[0].id;
-            console.log('[pmDB] ✅ Receta GM creada en Supabase:', target.code);
             _sbSaveRecetaItems(rows[0].id, obj.flour, obj.other).catch(e => console.warn('[pmDB] items gmSource error:', e.message));
           }
         }).catch(e => console.warn('[pmDB] recSave gmSource create error:', e.message));
@@ -1183,7 +1180,6 @@ function recSave() {
       }).then(rows => {
         if (rows?.[0]) {
           newRec.sbId = rows[0].id;
-          console.log('[pmDB] ✅ Receta creada en Supabase:', newCode);
           _sbSaveRecetaItems(rows[0].id, obj.flour, obj.other).catch(e => console.warn('[pmDB] items create error:', e.message));
         }
       }).catch(e => console.warn('[pmDB] recSave create error:', e.message));
@@ -1557,7 +1553,6 @@ async function _sbCosteoCargar() {
       }
     });
 
-    console.log(`[pmDB] ✅ Costeo cache: ${Object.keys(_sbIngCache).length} ingredientes, ${_sbRecCache.length} recetas, ${(todosItems||[]).length} items`);
   } catch(e) {
     console.warn('[pmDB] Costeo cache error — usando localStorage:', e.message);
     _sbRecCache = null;

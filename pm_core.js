@@ -591,7 +591,7 @@ function pmCostoReceta(r, targetMass, _visited, _cache) {
 
 function pmToast(msg, type='ok') {
   const t = document.getElementById('pm-toast');
-  if (!t) { console.log(msg); return; }
+  if (!t) { console.warn('[pmToast] elemento #pm-toast no encontrado —', msg); return; }
   t.textContent = msg;
   t.className = 'pm-toast show ' + type;
   clearTimeout(_toastTimer);
