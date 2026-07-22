@@ -25,7 +25,7 @@ async function repDocumentosRender() {
       <input type="checkbox" class="doc-check" value="${p.id}"
         style="width:18px;height:18px;accent-color:var(--gold);cursor:pointer;flex-shrink:0">
       <div style="flex:1;min-width:0">
-        <div style="font-weight:600;font-size:14px">${p.cliente_nom}</div>
+        <div style="font-weight:600;font-size:14px">${pmEsc(p.cliente_nom)}</div>
         <div style="font-size:11px;color:var(--cream2);margin-top:2px">
           ${pmFmtDateShort(p.fecha)} · ${p.numero_pedido||''} · ${items} producto${items!==1?'s':''} · ₡${pmMoney(tot)}
         </div>
@@ -145,7 +145,7 @@ function _docAbrir(peds, tipo) {
         </div>
       </div>
       <div class="meta">
-        <div class="meta-block"><label>Cliente</label><div class="val">${p.cli}</div></div>
+        <div class="meta-block"><label>Cliente</label><div class="val">${pmEsc(p.cliente_nom)}</div></div>
         <div class="meta-block"><label>Fecha</label><div class="val">${fecha}</div></div>
         <div class="meta-block"><label>Estado</label><div class="val">${p.status}</div></div>
       </div>
@@ -537,9 +537,9 @@ function repPan(fecha) {
           </tr></thead>
           <tbody>
             ${rows.map(r=>`<tr>
-              <td style="font-weight:600">${r.cli}</td>
+              <td style="font-weight:600">${pmEsc(r.cli)}</td>
               <td style="font-family:'DM Mono',monospace;font-weight:700">${r.cant}</td>
-              <td style="font-size:11px;color:var(--blue)">${r.inst||'—'}</td>
+              <td style="font-size:11px;color:var(--blue)">${pmEsc(r.inst)||'—'}</td>
               <td>${pmBadge(r.status)}</td>
               <td style="text-align:right;font-family:'DM Mono',monospace">${pmMoney(r.pr*r.cant)}</td>
             </tr>`).join('')}
@@ -564,7 +564,7 @@ function repPan(fecha) {
         <thead><tr><th>Cliente</th><th>Unidades</th><th>Estado</th><th style="text-align:right">Total</th></tr></thead>
         <tbody>
           ${Object.entries(byCli).map(([cli,d])=>`<tr>
-            <td style="font-weight:600">${cli}</td>
+            <td style="font-weight:600">${pmEsc(cli)}</td>
             <td style="font-family:'DM Mono',monospace;font-weight:700">${d.unid}</td>
             <td>${pmBadge(d.status)}</td>
             <td style="text-align:right;font-family:'DM Mono',monospace">${pmMoney(d.total)}</td>
@@ -642,9 +642,9 @@ function repGall(fecha) {
           </tr></thead>
           <tbody>
             ${rows.map(r=>`<tr>
-              <td style="font-weight:600">${r.cli}</td>
+              <td style="font-weight:600">${pmEsc(r.cli)}</td>
               <td style="font-family:'DM Mono',monospace;font-weight:700">${r.cant}</td>
-              <td style="font-size:11px;color:var(--blue)">${r.inst||'—'}</td>
+              <td style="font-size:11px;color:var(--blue)">${pmEsc(r.inst)||'—'}</td>
               <td>${pmBadge(r.status)}</td>
               <td style="text-align:right;font-family:'DM Mono',monospace">${pmMoney(r.pr*r.cant)}</td>
             </tr>`).join('')}
@@ -668,7 +668,7 @@ function repGall(fecha) {
         <thead><tr><th>Cliente</th><th>Unidades</th><th>Estado</th><th style="text-align:right">Total</th></tr></thead>
         <tbody>
           ${Object.entries(byCli).map(([cli,d])=>`<tr>
-            <td style="font-weight:600">${cli}</td>
+            <td style="font-weight:600">${pmEsc(cli)}</td>
             <td style="font-family:'DM Mono',monospace;font-weight:700">${d.unid}</td>
             <td>${pmBadge(d.status)}</td>
             <td style="text-align:right;font-family:'DM Mono',monospace">${pmMoney(d.total)}</td>
@@ -699,7 +699,7 @@ async function repCom(fecha) {
   };
 
   const todosOpt = `<option value="">— Todos los clientes —</option>`;
-  const cliOpts  = peds.map(p => `<option value="${p.id}">${p.cliente_nom}${p.numero_pedido?' ('+p.numero_pedido+')':''}</option>`).join('');
+  const cliOpts  = peds.map(p => `<option value="${p.id}">${pmEsc(p.cliente_nom)}${p.numero_pedido?' ('+pmEsc(p.numero_pedido)+')':''}</option>`).join('');
 
   const filtroEl    = document.getElementById('rep-com-filtro');
   const filtroPedId = filtroEl ? filtroEl.value || '' : '';
@@ -727,7 +727,7 @@ async function repCom(fecha) {
     return `<div style="background:var(--sf);border-radius:12px;padding:16px;margin-bottom:12px;border:1px solid var(--border)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <div>
-          <div style="font-weight:700;font-size:15px">${p.cliente_nom}</div>
+          <div style="font-weight:700;font-size:15px">${pmEsc(p.cliente_nom)}</div>
           <div style="font-size:11px;color:var(--cream2);margin-top:2px">
             ${pmFmtDate(fecha)} · ${p.numero_pedido||''} · ${pmBadge(p.status)}
           </div>
@@ -744,7 +744,7 @@ async function repCom(fecha) {
         </tr></thead>
         <tbody>${rows}</tbody>
         <tfoot><tr style="border-top:2px solid var(--border)">
-          <td colspan="4" style="padding:8px;font-weight:700">Total ${p.cliente_nom}</td>
+          <td colspan="4" style="padding:8px;font-weight:700">Total ${pmEsc(p.cliente_nom)}</td>
           <td style="padding:8px;text-align:right;font-family:'DM Mono',monospace;font-weight:900;color:var(--gold)">₡${pmMoney(tot)}</td>
         </tr></tfoot>
       </table>
@@ -876,7 +876,7 @@ async function repComImprimir(peds, tipo) {
         </div>
       </div>
       <div class="meta">
-        <div class="meta-item"><label>Cliente</label><div class="val">${p.cliente_nom}</div></div>
+        <div class="meta-item"><label>Cliente</label><div class="val">${pmEsc(p.cliente_nom)}</div></div>
         <div class="meta-item"><label>Fecha</label><div class="val">${fecha}</div></div>
         <div class="meta-item"><label>Estado</label><div class="val">${p.status}</div></div>
         ${esFactura && p.numero_pedido ? `<div class="meta-item"><label>N° Pedido</label><div class="val">${p.numero_pedido}</div></div>` : ''}
@@ -1178,7 +1178,7 @@ async function repVentas(mes) {
 
   const rowsCliente = Object.entries(byCliente).sort((a,b) => b[1].total - a[1].total).map(([cli, v]) =>
     `<tr style="border-bottom:1px solid var(--border)">
-      <td style="padding:8px 10px;font-weight:600">${cli}</td>
+      <td style="padding:8px 10px;font-weight:600">${pmEsc(cli)}</td>
       <td style="padding:8px 10px;text-align:center;font-family:'DM Mono',monospace;color:var(--cream2)">${v.count}</td>
       <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace;font-weight:700;color:var(--gold)">${pmMoney(v.total)}</td>
     </tr>`

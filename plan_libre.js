@@ -284,19 +284,19 @@ async function cliRender() {
     return '<span style="font-size:10px;color:var(--blue)">📅 Crédito ' + dias + 'd</span>';
   };
   el.innerHTML = lista.map(c => {
-    const nomEsc = c.nombre.replace(/'/g, "\\'");
+    const nomEsc = pmEsc(c.nombre.replace(/'/g, "\\'"));
     return '<div class="item-row" style="align-items:center;gap:8px">' +
       '<div style="flex:1;min-width:0">' +
         '<div class="item-name" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">' +
-          '<span style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--cream2);background:rgba(37,99,235,.08);border:1px solid var(--border);border-radius:6px;padding:1px 7px">' + (c.codigo||'') + '</span>' +
-          '<span style="font-weight:600">' + c.nombre + '</span>' +
+          '<span style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--cream2);background:rgba(37,99,235,.08);border:1px solid var(--border);border-radius:6px;padding:1px 7px">' + pmEsc(c.codigo||'') + '</span>' +
+          '<span style="font-weight:600">' + pmEsc(c.nombre) + '</span>' +
           tipoBadge(c.tipo||'regular') +
         '</div>' +
         '<div style="font-size:11px;color:var(--cream2);margin-top:3px;display:flex;gap:10px;flex-wrap:wrap">' +
-          (c.telefono ? '<span>📞 ' + c.telefono + '</span>' : '') +
-          (c.email ? '<span>✉️ ' + c.email + '</span>' : '') +
+          (c.telefono ? '<span>📞 ' + pmEsc(c.telefono) + '</span>' : '') +
+          (c.email ? '<span>✉️ ' + pmEsc(c.email) + '</span>' : '') +
           condBadge(c) +
-          (c.direccion_facturacion ? '<span style="font-size:10px">📍 ' + c.direccion_facturacion + '</span>' : '') +
+          (c.direccion_facturacion ? '<span style="font-size:10px">📍 ' + pmEsc(c.direccion_facturacion) + '</span>' : '') +
         '</div>' +
       '</div>' +
       '<div style="display:flex;gap:5px;flex-shrink:0">' +

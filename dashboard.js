@@ -76,7 +76,7 @@ function dashRender() {
     }).join(', ');
     return `<div class="ped-card">
       <div class="ped-head" style="cursor:default">
-        <div class="ped-cli">${icon} ${p.cli}</div>
+        <div class="ped-cli">${icon} ${pmEsc(p.cli)}</div>
         <div class="ped-meta" style="font-size:11px;color:var(--cream2);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${items||'Sin productos'}</div>
         ${pmBadge(p.status)}
         <div class="ped-total">${pmMoney(tot)}</div>
