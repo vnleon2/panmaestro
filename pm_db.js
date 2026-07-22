@@ -63,30 +63,78 @@ const pmDB = (() => {
     return Object.assign({}, extra, base);
   }
 
-  async function _fetch(path, opts = {}) {
+  function _sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  // Un solo intento — sin retry. Marca el error con _esFalloRed (nunca
+  // llegó respuesta del servidor) y _status (código HTTP, si sí hubo
+  // respuesta) para que _fetch() decida si vale la pena reintentar.
+  async function _fetchOnce(path, opts = {}) {
+    let res;
     try {
       const token = await _getToken();
       const { headers: _ignored, ...restOpts } = opts; // separar headers del resto
-      const res = await fetch(`${URL}/rest/v1/${path}`, {
+      res = await fetch(`${URL}/rest/v1/${path}`, {
         ...restOpts,  // method, body, etc — pero NO headers
         headers: headers(token, opts.headers || {}),  // headers siempre con auth
       });
-      if (!res.ok) {
-        const err = await res.text();
-        throw new Error(`${res.status}: ${err}`);
-      }
-      // Sin contenido: 204 explícito, o 201/200 con body vacío (típico de
-      // Prefer: return=minimal en inserts/updates con retornar=false).
-      // Antes solo se chequeaba 204, así que un 201 vacío tronaba en res.json().
-      const raw = await res.text();
-      if (!raw) return null;
-      try { return JSON.parse(raw); } catch(e) { return null; }
-    } catch(e) {
-      // Solo marcar offline si es error de red real (fetch failed), no errores de query
-      if (e.message && e.message.toLowerCase().includes('failed to fetch')) _disponible = false;
-      console.warn('[pmDB] Error:', e.message);
-      throw e;
+    } catch (e) {
+      // fetch() en sí falló — nunca hubo respuesta del servidor. Este es
+      // el único caso donde reintentar una escritura es seguro: la
+      // petición jamás llegó a procesarse.
+      const err = new Error(e.message);
+      err._esFalloRed = true;
+      throw err;
     }
+    if (!res.ok) {
+      const errTxt = await res.text();
+      const err = new Error(`${res.status}: ${errTxt}`);
+      err._status = res.status;
+      throw err;
+    }
+    // Sin contenido: 204 explícito, o 201/200 con body vacío (típico de
+    // Prefer: return=minimal en inserts/updates con retornar=false).
+    // Antes solo se chequeaba 204, así que un 201 vacío tronaba en res.json().
+    const raw = await res.text();
+    if (!raw) return null;
+    try { return JSON.parse(raw); } catch(e) { return null; }
+  }
+
+  // RETRY/BACKOFF: envuelve _fetchOnce con hasta 2 reintentos adicionales
+  // (3 intentos en total) con espera creciente (400ms, 1200ms).
+  // Reglas de cuándo SÍ reintentar (importante para no duplicar datos):
+  //   - Falla de red pura (_esFalloRed): la petición nunca llegó al
+  //     servidor, así que reintentar es seguro sin importar el método.
+  //   - Error 5xx del servidor: solo se reintenta en lecturas (GET),
+  //     porque en una escritura (POST/PATCH/DELETE) un 5xx significa que
+  //     la petición SÍ llegó al servidor y no sabemos si alcanzó a
+  //     procesarla antes de fallar — reintentar podría duplicar un
+  //     pedido o una venta.
+  const MAX_REINTENTOS = 2;
+  const ESPERA_BASE_MS = 400;
+
+  async function _fetch(path, opts = {}) {
+    const method = (opts.method || 'GET').toUpperCase();
+    let lastErr;
+    for (let intento = 0; intento <= MAX_REINTENTOS; intento++) {
+      try {
+        const result = await _fetchOnce(path, opts);
+        _disponible = true;
+        return result;
+      } catch (e) {
+        lastErr = e;
+        const es5xx = e._status >= 500 && e._status < 600;
+        const reintentable = e._esFalloRed || (method === 'GET' && es5xx);
+        if (e._esFalloRed) _disponible = false;
+        if (!reintentable || intento === MAX_REINTENTOS) {
+          console.warn('[pmDB] Error:', e.message);
+          throw e;
+        }
+        const espera = ESPERA_BASE_MS * Math.pow(3, intento);
+        console.warn(`[pmDB] reintentando (${intento + 1}/${MAX_REINTENTOS}) en ${espera}ms — ${method} ${path}:`, e.message);
+        await _sleep(espera);
+      }
+    }
+    throw lastErr;
   }
 
   // =========================================================================
@@ -373,9 +421,6 @@ const pmDB = (() => {
     try {
       await _fetch('estados_pedido?select=id&limit=1');
       _disponible = true;
-      const token = await _getToken();
-      const tokenTipo = token === KEY ? 'anon key' : 'JWT sesión';
-      console.log(`[pmDB] ✅ Conexión a Supabase OK — usando ${tokenTipo}`);
       return true;
     } catch(e) {
       _disponible = false;

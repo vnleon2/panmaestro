@@ -1,0 +1,28 @@
+name: Lint (informativo)
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  eslint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Instalar ESLint
+        run: npm install
+
+      # continue-on-error: este workflow es solo informativo — nunca
+      # bloquea el deploy a GitHub Pages (que es un workflow aparte).
+      # Los avisos se ven en la pestaña "Actions" del repo.
+      - name: Correr ESLint
+        run: npm run lint
+        continue-on-error: true

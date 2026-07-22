@@ -1,0 +1,12 @@
+{
+  "name": "panmaestro",
+  "private": true,
+  "version": "1.0.0",
+  "description": "PanMaestro — no tiene build ni dependencias de runtime; este package.json existe solo para correr ESLint.",
+  "scripts": {
+    "lint": "eslint *.js"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0"
+  }
+}

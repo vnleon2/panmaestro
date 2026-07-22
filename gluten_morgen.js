@@ -440,7 +440,6 @@ function gmDoTransfer(name, toEditor) {
       }).then(rows => {
         if (rows?.[0]) {
           rec.sbId = rows[0].id;
-          console.log('[pmDB] ✅ Receta GM (transferencia directa) creada en Supabase:', rec.code);
           _sbSaveRecetaItems(rows[0].id, rec.flour, rec.other).catch(e => console.warn('[pmDB] items gmDirect error:', e.message));
         }
       }).catch(e => console.warn('[pmDB] gmDoTransfer create error:', e.message));
