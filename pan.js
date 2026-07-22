@@ -116,20 +116,15 @@ async function ppVerPlanVsPedidos() {
     pedPorPan[l.pid] = (pedPorPan[l.pid] || 0) + l.cant;
   }));
 
-  // Sumar pedidos comerciales del día
-  if (pmDB.disponible()) {
-    try {
-      await _sbProdEnsureMap();
-      const todos  = _sbPedComCache || await _sbPedComCargar();
-      const comHoy = todos.filter(p => (p.fecha||p.date) === fecha && _docEstaAbierto(p));
-      comHoy.forEach(p => {
-        (p._lineasSb||[]).forEach(l => {
-          const cod = _sbProdMapInv?.[l.producto_id] || '';
-          if (cod) pedPorPan[cod] = (pedPorPan[cod]||0) + (l.cantidad||1);
-        });
-      });
-    } catch(e) { console.warn('[ppVerPlanVsPedidos] com:', e.message); }
-  }
+  // Sumar pedidos comerciales del día — ahora viven local en G.pedidosCom
+  // (punto 7 del plan de auditoría: comercial.js pasó a local-first),
+  // así que ya no hace falta pedirlos a Supabase acá.
+  const comHoy = G.pedidosCom.filter(p => p.date === fecha && _docEstaAbierto(p));
+  comHoy.forEach(p => {
+    (p.lineas||[]).forEach(l => {
+      if (l.pid) pedPorPan[l.pid] = (pedPorPan[l.pid]||0) + (l.cant||1);
+    });
+  });
 
   const allPids = [...new Set([...Object.keys(plan), ...Object.keys(pedPorPan)])];
 

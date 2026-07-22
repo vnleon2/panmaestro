@@ -37,7 +37,7 @@ function showTab(id) {
     'pg-dash':    () => { document.getElementById('dash-date').value = pmHoy(); dashRender(); },
     'pg-pedidos': () => { document.getElementById('pp-fecha').value = pmHoy(); ppCargarSb(); },
     'pg-galletas':() => { document.getElementById('pg-fecha').value = pmHoy(); pgCargarSb(); },
-    'pg-com':     () => { document.getElementById('pc-fecha').value = pmHoy(); pcCargarClientes(); pcRender(); },
+    'pg-com':     () => { document.getElementById('pc-fecha').value = pmHoy(); pcCargarClientes(); pcCargarSb(); },
     'pg-prod':    () => { document.getElementById('prod-date').value = pmHoy(); prodRenderConSb(); _sbLotesCargar(); },
     'pg-rep':     () => { const rf=document.getElementById('r-fecha'); const rm=document.getElementById('r-mes'); if(rf&&!rf.value)rf.value=pmHoy(); if(rm&&!rm.value)rm.value=pmHoy().slice(0,7); repCurrentTab=repCurrentTab||'pan'; repRender(); },
     'pg-gastos':  () => { document.getElementById('g-fecha').value = pmHoy(); document.getElementById('g-mes').value = pmHoy().slice(0,7); gastoRender(); },
