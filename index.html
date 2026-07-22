@@ -101,6 +101,7 @@
       </div>
     </div>
 
+    <button class="ntab" data-tab="pg-etiquetas" onclick="showTab('pg-etiquetas');pmCloseNav()">🏷️ Etiquetas</button>
     <button class="ntab" onclick="pmOpenModule('utilidades.html');pmCloseNav()">🧮 Utilidades</button>
     <button class="ntab" onclick="pmOpenModule('labrec.html');pmCloseNav()">🧪 Laboratorio</button>
 </div>
@@ -1201,6 +1202,50 @@
 </div>
 
 
+<!-- ══════════════════════════════════════════ ETIQUETAS DE PRODUCTO -->
+<!-- Punto de anexión de etiquetas_producto.html — ya no necesita su
+     propio login: usa la sesión de PanMaestro directo. -->
+<div class="page" id="pg-etiquetas">
+  <div class="pg-title">🏷️ Etiquetas de producto</div>
+  <div class="pg-sub">Etiquetas 7×4cm para producción genérica (sin cliente)</div>
+
+  <div class="card" style="max-width:480px">
+    <div class="col" style="margin-bottom:10px">
+      <label>Producto</label>
+      <select id="et-producto" onchange="etSeleccionar(this.value)">
+        <option value="">Cargando catálogo…</option>
+      </select>
+    </div>
+    <div class="row" style="margin-bottom:10px">
+      <div class="col">
+        <label>Peso (g)</label>
+        <input type="number" id="et-peso" step="1" oninput="etActualizarPreview()">
+      </div>
+      <div class="col">
+        <label>Precio (₡)</label>
+        <input type="number" id="et-precio" step="1" oninput="etActualizarPreview()">
+      </div>
+    </div>
+    <div class="col" style="margin-bottom:10px">
+      <label>Cantidad de etiquetas</label>
+      <input type="number" id="et-cantidad" value="1" min="1" step="1">
+    </div>
+    <div id="et-mm-badge" class="et-badge off">MASA MADRE</div>
+    <button class="btn btn-gold" id="et-btn-imprimir" disabled onclick="etImprimir()" style="width:100%;margin-top:16px">🖨 Imprimir etiquetas</button>
+  </div>
+
+  <div style="margin-top:20px;max-width:480px">
+    <div class="ctitle">Vista previa</div>
+    <div class="et-label" id="et-preview">
+      <div class="et-nombre" id="et-p-nombre">—</div>
+      <div class="et-fila">
+        <div class="et-campo"><div class="et-k">peso</div><div class="et-v" id="et-p-peso">—</div></div>
+        <div class="et-campo"><div class="et-k">precio</div><div class="et-v" id="et-p-precio">—</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 
 <!-- ══════════════════════════════════════════ CATÁLOGO -->
 <!-- pm_db.js debe estar en la misma carpeta que este HTML -->
@@ -1233,6 +1278,8 @@
 <script src="maestros.js"></script>
 
 <script src="catalogo.js"></script>
+
+<script src="etiquetas.js"></script>
 
 <script src="plan_libre.js"></script>
 

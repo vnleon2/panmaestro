@@ -29,12 +29,14 @@ function showTab(id) {
     'pg-dash':'DASHBOARD','pg-pedidos':'PAN','pg-galletas':'GALLETAS',
     'pg-com':'COMERCIAL','pg-prod':'PRODUCCIÓN','pg-rep':'REPORTES',
     'pg-gastos':'GASTOS','pg-costeo':'COSTEO','pg-hid':'HIDRATACIÓN',
-    'app-inner':'MAESTROS','pg-rec':'RECETARIO','pg-gmrec':'GLUTEN MORGEN','pg-planlibre':'PLAN LIBRE'
+    'app-inner':'MAESTROS','pg-rec':'RECETARIO','pg-gmrec':'GLUTEN MORGEN','pg-planlibre':'PLAN LIBRE',
+    'pg-etiquetas':'ETIQUETAS'
   };
   const modEl = document.querySelector('.brand-mod');
   if (modEl) modEl.textContent = labels[id] || 'PANMAESTRO';
   const inits = {
     'pg-dash':    () => { document.getElementById('dash-date').value = pmHoy(); dashRender(); },
+    'pg-etiquetas': () => { etCargarCatalogo(); },
     'pg-pedidos': () => { document.getElementById('pp-fecha').value = pmHoy(); ppCargarSb(); },
     'pg-galletas':() => { document.getElementById('pg-fecha').value = pmHoy(); pgCargarSb(); },
     'pg-com':     () => { document.getElementById('pc-fecha').value = pmHoy(); pcCargarClientes(); pcCargarSb(); },

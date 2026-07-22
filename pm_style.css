@@ -181,6 +181,16 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 .rep-tbl tfoot td{font-weight:700;background:rgba(37,99,235,.05);border-top:2px solid var(--gold)}
 .rep-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;flex-wrap:wrap;gap:12px}
 @media print{#topbar,.no-print{display:none!important}body{background:#fff!important;color:#000!important;overflow:visible!important;height:auto!important}#app{overflow:visible!important}.page{overflow:visible!important}}
+/* ETIQUETAS DE PRODUCTO — vista previa (impresión real va en ventana aparte, ver etImprimir()) */
+.et-badge{display:inline-block;margin-top:4px;padding:4px 12px;border:2px solid var(--cream);border-radius:20px;font-size:12px;font-weight:600}
+.et-badge.off{border-color:var(--border);color:var(--cream2)}
+.et-label{width:7cm;height:4cm;border:2px solid var(--cream);border-radius:8px;padding:0.3cm;display:flex;flex-direction:column;justify-content:space-between;background:#FFFFFF}
+.et-nombre{font-size:22px;font-weight:600;line-height:1.15;color:var(--cream)}
+.et-fila{display:flex;gap:0.25cm;align-items:center;flex-wrap:wrap}
+.et-campo{border:1px solid var(--cream);border-radius:4px;padding:0.12cm 0.25cm;flex:1}
+.et-campo .et-k{font-size:9px;color:var(--cream2)}
+.et-campo .et-v{font-size:15px;font-weight:600;color:var(--cream)}
+.et-mm{border:2px solid var(--cream);border-radius:20px;padding:0.1cm 0.3cm;font-size:11px;font-weight:700;text-align:center;white-space:nowrap;color:var(--cream)}
 @media(max-width:480px){.stats{grid-template-columns:repeat(2,1fr)}.brand{padding:0 8px}.page{padding:11px 10px}.col.xs{flex:1 1 100%;min-width:0}.col.sm{flex:1 1 100%;min-width:0}}
 
 
