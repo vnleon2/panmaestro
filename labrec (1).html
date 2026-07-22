@@ -1,0 +1,1245 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#2563EB">
+<title>Labrec — Laboratorio de Recetas</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --bg:#F4F6F9;--bg2:#FFFFFF;--bg3:#EEF1F5;--sf:#E2E7EF;--sf2:#D5DCE8;
+  --gold:#2563EB;--gold2:#1D4ED8;--gold3:#93C5FD;
+  --cream:#1E293B;--cream2:#64748B;
+  --red:#DC2626;--green:#16A34A;--blue:#2563EB;--amber:#D97706;
+  --border:rgba(37,99,235,.15);--border2:rgba(37,99,235,.3);
+  --r:12px;--rs:8px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--cream);font-size:14px;line-height:1.5;padding-bottom:60px}
+h1{font-family:'Playfair Display',serif;font-size:22px;font-weight:900;color:var(--gold)}
+.topbar{background:var(--bg2);border-bottom:1px solid var(--border);padding:14px 18px;position:sticky;top:0;z-index:20}
+.topbar .sub{font-size:11px;color:var(--cream2);letter-spacing:.5px;margin-top:2px}
+.wrap{max-width:760px;margin:0 auto;padding:16px}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:14px}
+.ctitle{font-size:10px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--cream2);padding-bottom:8px;margin-bottom:12px;border-bottom:1px solid var(--sf2);display:flex;justify-content:space-between;align-items:center}
+label{font-size:10px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--cream2);display:block;margin-bottom:4px}
+input,select,textarea{padding:8px 9px;border:1px solid var(--sf2);border-radius:var(--rs);background:#FFF;color:var(--cream);font-family:'DM Sans',sans-serif;font-size:13px;width:100%;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.col{flex:1;min-width:100px}
+.col.sm{flex:0 0 80px;min-width:70px}
+button{cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:600;font-size:12px;border-radius:var(--rs);padding:8px 12px;border:1px solid transparent}
+.btn-gold{background:var(--gold);color:#FFF}.btn-gold:hover{background:var(--gold2)}
+.btn-out{background:transparent;color:var(--gold);border:1px solid var(--sf2)}.btn-out:hover{border-color:var(--gold)}
+.btn-red{background:transparent;color:var(--red);border:1px solid var(--sf2)}.btn-red:hover{border-color:var(--red)}
+.btn-xs{padding:5px 9px;font-size:11px}
+.line{display:flex;gap:6px;align-items:flex-end;background:var(--bg3);border-radius:var(--rs);padding:8px;margin-bottom:6px;flex-wrap:wrap}
+.line .col{min-width:120px}
+.ph{color:var(--cream2);font-size:12px;padding:10px 0;text-align:center}
+.tabbar{display:flex;gap:4px;background:var(--bg3);border-radius:var(--rs);padding:4px;margin-bottom:14px}
+.tabbtn{flex:1;text-align:center;padding:8px;font-size:12px;font-weight:600;border-radius:6px;background:transparent;color:var(--cream2);border:none}
+.tabbtn.on{background:var(--gold);color:#FFF}
+.view{display:none}.view.on{display:block}
+.toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--cream);color:#FFF;padding:10px 18px;border-radius:20px;font-size:12px;opacity:0;transition:opacity .2s;z-index:99;pointer-events:none}
+.toast.show{opacity:1}
+.badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:rgba(37,99,235,.1);color:var(--gold)}
+.recrow{display:flex;justify-content:space-between;align-items:center;padding:10px;border-bottom:1px solid var(--sf2);cursor:pointer}
+.recrow:hover{background:var(--bg3)}
+.recrow:last-child{border-bottom:none}
+.hint{font-size:11px;color:var(--cream2);margin-top:2px}
+#status{font-size:11px;color:var(--cream2)}
+textarea{min-height:70px;resize:vertical;font-family:'DM Sans',sans-serif}
+.subcard{border:1px solid var(--border);border-radius:var(--rs);padding:10px;margin-bottom:8px}
+.subcard.addon{border-color:rgba(220,38,38,.25);background:rgba(220,38,38,.04)}
+.subcard.sub{border-color:rgba(37,99,235,.25);background:rgba(37,99,235,.04)}
+.subcard .k{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--gold);font-weight:600;margin-bottom:8px}
+.subcard.addon .k{color:var(--red)}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>🧪 Labrec</h1>
+  <div class="sub">Laboratorio de Recetas — standalone, conectado a tu Supabase</div>
+</div>
+
+<div class="wrap">
+
+  <div class="tabbar">
+    <button class="tabbtn on" onclick="showView('v-editor')">Editor</button>
+    <button class="tabbtn" onclick="showView('v-lista')">Mis recetas</button>
+    <button class="tabbtn" onclick="showView('v-personal')">Recetas Personales</button>
+    <button class="tabbtn" onclick="showView('v-diseno')">Diseñador IA</button>
+    <button class="tabbtn" onclick="showView('v-gm')">Gluten Morgen</button>
+  </div>
+
+  <!-- ═══════════ EDITOR ═══════════ -->
+  <div id="v-editor" class="view on">
+
+    <div class="card">
+      <div class="ctitle">Datos generales <span id="rec-status" class="badge" style="display:none">editando</span></div>
+      <div class="row">
+        <div class="col">
+          <label>Nombre</label>
+          <input id="f-nombre" placeholder="Ej: Pan de centeno con miel">
+        </div>
+        <div class="col sm">
+          <label>Categoría</label>
+          <select id="f-cat">
+            <option value="pan">🍞 Pan</option>
+            <option value="pan_mm">🌾 Pan MM</option>
+            <option value="galleta">🍪 Galleta</option>
+            <option value="masa">🫧 Masa</option>
+            <option value="otro">📦 Otro</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col sm"><label>Masa total (g)</label><input id="f-masa" type="number" value="1000"></div>
+        <div class="col sm"><label>Unidades</label><input id="f-unid" type="number" value="1"></div>
+        <div class="col sm"><label>Merma %</label><input id="f-merma" type="number" value="0"></div>
+        <div class="col sm"><label>Margen %</label><input id="f-margen" type="number" placeholder="40"></div>
+      </div>
+      <div class="row">
+        <div class="col sm">
+          <label>Código</label>
+          <input id="f-codigo" placeholder="GM-00001 (opcional)">
+        </div>
+        <div class="col" style="display:flex;align-items:flex-end;gap:6px">
+          <button class="btn-out btn-xs" onclick="autoCodigo()">Auto-asignar código</button>
+        </div>
+      </div>
+      <label>Notas</label>
+      <textarea id="f-notas" placeholder="Procedimiento, tiempos, temperatura..."></textarea>
+    </div>
+
+    <div class="card">
+      <div class="ctitle">Ingredientes <span class="hint" style="text-transform:none;letter-spacing:0;font-weight:400">del maestro de ingredientes</span></div>
+      <div id="ing-list"></div>
+      <div class="row" style="margin-top:6px">
+        <button class="btn-out btn-xs" onclick="addIngLine('flour')">+ Harina</button>
+        <button class="btn-out btn-xs" onclick="addIngLine('other')">+ Otro ingrediente</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ctitle">Sub-recetas <span class="hint" style="text-transform:none;letter-spacing:0;font-weight:400">del maestro de recetas</span></div>
+      <div id="sub-list"></div>
+      <button class="btn-out btn-xs" onclick="addSubLine()">+ Sub-receta</button>
+    </div>
+
+    <div class="card">
+      <div class="ctitle">Rellenos / Coberturas <span class="hint" style="text-transform:none;letter-spacing:0;font-weight:400">del maestro de recetas</span></div>
+      <div id="addon-list"></div>
+      <button class="btn-out btn-xs" onclick="addAddonLine()">+ Relleno / cobertura</button>
+    </div>
+
+    <div class="card" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <button class="btn-gold" onclick="guardarReceta()">💾 Guardar en Labrec</button>
+      <button class="btn-out" onclick="nuevaReceta()">✕ Nueva / limpiar</button>
+      <button class="btn-out" onclick="exportarJson()">⬇ Exportar JSON</button>
+      <span id="status"></span>
+    </div>
+  </div>
+
+  <!-- ═══════════ LISTA ═══════════ -->
+  <div id="v-lista" class="view">
+    <div class="card">
+      <div class="ctitle">Mis recetas guardadas</div>
+      <div id="lista-recetas"><div class="ph">Cargando…</div></div>
+    </div>
+    <div class="card">
+      <div class="ctitle">Importar JSON</div>
+      <div class="hint" style="margin-bottom:8px">Acepta el JSON de Recetas Personales o de Labrec mismo</div>
+      <input type="file" id="import-file" accept=".json" onchange="importarArchivo(event)">
+    </div>
+  </div>
+
+  <!-- ═══════════ RECETAS PERSONALES ═══════════ -->
+  <div id="v-personal" class="view">
+
+    <div class="card">
+      <div class="ctitle">Paso 1 — Pegá el texto de la receta</div>
+      <div class="hint" style="margin-bottom:8px">Con tabla markdown, texto suelto, lo que sea — se separan ingredientes (los que tengan %) de instrucciones. Después lo revisás.</div>
+      <textarea id="rp-raw" style="min-height:180px;font-family:'DM Mono',monospace;font-size:12px" placeholder="Pegá acá la receta completa..."></textarea>
+      <div class="row" style="margin-top:10px">
+        <button class="btn-gold btn-xs" onclick="rpAnalizar()">Analizar receta →</button>
+        <button class="btn-out btn-xs" onclick="rpEjemplo()">Ver un ejemplo</button>
+      </div>
+    </div>
+
+    <div class="card" id="rp-step2" style="display:none">
+      <div class="ctitle">Paso 2 — Revisá y corregí</div>
+      <div id="rp-warning"></div>
+      <div class="row">
+        <div class="col"><label>Nombre de la receta</label><input id="rp-name"></div>
+        <div class="col sm">
+          <label>Categoría</label>
+          <select id="rp-cat">
+            <option value="pan">🍞 Pan</option>
+            <option value="pan_mm">🌾 Pan MM</option>
+            <option value="galleta">🍪 Galleta</option>
+            <option value="masa">🫧 Masa</option>
+            <option value="otro">📦 Otro</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col sm"><label>Masa total (g)</label><input id="rp-mass" type="number" value="1000"></div>
+        <div class="col sm"><label>Unidades</label><input id="rp-units" type="number" value="1"></div>
+        <div class="col sm"><label>Merma %</label><input id="rp-merma" type="number" value="0"></div>
+      </div>
+      <label>Ingredientes</label>
+      <div class="hint" id="rp-pct-total" style="margin-bottom:8px">Suma de porcentajes: <b>0%</b></div>
+      <div id="rp-ing-list"></div>
+      <button class="btn-out btn-xs" onclick="rpAgregarIngrediente('',0,false)">+ Agregar ingrediente</button>
+      <div style="margin-top:14px">
+        <label>Instrucciones / notas</label>
+        <textarea id="rp-notes"></textarea>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn-gold btn-xs" onclick="rpExportar()">Exportar / capturar →</button>
+      </div>
+    </div>
+
+    <div class="card" id="rp-step3" style="display:none">
+      <div class="ctitle">Paso 3 — Exportar</div>
+      <textarea id="rp-json" readonly style="min-height:220px;font-family:'DM Mono',monospace;font-size:11px"></textarea>
+      <div class="row" style="margin-top:10px">
+        <button class="btn-gold btn-xs" onclick="rpCargarEnLabrec()">🧪 Capturar en Labrec</button>
+        <button class="btn-out btn-xs" onclick="rpCopiar()">📋 Copiar JSON</button>
+        <button class="btn-out btn-xs" onclick="rpDescargar()">⬇ Descargar .json</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ═══════════ DISEÑADOR IA ═══════════ -->
+  <div id="v-diseno" class="view">
+
+    <div class="card">
+      <div class="ctitle">Paso 1 — Describí el pan</div>
+      <div class="hint" style="margin-bottom:8px">Contá qué pan querés hacer — sabor, textura, ocasión, lo que se te ocurra. Con esto se arma un prompt para pegarle a Claude.</div>
+      <textarea id="dz-desc" style="min-height:100px" placeholder="Ej: un pan de molde suave, ligeramente dulce, con miga bien esponjosa, para sándwiches..."></textarea>
+      <div class="row" style="margin-top:10px">
+        <div class="col sm">
+          <label>Tipo de masa</label>
+          <select id="dz-gluten">
+            <option value="con">Con gluten</option>
+            <option value="sin">Sin gluten</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn-gold btn-xs" onclick="dzGenerarPrompt()">Generar prompt →</button>
+    </div>
+
+    <div class="card" id="dz-step2" style="display:none">
+      <div class="ctitle">Paso 2 — Pegale esto a Claude</div>
+      <div class="hint" style="margin-bottom:8px">Copiá el prompt, pegalo en una conversación con Claude, y traé la respuesta completa de vuelta acá abajo.</div>
+      <textarea id="dz-prompt" readonly style="min-height:160px;font-family:'DM Mono',monospace;font-size:11px"></textarea>
+      <button class="btn-out btn-xs" onclick="dzCopiarPrompt()" style="margin-top:8px">📋 Copiar prompt</button>
+    </div>
+
+    <div class="card" id="dz-step3" style="display:none">
+      <div class="ctitle">Paso 3 — Pegá la respuesta de Claude</div>
+      <div class="hint" style="margin-bottom:8px">Pegá el JSON que te devolvió Claude tal cual (sin agregarle nada alrededor).</div>
+      <textarea id="dz-respuesta" style="min-height:160px;font-family:'DM Mono',monospace;font-size:11px" placeholder="Pegá acá el JSON de Claude..."></textarea>
+      <div id="dz-error" class="hint" style="color:var(--red);margin-top:6px"></div>
+      <button class="btn-gold btn-xs" onclick="dzCapturar()" style="margin-top:8px">🧪 Capturar en Labrec</button>
+    </div>
+
+  </div>
+
+  <!-- ═══════════ GLUTEN MORGEN ═══════════ -->
+  <div id="v-gm" class="view">
+
+    <div class="card">
+      <div class="ctitle">Importar JSON de Gluten Morgen (tal cual)</div>
+      <div class="hint" style="margin-bottom:8px">Subí el archivo que exporta Gluten Morgen sin tocarlo — el array completo de recetas.</div>
+      <input type="file" id="gm-import-file" accept=".json" onchange="gmImportarArchivo(event)">
+      <div id="gm-total-labrec" class="hint" style="margin-top:8px">Recetas guardadas en Labrec: —</div>
+      <div id="gm-import-wrap" style="display:none;margin-top:12px">
+        <div class="row" style="margin-top:4px">
+          <div class="col"><input id="gm-filtro" placeholder="Filtrar por nombre…" oninput="gmRenderLista()"></div>
+        </div>
+        <div id="gm-import-counts" class="hint" style="margin:4px 0"></div>
+        <div class="hint" style="margin:6px 0"><label style="display:inline;text-transform:none;letter-spacing:0;font-weight:400"><input type="checkbox" id="gm-check-all" onchange="gmMarcarTodos(this.checked)" style="width:auto;display:inline;margin-right:6px">Marcar todas las visibles</label></div>
+        <div id="gm-import-list" style="max-height:320px;overflow-y:auto"></div>
+        <button class="btn-gold btn-xs" style="margin-top:10px" onclick="gmAgregarSeleccionadosABandeja()">Agregar seleccionadas a la bandeja →</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ctitle">Cargar receta a mano (estilo Gluten Morgen)</div>
+      <div class="hint" style="margin-bottom:8px">Escribí ingrediente + % libremente, tal cual te la pide GM — sin pasar por el catálogo.</div>
+      <div class="row">
+        <div class="col"><label>Nombre</label><input id="gm-m-nombre" placeholder="Ej: Pan de leche"></div>
+        <div class="col sm"><label>Peso total (g)</label><input id="gm-m-peso" type="number" value="1000"></div>
+      </div>
+      <label>Ingredientes</label>
+      <div id="gm-m-ing-list"></div>
+      <button class="btn-out btn-xs" onclick="gmAgregarLineaManual('',0,false)">+ Agregar ingrediente</button>
+      <div style="margin-top:12px">
+        <label>Nota / procedimiento</label>
+        <textarea id="gm-m-nota"></textarea>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn-gold btn-xs" onclick="gmManualAgregarABandeja()">Agregar a la bandeja →</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ctitle">Bandeja de revisión <span id="gm-bandeja-count" class="badge">0</span></div>
+      <div class="hint" style="margin-bottom:8px">Nada se guarda en Labrec hasta que lo revisés y guardés en el Editor</div>
+      <div id="gm-bandeja"><div class="ph">Vacía por ahora</div></div>
+    </div>
+
+    <div class="card">
+      <div class="ctitle">Respaldo crudo en Supabase <span id="gm-raw-count" class="badge">—</span></div>
+      <div class="hint" style="margin-bottom:8px">Todo lo que importás o cargás a mano queda guardado tal cual acá automáticamente, aunque no lo hayas pasado a Labrec todavía. Al reimportar el mismo nombre, se actualiza — no se duplica.</div>
+      <div class="row" style="margin-top:4px">
+        <div class="col"><input id="gm-raw-filtro" placeholder="Filtrar por nombre…" oninput="gmRenderArchivo()"></div>
+        <button class="btn-out btn-xs" onclick="gmCargarArchivo()">↻ Refrescar</button>
+      </div>
+      <div id="gm-raw-list" style="max-height:280px;overflow-y:auto;margin-top:8px"></div>
+    </div>
+
+  </div>
+
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+const SUPABASE_URL = "https://xmhokxmuxfkfypttvkjz.supabase.co";
+const SUPABASE_KEY = "sb_publishable_pmKVIGa_lNxtzRos-iY_0Q_LXEcj77v";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let ingredientes = [];   // maestro de ingredientes {id, nombre, ...}
+let recetasPM    = [];   // maestro de recetas de PanMaestro (para sub/addons), filtradas code startsWith R-
+let recetaActual = { id: null }; // receta en edición (id = uuid de labrec_recetas si ya existe)
+let ingLineCount = 0, subLineCount = 0, addonLineCount = 0;
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+function showView(id){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
+  document.getElementById(id).classList.add('on');
+  document.querySelectorAll('.tabbtn').forEach(b=>b.classList.remove('on'));
+  event?.target?.classList.add('on');
+  if (id === 'v-lista') cargarListaLabrec();
+  if (id === 'v-gm') { gmActualizarTotales().then(() => { gmRenderLista(); gmRenderBandeja(); }); gmCargarArchivo(); }
+}
+
+// ─── Carga de catálogos (solo lectura desde Supabase) ──────────────────────
+async function cargarCatalogos(){
+  document.getElementById('status').textContent = 'Cargando ingredientes y recetas…';
+  const { data: ings, error: e1 } = await sb.from('ingredientes').select('id,nombre').eq('activo', true).order('nombre');
+  if (!e1) ingredientes = ings || [];
+
+  const { data: recs, error: e2 } = await sb.from('recetas').select('id,codigo,nombre').eq('activo', true).order('codigo');
+  if (!e2) recetasPM = (recs||[]).filter(r => r.codigo && r.codigo.startsWith('R-'));
+
+  document.getElementById('status').textContent =
+    e1 || e2 ? 'Error cargando catálogos — revisá la conexión' : `${ingredientes.length} ingredientes · ${recetasPM.length} recetas cargadas`;
+}
+
+// ─── Ingredientes ───────────────────────────────────────────────────────────
+function ingOptions(selectedId){
+  return '<option value="">— seleccionar —</option>' +
+    ingredientes.map(i => `<option value="${i.id}"${i.id===selectedId?' selected':''}>${i.nombre}</option>`).join('');
+}
+
+function addIngLine(tipo, data={}){
+  ingLineCount++;
+  const uid = 'ing-'+ingLineCount;
+  const rawName = data.productName || data.manualName || '';
+  let matchedId = data.ingredientId || '';
+  if (!matchedId && rawName) {
+    const m = ingredientes.find(i => i.nombre.toLowerCase() === rawName.toLowerCase());
+    if (m) matchedId = m.id;
+  }
+  const div = document.createElement('div');
+  div.id = uid;
+  div.className = 'line';
+  div.dataset.tipo = tipo;
+  div.dataset.manual = rawName;
+  div.innerHTML = `
+    <div class="col" style="flex:2;min-width:140px">
+      <label>${tipo==='flour'?'Harina':'Ingrediente'}</label>
+      <select id="${uid}-sel">${ingOptions(matchedId)}</select>
+      ${rawName && !matchedId ? `<div class="hint" style="color:var(--red)">Importado: "${rawName}" — no está en el catálogo; elegí uno o se guarda con este nombre libre</div>` : ''}
+    </div>
+    <div class="col sm">
+      <label>%</label>
+      <input id="${uid}-pct" type="number" step="0.1" value="${data.pct||''}" placeholder="0">
+    </div>
+    <button class="btn-red btn-xs" onclick="document.getElementById('${uid}').remove()">✕</button>`;
+  document.getElementById('ing-list').appendChild(div);
+}
+
+// ─── Sub-recetas ────────────────────────────────────────────────────────────
+function recOptions(selectedCode){
+  return '<option value="">— seleccionar —</option>' +
+    recetasPM.map(r => `<option value="${r.codigo}"${r.codigo===selectedCode?' selected':''}>${r.codigo} · ${r.nombre}</option>`).join('');
+}
+
+function addSubLine(data={}){
+  subLineCount++;
+  const uid = 'sub-'+subLineCount;
+  const div = document.createElement('div');
+  div.id = uid;
+  div.className = 'subcard sub';
+  div.innerHTML = `
+    <div class="k">🔗 Sub-receta</div>
+    <div class="line" style="background:transparent;padding:0;margin:0">
+      <div class="col" style="flex:2;min-width:140px">
+        <label>Receta base</label>
+        <select id="${uid}-rec">${recOptions(data.recId)}</select>
+      </div>
+      <div class="col sm"><label>% masa</label><input id="${uid}-pct" type="number" value="${data.pct||''}" placeholder="10"></div>
+      <div class="col sm"><label>g fijos</label><input id="${uid}-g" type="number" value="${data.gFijos||''}" placeholder="0"></div>
+      <div class="col"><label>Etiqueta</label><input id="${uid}-lbl" value="${data.label||''}" placeholder="Ej: relleno guayaba"></div>
+      <button class="btn-red btn-xs" onclick="document.getElementById('${uid}').remove()">✕</button>
+    </div>`;
+  document.getElementById('sub-list').appendChild(div);
+}
+
+// ─── Rellenos / Coberturas ──────────────────────────────────────────────────
+function addAddonLine(data={}){
+  addonLineCount++;
+  const uid = 'adn-'+addonLineCount;
+  const div = document.createElement('div');
+  div.id = uid;
+  div.className = 'subcard addon';
+  div.innerHTML = `
+    <div class="k">🎂 Relleno / cobertura</div>
+    <div class="line" style="background:transparent;padding:0;margin:0">
+      <div class="col sm">
+        <label>Tipo</label>
+        <select id="${uid}-tipo">
+          <option value="relleno"${(data.tipo||'relleno')==='relleno'?' selected':''}>Relleno</option>
+          <option value="cobertura"${data.tipo==='cobertura'?' selected':''}>Cobertura</option>
+          <option value="otro"${data.tipo==='otro'?' selected':''}>Otro</option>
+        </select>
+      </div>
+      <div class="col" style="flex:2;min-width:140px">
+        <label>Receta</label>
+        <select id="${uid}-rec">${recOptions(data.recId)}</select>
+      </div>
+      <div class="col sm"><label>g / unidad</label><input id="${uid}-g" type="number" value="${data.gPorUnidad||''}" placeholder="30"></div>
+      <div class="col"><label>Etiqueta</label><input id="${uid}-lbl" value="${data.label||''}" placeholder="Ej: relleno canela"></div>
+      <button class="btn-red btn-xs" onclick="document.getElementById('${uid}').remove()">✕</button>
+    </div>`;
+  document.getElementById('addon-list').appendChild(div);
+}
+
+// ─── Código auto-asignable (GM-xxxxx propio de Labrec) ─────────────────────
+function autoCodigo(){
+  const n = Math.floor(10000 + Math.random()*89999);
+  document.getElementById('f-codigo').value = 'GM-' + n;
+}
+
+// ─── Armar objeto receta desde el formulario ───────────────────────────────
+function leerFormulario(){
+  const flour = [], other = [];
+  document.querySelectorAll('#ing-list .line').forEach(div => {
+    const uid = div.id;
+    const sel = document.getElementById(uid+'-sel');
+    const pct = parseFloat(document.getElementById(uid+'-pct').value) || 0;
+    let entry;
+    if (sel.value) {
+      const nombre = sel.options[sel.selectedIndex].textContent;
+      entry = { pct, productName: nombre, ingredientId: sel.value };
+    } else if (div.dataset.manual) {
+      entry = { pct, manualName: div.dataset.manual };
+    } else {
+      return;
+    }
+    (div.dataset.tipo === 'flour' ? flour : other).push(entry);
+  });
+
+  const subrecs = [];
+  document.querySelectorAll('#sub-list .subcard').forEach(div => {
+    const uid = div.id;
+    const rec = document.getElementById(uid+'-rec').value;
+    if (!rec) return;
+    subrecs.push({
+      recId: rec,
+      pct: parseFloat(document.getElementById(uid+'-pct').value) || 0,
+      gFijos: parseFloat(document.getElementById(uid+'-g').value) || 0,
+      label: document.getElementById(uid+'-lbl').value || ''
+    });
+  });
+
+  const addons = [];
+  document.querySelectorAll('#addon-list .subcard').forEach(div => {
+    const uid = div.id;
+    const rec = document.getElementById(uid+'-rec').value;
+    if (!rec) return;
+    addons.push({
+      tipo: document.getElementById(uid+'-tipo').value,
+      recId: rec,
+      gPorUnidad: parseFloat(document.getElementById(uid+'-g').value) || 0,
+      label: document.getElementById(uid+'-lbl').value || ''
+    });
+  });
+
+  return {
+    codigo: document.getElementById('f-codigo').value.trim() || null,
+    nombre: document.getElementById('f-nombre').value.trim(),
+    categoria: document.getElementById('f-cat').value,
+    masa_total_g: parseFloat(document.getElementById('f-masa').value) || 1000,
+    unidades: parseInt(document.getElementById('f-unid').value) || 1,
+    merma_pct: parseFloat(document.getElementById('f-merma').value) || 0,
+    margen_pct: document.getElementById('f-margen').value ? parseFloat(document.getElementById('f-margen').value) : null,
+    notas: document.getElementById('f-notas').value,
+    flour, other, subrecs, addons
+  };
+}
+
+// ─── Guardar / Nueva ────────────────────────────────────────────────────────
+async function guardarReceta(){
+  const rec = leerFormulario();
+  if (!rec.nombre){ toast('Ponele un nombre a la receta'); return; }
+
+  document.getElementById('status').textContent = 'Guardando…';
+  let res;
+  if (recetaActual.id){
+    res = await sb.from('labrec_recetas').update({...rec, updated_at: new Date().toISOString()}).eq('id', recetaActual.id).select();
+  } else {
+    res = await sb.from('labrec_recetas').insert(rec).select();
+  }
+  if (res.error){
+    document.getElementById('status').textContent = '';
+    toast('Error al guardar: ' + res.error.message);
+    return;
+  }
+  recetaActual.id = res.data[0].id;
+  document.getElementById('rec-status').style.display = 'inline-block';
+  document.getElementById('status').textContent = 'Guardado ✓';
+  toast('Receta guardada en Labrec');
+  if (document.getElementById('gm-total-labrec')) gmActualizarTotales().then(() => { gmRenderLista(); gmRenderBandeja(); });
+}
+
+function nuevaReceta(){
+  recetaActual = { id: null };
+  document.getElementById('f-nombre').value = '';
+  document.getElementById('f-cat').value = 'pan';
+  document.getElementById('f-masa').value = 1000;
+  document.getElementById('f-unid').value = 1;
+  document.getElementById('f-merma').value = 0;
+  document.getElementById('f-margen').value = '';
+  document.getElementById('f-codigo').value = '';
+  document.getElementById('f-notas').value = '';
+  document.getElementById('ing-list').innerHTML = '';
+  document.getElementById('sub-list').innerHTML = '';
+  document.getElementById('addon-list').innerHTML = '';
+  document.getElementById('rec-status').style.display = 'none';
+  document.getElementById('status').textContent = '';
+}
+
+function cargarEnFormulario(rec){
+  recetaActual = { id: rec.id };
+  document.getElementById('f-nombre').value = rec.nombre || '';
+  document.getElementById('f-cat').value = rec.categoria || 'pan';
+  document.getElementById('f-masa').value = rec.masa_total_g || 1000;
+  document.getElementById('f-unid').value = rec.unidades || 1;
+  document.getElementById('f-merma').value = rec.merma_pct || 0;
+  document.getElementById('f-margen').value = rec.margen_pct ?? '';
+  document.getElementById('f-codigo').value = rec.codigo || '';
+  document.getElementById('f-notas').value = rec.notas || '';
+  document.getElementById('ing-list').innerHTML = '';
+  document.getElementById('sub-list').innerHTML = '';
+  document.getElementById('addon-list').innerHTML = '';
+  (rec.flour||[]).forEach(e => addIngLine('flour', e));
+  (rec.other||[]).forEach(e => addIngLine('other', e));
+  (rec.subrecs||[]).forEach(e => addSubLine(e));
+  (rec.addons||[]).forEach(e => addAddonLine(e));
+  document.getElementById('rec-status').style.display = 'inline-block';
+  showView('v-editor');
+  document.querySelectorAll('.tabbtn').forEach((b,i)=>b.classList.toggle('on', i===0));
+}
+
+// ─── Lista de recetas guardadas ─────────────────────────────────────────────
+async function cargarListaLabrec(){
+  const el = document.getElementById('lista-recetas');
+  el.innerHTML = '<div class="ph">Cargando…</div>';
+  const { data, error } = await sb.from('labrec_recetas').select('*').order('updated_at', { ascending:false });
+  if (error){ el.innerHTML = `<div class="ph">Error: ${error.message}</div>`; return; }
+  if (!data.length){ el.innerHTML = '<div class="ph">Todavía no tenés recetas guardadas</div>'; return; }
+  el.innerHTML = data.map(r => `
+    <div class="recrow" onclick='cargarEnFormulario(${JSON.stringify(r).replace(/'/g,"&apos;")})'>
+      <div>
+        <div style="font-weight:600">${r.nombre}</div>
+        <div class="hint">${r.codigo||'sin código'} · ${r.categoria||'otro'} · ${r.masa_total_g||0}g</div>
+      </div>
+      <button class="btn-red btn-xs" onclick="event.stopPropagation();borrarReceta('${r.id}')">✕</button>
+    </div>`).join('');
+}
+
+async function borrarReceta(id){
+  if (!confirm('¿Eliminar esta receta de Labrec?')) return;
+  const { error } = await sb.from('labrec_recetas').delete().eq('id', id);
+  if (error){ toast('Error al eliminar: ' + error.message); return; }
+  toast('Receta eliminada');
+  cargarListaLabrec();
+}
+
+// ─── Exportar / Importar JSON ───────────────────────────────────────────────
+function exportarJson(){
+  const rec = leerFormulario();
+  const payload = {
+    labrecSource: true,
+    code: rec.codigo,
+    name: rec.nombre,
+    cat: rec.categoria,
+    totalMass: rec.masa_total_g,
+    units: rec.unidades,
+    merma: rec.merma_pct,
+    margen: rec.margen_pct,
+    notes: rec.notas,
+    flour: rec.flour,
+    other: rec.other,
+    subrecs: rec.subrecs,
+    addons: rec.addons
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type:'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = (rec.nombre || 'receta').replace(/\s+/g,'_') + '.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('JSON exportado');
+}
+
+function importarArchivo(evt){
+  const file = evt.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const obj = JSON.parse(reader.result);
+      cargarDesdeJson(obj);
+    } catch(e) {
+      toast('JSON inválido: ' + e.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function cargarDesdeJson(obj){
+  // Compatible con el schema de Recetas Personales / Gluten Morgen:
+  // {id, code, personalSource, name, cat, totalMass, units, merma, notes, flour[], other[], subrecs[]}
+  // y con el propio de Labrec (mismos nombres de campo).
+  nuevaReceta();
+  document.getElementById('f-nombre').value = obj.name || obj.nombre || '';
+  document.getElementById('f-cat').value = obj.cat || obj.categoria || 'pan';
+  document.getElementById('f-masa').value = obj.totalMass || obj.masa_total_g || 1000;
+  document.getElementById('f-unid').value = obj.units || obj.unidades || 1;
+  document.getElementById('f-merma').value = obj.merma || obj.merma_pct || 0;
+  document.getElementById('f-margen').value = obj.margen ?? obj.margen_pct ?? '';
+  document.getElementById('f-codigo').value = obj.code || obj.codigo || '';
+  document.getElementById('f-notas').value = obj.notes || obj.notas || '';
+
+  // Los ingredientes importados traen productName/manualName pero no
+  // necesariamente ingredientId válido en esta base — se listan igual,
+  // pero puede que haga falta re-seleccionarlos del catálogo si no calzan.
+  (obj.flour||[]).forEach(e => addIngLine('flour', e));
+  (obj.other||[]).forEach(e => addIngLine('other', e));
+  (obj.subrecs||[]).forEach(e => addSubLine(e));
+  (obj.addons||[]).forEach(e => addAddonLine(e));
+
+  showView('v-editor');
+  document.querySelectorAll('.tabbtn').forEach((b,i)=>b.classList.toggle('on', i===0));
+  toast('Receta importada — revisá los ingredientes contra el catálogo');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// RECETAS PERSONALES — portado de recetas_personales.html, mismo motor
+// de parseo (FLOUR_RE, parseLineAsIngredient, parseRecipeText) tal cual.
+// ═══════════════════════════════════════════════════════════════════════
+const RP_FLOUR_RE = /harina|sémola|semola|centeno|espelta|trigo|sarraceno/i;
+const RP_NOTE_HEADERS_RE = /^#{0,3}\s*(instrucciones|proceso|preparaci[oó]n|pasos|procedimiento|elaboraci[oó]n|m[eé]todo\b|modo de preparaci[oó]n)/i;
+const RP_ING_LINE_RE = /^(.+?)\s+(\d+(?:[.,]\d+)?)\s*%\s*$/;
+let rpIngCount = 0;
+
+function rpLimpiarNombre(n){
+  let s = n.replace(/\*\*/g,'').replace(/^[\s\-\|]+|[\s\-\|]+$/g,'').trim();
+  s = s.replace(/\s*\(\s*(?:o|ó)\s+[\d.,]+\s*%[^)]*\)/i, '').trim();
+  return s;
+}
+
+function rpParseLineAsIngredient(raw){
+  const numPipes = (raw.match(/\|/g) || []).length;
+  if (numPipes >= 2) {
+    const cells = raw.split('|').map(c => c.trim()).filter(c => c.length);
+    let pctIdx = -1, pct = null;
+    for (let i = 0; i < cells.length; i++) {
+      const c = cells[i].replace(/\*\*/g,'').trim();
+      const m = c.match(/^(\d+(?:[.,]\d+)?)\s*%$/);
+      if (m) { pct = parseFloat(m[1].replace(',','.')); pctIdx = i; break; }
+    }
+    if (pctIdx === -1) return null;
+    let nombre = null;
+    for (let i = 0; i < cells.length; i++) {
+      if (i === pctIdx) continue;
+      const c = rpLimpiarNombre(cells[i]);
+      if (c && !/^[\d.,]+\s*g?$/i.test(c)) { nombre = c; break; }
+    }
+    if (!nombre) return null;
+    return { nombre, pct };
+  }
+  const m = raw.match(RP_ING_LINE_RE);
+  if (m) {
+    const nombre = rpLimpiarNombre(m[1]);
+    const pct = parseFloat(m[2].replace(',','.'));
+    if (nombre && !isNaN(pct)) return { nombre, pct };
+  }
+  return null;
+}
+
+function rpParseRecipeText(text){
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length);
+  const ingredientes = [];
+  const notas = [];
+  let enNotas = false;
+  let totalMassHint = null;
+
+  for (const raw of lines) {
+    if (RP_NOTE_HEADERS_RE.test(raw)) { enNotas = true; continue; }
+    if (!enNotas) {
+      if (/^[\s\-\|:]+$/.test(raw)) continue;
+      if (/^#{1,6}\s/.test(raw)) continue;
+      if (/ingrediente/i.test(raw) && /(porcentaje|%|panadero)/i.test(raw)) continue;
+      if (/^\|?\s*\*{0,2}total/i.test(raw)) {
+        const gMatch = raw.match(/([\d.,]+)\s*g\b/i);
+        if (gMatch) totalMassHint = parseFloat(gMatch[1].replace(',','.'));
+        continue;
+      }
+      const parsed = rpParseLineAsIngredient(raw);
+      if (parsed) {
+        ingredientes.push({ nombre: parsed.nombre, pct: parsed.pct, esHarina: RP_FLOUR_RE.test(parsed.nombre) });
+        continue;
+      }
+      if (ingredientes.length > 0) { notas.push(raw); }
+    } else {
+      notas.push(raw);
+    }
+  }
+  if (ingredientes.length && !ingredientes.some(i => i.esHarina)) {
+    ingredientes[0].esHarina = true;
+  }
+  return { ingredientes, notas: notas.join('\n'), totalMassHint };
+}
+
+function rpAnalizar(){
+  const texto = document.getElementById('rp-raw').value;
+  if (!texto.trim()) return;
+  const { ingredientes, notas, totalMassHint } = rpParseRecipeText(texto);
+
+  document.getElementById('rp-ing-list').innerHTML = '';
+  rpIngCount = 0;
+
+  const warnBox = document.getElementById('rp-warning');
+  warnBox.innerHTML = !ingredientes.length
+    ? `<div class="hint" style="color:var(--red);margin-bottom:8px">⚠️ No se detectó ningún ingrediente con formato "nombre + %". Agregalos a mano abajo.</div>`
+    : `<div class="hint" style="margin-bottom:8px">Se detectaron ${ingredientes.length} ingrediente(s). Revisalos antes de exportar.</div>`;
+
+  ingredientes.forEach(i => rpAgregarIngrediente(i.nombre, i.pct, i.esHarina));
+
+  const primeraLinea = texto.split('\n').map(l=>l.trim()).find(l=>l.length);
+  let nombreGuess = '';
+  if (primeraLinea && !RP_ING_LINE_RE.test(primeraLinea)) {
+    const candidato = primeraLinea.replace(/^#{1,6}\s*/, '').replace(/\*\*/g,'').trim();
+    const pareceParrafo = candidato.length > 70 || candidato.includes('?') || candidato.split(/[.!]\s/).length > 2;
+    if (!pareceParrafo) nombreGuess = candidato;
+  }
+  document.getElementById('rp-name').value = nombreGuess;
+  document.getElementById('rp-mass').value = totalMassHint || 1000;
+  document.getElementById('rp-units').value = 1;
+  document.getElementById('rp-merma').value = 0;
+  document.getElementById('rp-notes').value = notas;
+
+  document.getElementById('rp-step2').style.display = 'block';
+  document.getElementById('rp-step3').style.display = 'none';
+  rpActualizarTotalPct();
+}
+
+function rpAgregarIngrediente(nombre, pct, esHarina){
+  rpIngCount++;
+  const id = 'rpi' + rpIngCount;
+  const div = document.createElement('div');
+  div.id = id;
+  div.className = 'line';
+  div.dataset.harina = esHarina ? '1' : '0';
+  div.innerHTML = `
+    <div class="col sm">
+      <select onchange="this.parentElement.parentElement.dataset.harina=(this.value==='1'?'1':'0')">
+        <option value="1" ${esHarina?'selected':''}>Harina</option>
+        <option value="0" ${!esHarina?'selected':''}>Otro</option>
+      </select>
+    </div>
+    <div class="col" style="flex:2"><input class="rp-nombre" value="${(nombre||'').replace(/"/g,'&quot;')}" placeholder="Nombre del ingrediente"></div>
+    <div class="col sm"><input class="rp-pct" type="number" value="${pct||0}" min="0" step="0.1" oninput="rpActualizarTotalPct()"></div>
+    <button class="btn-red btn-xs" onclick="document.getElementById('${id}').remove();rpActualizarTotalPct()">✕</button>`;
+  document.getElementById('rp-ing-list').appendChild(div);
+  rpActualizarTotalPct();
+}
+
+function rpActualizarTotalPct(){
+  let total = 0;
+  document.querySelectorAll('#rp-ing-list .line').forEach(div => {
+    total += parseFloat(div.querySelector('.rp-pct').value) || 0;
+  });
+  document.getElementById('rp-pct-total').innerHTML = `Suma de porcentajes: <b>${total.toFixed(1).replace(/\.0$/,'')}%</b>`;
+}
+
+function rpExportar(){
+  const lines = [...document.querySelectorAll('#rp-ing-list .line')];
+  if (!lines.length){ toast('Agregá al menos un ingrediente'); return; }
+
+  const flour = [], other = [];
+  lines.forEach(div => {
+    const nombre = div.querySelector('.rp-nombre').value.trim();
+    const pct = parseFloat(div.querySelector('.rp-pct').value) || 0;
+    if (!nombre) return;
+    const entry = { pct, manualName: nombre, productName: '' };
+    (div.dataset.harina === '1' ? flour : other).push(entry);
+  });
+
+  const name = document.getElementById('rp-name').value.trim();
+  if (!name){ toast('Ponele un nombre a la receta'); return; }
+
+  const rec = {
+    id: 'personal_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
+    code: '',
+    personalSource: name,
+    name,
+    cat: document.getElementById('rp-cat').value,
+    totalMass: parseFloat(document.getElementById('rp-mass').value) || 1000,
+    units: parseInt(document.getElementById('rp-units').value) || 1,
+    merma: parseFloat(document.getElementById('rp-merma').value) || 0,
+    notes: document.getElementById('rp-notes').value,
+    flour, other, subrecs: []
+  };
+
+  document.getElementById('rp-json').value = JSON.stringify(rec, null, 2);
+  document.getElementById('rp-step3').style.display = 'block';
+  window._rpUltimaReceta = rec;
+}
+
+function rpCargarEnLabrec(){
+  if (!window._rpUltimaReceta){ toast('Exportá primero'); return; }
+  cargarDesdeJson(window._rpUltimaReceta);
+}
+
+function rpCopiar(){
+  const ta = document.getElementById('rp-json');
+  ta.select(); ta.setSelectionRange(0, 999999);
+  if (navigator.clipboard) navigator.clipboard.writeText(ta.value).then(()=>toast('Copiado ✓'));
+  else { document.execCommand('copy'); toast('Copiado ✓'); }
+}
+
+function rpDescargar(){
+  const txt = document.getElementById('rp-json').value;
+  const nombre = (document.getElementById('rp-name').value.trim() || 'receta')
+    .toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
+  const blob = new Blob([txt], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = (nombre || 'receta_personal') + '.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function rpEjemplo(){
+  document.getElementById('rp-raw').value =
+`Pan Dulce Suave de Pueblo (Miga Corta)
+
+| Ingrediente | Porcentaje de Panadero (%) |
+|---|---|
+| Harina de Trigo Todo Uso (baja en proteína) | 100.0% |
+| Azúcar Estándar | 25.0% |
+| Manteca de Cerdo (o Mantequilla artesanal) | 20.0% |
+| Huevo Entero | 10.0% |
+| Agua o Leche Entera | 35.0% |
+| Levadura Fresca | 5.0% |
+| Sal | 1.0% |
+| Total Masa Base | 196.0% ~980 g |
+
+Instrucciones:
+1. Amasado justo: integrar sin sobretrabajar.
+2. Porcionar piezas de 30-35g en crudo.
+3. Fermentación larga hasta doblar tamaño.
+4. Hornear a 175°C por 12-15 min.
+5. Al salir, barnizar y pasar por azúcar.`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// DISEÑADOR IA — arma un prompt para Claude, el resultado ya viene en el
+// mismo schema que Labrec entiende, así que "capturar" es directo.
+// ═══════════════════════════════════════════════════════════════════════
+function dzGenerarPrompt(){
+  const desc = document.getElementById('dz-desc').value.trim();
+  if (!desc){ toast('Contame qué pan querés antes de generar el prompt'); return; }
+  const sinGluten = document.getElementById('dz-gluten').value === 'sin';
+
+  let prompt = `Quiero diseñar un pan artesanal con estas características: ${desc}\n\n`;
+  prompt += sinGluten
+    ? `Es un pan SIN GLUTEN. Si la fórmula usa masa madre/levain, esa masa madre debe estar cultivada y alimentada exclusivamente con harina sin gluten — no uses ni menciones harina de trigo en ningún punto de la fórmula.\n\n`
+    : `Es un pan con gluten (harinas de trigo normales, sin restricción).\n\n`;
+  prompt += `Dame la fórmula en porcentaje de panadero (baker's percentage) y un procedimiento resumido. Respondé ÚNICAMENTE con un JSON válido, sin texto antes ni después, exactamente en este formato:\n\n`;
+  prompt += `{\n`;
+  prompt += `  "name": "nombre del pan",\n`;
+  prompt += `  "cat": "pan" | "pan_mm" | "galleta" | "masa" | "otro",\n`;
+  prompt += `  "totalMass": 1000,\n`;
+  prompt += `  "units": 1,\n`;
+  prompt += `  "merma": 0,\n`;
+  prompt += `  "notes": "procedimiento resumido, paso a paso",\n`;
+  prompt += `  "flour": [{"pct": 100, "manualName": "nombre de la harina"}],\n`;
+  prompt += `  "other": [{"pct": 70, "manualName": "nombre del ingrediente"}]\n`;
+  prompt += `}\n\n`;
+  prompt += `El array "flour" son las harinas, "other" todo lo demás (agua, sal, levadura, grasas, etc.). Los porcentajes son sobre el total de harina (100%). No incluyas comentarios ni explicaciones fuera del JSON.`;
+
+  document.getElementById('dz-prompt').value = prompt;
+  document.getElementById('dz-step2').style.display = 'block';
+  document.getElementById('dz-step3').style.display = 'block';
+  document.getElementById('dz-respuesta').value = '';
+  document.getElementById('dz-error').textContent = '';
+}
+
+function dzCopiarPrompt(){
+  const ta = document.getElementById('dz-prompt');
+  ta.select(); ta.setSelectionRange(0, 999999);
+  if (navigator.clipboard) navigator.clipboard.writeText(ta.value).then(()=>toast('Prompt copiado ✓'));
+  else { document.execCommand('copy'); toast('Prompt copiado ✓'); }
+}
+
+function dzCapturar(){
+  const raw = document.getElementById('dz-respuesta').value.trim();
+  const errEl = document.getElementById('dz-error');
+  errEl.textContent = '';
+  if (!raw){ errEl.textContent = 'Pegá la respuesta de Claude primero.'; return; }
+
+  // Por si Claude envolvió el JSON en ```json ... ``` a pesar de todo
+  const limpio = raw.replace(/^```json\s*/i, '').replace(/```\s*$/,'').trim();
+
+  let obj;
+  try {
+    obj = JSON.parse(limpio);
+  } catch(e) {
+    errEl.textContent = 'Eso no parseó como JSON válido: ' + e.message + '. Revisá que hayas pegado la respuesta completa, sin texto extra alrededor.';
+    return;
+  }
+  if (!obj.name || !Array.isArray(obj.flour)){
+    errEl.textContent = 'El JSON no tiene la forma esperada (falta "name" o "flour"). Revisá la respuesta de Claude.';
+    return;
+  }
+  cargarDesdeJson(obj);
+  toast('Receta capturada — revisala en el Editor');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// GLUTEN MORGEN — import del JSON crudo tal cual lo exporta GM, más carga
+// manual "estilo GM" (ingrediente + % libre). Todo cae en una bandeja en
+// memoria; nada se guarda en labrec_recetas hasta que se revisa y se
+// guarda a mano desde el Editor. Reusa RP_FLOUR_RE para detectar harina.
+// ═══════════════════════════════════════════════════════════════════════
+window._gmParsed = [];   // array crudo tal cual vino del archivo GM
+window._gmBandeja = [];  // items pendientes de revisar {name, weight, note, ingredients:[{name,percentage}]}
+window._gmExistentes = new Set(); // nombres (lowercase/trim) ya guardados en labrec_recetas
+let gmMIngCount = 0;
+
+function gmNombreClave(n){ return (n||'').trim().toLowerCase(); }
+
+async function gmActualizarTotales(){
+  const { count, error: e1 } = await sb.from('labrec_recetas').select('id', { count: 'exact', head: true });
+  document.getElementById('gm-total-labrec').textContent =
+    'Recetas guardadas en Labrec: ' + (e1 ? '—' : count);
+
+  const { data, error: e2 } = await sb.from('labrec_recetas').select('nombre');
+  if (!e2) window._gmExistentes = new Set((data||[]).map(r => gmNombreClave(r.nombre)));
+}
+
+function gmImportarArchivo(evt){
+  const file = evt.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async () => {
+    let arr;
+    try { arr = JSON.parse(reader.result); }
+    catch(e){ toast('JSON inválido: ' + e.message); return; }
+    if (!Array.isArray(arr)){ toast('Se esperaba un array de recetas de Gluten Morgen'); return; }
+    window._gmParsed = arr;
+    document.getElementById('gm-import-wrap').style.display = 'block';
+    document.getElementById('gm-filtro').value = '';
+    await gmActualizarTotales();
+    gmRenderLista();
+    const res = await gmArchivarCrudo(arr);
+    await gmCargarArchivo();
+    toast(`${arr.length} receta(s) leídas · ${res.ok ? res.count + ' archivadas en Supabase' : 'error al archivar: ' + res.error}`);
+  };
+  reader.readAsText(file);
+}
+
+function gmYaExiste(nombre){
+  const k = gmNombreClave(nombre);
+  if (window._gmExistentes.has(k)) return 'labrec';
+  if (window._gmBandeja.some(b => gmNombreClave(b.name) === k)) return 'bandeja';
+  return null;
+}
+
+function gmRenderLista(){
+  const filtro = (document.getElementById('gm-filtro').value || '').toLowerCase();
+  const el = document.getElementById('gm-import-list');
+  const items = window._gmParsed
+    .map((r, idx) => ({ r, idx }))
+    .filter(({r}) => !filtro || (r.name||'').toLowerCase().includes(filtro));
+  if (!items.length){ el.innerHTML = '<div class="ph">Sin resultados</div>'; document.getElementById('gm-import-counts').textContent=''; return; }
+
+  let dupCount = 0;
+  el.innerHTML = items.map(({r, idx}) => {
+    const dup = gmYaExiste(r.name);
+    if (dup) dupCount++;
+    const dupLabel = dup === 'labrec' ? '⚠ ya está en Labrec' : dup === 'bandeja' ? '⚠ ya está en la bandeja' : '';
+    return `
+    <div class="line" style="align-items:center">
+      <input type="checkbox" class="gm-chk" data-idx="${idx}" style="width:auto" ${dup ? '' : ''}>
+      <div class="col" style="min-width:160px">
+        <div style="font-weight:600">${r.name || '(sin nombre)'} ${dupLabel ? `<span class="hint" style="color:var(--amber)">${dupLabel}</span>` : ''}</div>
+        <div class="hint">${(r.ingredients||[]).length} ingrediente(s) · ${r.weight||'?'} g</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('gm-import-counts').textContent =
+    `${window._gmParsed.length} en el archivo · ${items.length} visibles · ${dupCount} ya cargadas · ${items.length - dupCount} nuevas`;
+}
+
+function gmMarcarTodos(check){
+  document.querySelectorAll('#gm-import-list .gm-chk').forEach(c => c.checked = check);
+}
+
+function gmConvertirCrudo(item){
+  // Mismo criterio que Recetas Personales: RP_FLOUR_RE detecta harina por
+  // nombre; si ninguna calzó, la primera línea se marca harina por defecto.
+  const ings = (item.ingredients||[]).map(i => ({
+    nombre: i.name || '',
+    pct: i.percentage || 0,
+    esHarina: RP_FLOUR_RE.test(i.name || '')
+  }));
+  if (ings.length && !ings.some(i => i.esHarina)) ings[0].esHarina = true;
+  return {
+    name: item.name || '',
+    weight: item.weight || 1000,
+    note: item.note || '',
+    ingredients: ings.map(i => ({ name: i.nombre, percentage: i.pct, esHarina: i.esHarina }))
+  };
+}
+
+// ─── Respaldo crudo en Supabase (gm_raw_recetas) ────────────────────────
+async function gmArchivarCrudo(items){
+  const porNombre = new Map();
+  (items||[]).forEach(it => {
+    const nombre = (it.name||'').trim();
+    if (!nombre) return;
+    // si hay nombres repetidos en el mismo archivo, se queda con el último
+    // (si no, el upsert por lote falla: Postgres no permite tocar la misma
+    // fila dos veces en una sola operación ON CONFLICT)
+    porNombre.set(nombre.toLowerCase(), {
+      nombre,
+      peso: it.weight || null,
+      nota: it.note || '',
+      ingredientes: it.ingredients || [],
+      updated_at: new Date().toISOString()
+    });
+  });
+  const rows = [...porNombre.values()];
+  if (!rows.length) return { ok: true, count: 0 };
+
+  // Supabase/PostgREST tiene un límite práctico de fila por request grande;
+  // se manda en tandas de 200 para archivos con muchas recetas.
+  const TANDA = 200;
+  let totalOk = 0;
+  for (let i = 0; i < rows.length; i += TANDA){
+    const lote = rows.slice(i, i + TANDA);
+    const { error } = await sb.from('gm_raw_recetas').upsert(lote, { onConflict: 'nombre' });
+    if (error) return { ok: false, error: error.message, count: totalOk };
+    totalOk += lote.length;
+  }
+  return { ok: true, count: totalOk };
+}
+
+async function gmCargarArchivo(){
+  const { data, error, count } = await sb.from('gm_raw_recetas').select('*', { count: 'exact' }).order('nombre');
+  if (error){ document.getElementById('gm-raw-count').textContent = '—'; toast('Error cargando el respaldo: ' + error.message); return; }
+  window._gmArchivo = data || [];
+  document.getElementById('gm-raw-count').textContent = count ?? data.length;
+  gmRenderArchivo();
+}
+
+function gmRenderArchivo(){
+  const filtro = (document.getElementById('gm-raw-filtro').value || '').toLowerCase();
+  const el = document.getElementById('gm-raw-list');
+  const items = (window._gmArchivo||[]).filter(r => !filtro || (r.nombre||'').toLowerCase().includes(filtro));
+  if (!items.length){ el.innerHTML = '<div class="ph">Sin resultados</div>'; return; }
+  el.innerHTML = items.map(r => `
+    <div class="recrow">
+      <div>
+        <div style="font-weight:600">${r.nombre}</div>
+        <div class="hint">${(r.ingredientes||[]).length} ingrediente(s) · ${r.peso||'?'} g</div>
+      </div>
+      <button class="btn-out btn-xs" onclick="gmTraerArchivoABandeja('${r.id}')">→ Bandeja</button>
+    </div>`).join('');
+}
+
+function gmTraerArchivoABandeja(id){
+  const r = (window._gmArchivo||[]).find(x => x.id === id);
+  if (!r) return;
+  if (gmYaExiste(r.nombre)){
+    toast('Ya está en Labrec o en la bandeja — no se agregó de nuevo');
+    return;
+  }
+  window._gmBandeja.push(gmConvertirCrudo({ name: r.nombre, weight: r.peso, note: r.nota, ingredients: r.ingredientes }));
+  gmRenderBandeja();
+  gmRenderLista();
+  toast('Agregada a la bandeja desde el respaldo');
+}
+
+function gmAgregarSeleccionadosABandeja(){
+  const idxs = [...document.querySelectorAll('#gm-import-list .gm-chk:checked')].map(c => parseInt(c.dataset.idx));
+  if (!idxs.length){ toast('Marcá al menos una receta'); return; }
+  let agregadas = 0, saltadas = 0;
+  idxs.forEach(i => {
+    const item = window._gmParsed[i];
+    if (gmYaExiste(item.name)) { saltadas++; return; }
+    window._gmBandeja.push(gmConvertirCrudo(item));
+    agregadas++;
+  });
+  toast(saltadas
+    ? `${agregadas} agregada(s) · ${saltadas} salteada(s) por estar duplicada(s)`
+    : `${agregadas} receta(s) agregadas a la bandeja`);
+  gmRenderBandeja();
+  gmRenderLista();
+  document.querySelectorAll('#gm-import-list .gm-chk').forEach(c => c.checked = false);
+  document.getElementById('gm-check-all').checked = false;
+}
+
+// ─── Carga manual estilo GM ─────────────────────────────────────────────
+function gmAgregarLineaManual(nombre, pct, esHarina){
+  gmMIngCount++;
+  const id = 'gmi' + gmMIngCount;
+  const div = document.createElement('div');
+  div.id = id;
+  div.className = 'line';
+  div.dataset.harina = esHarina ? '1' : '0';
+  div.innerHTML = `
+    <div class="col sm">
+      <select onchange="this.parentElement.parentElement.dataset.harina=(this.value==='1'?'1':'0')">
+        <option value="1" ${esHarina?'selected':''}>Harina</option>
+        <option value="0" ${!esHarina?'selected':''}>Otro</option>
+      </select>
+    </div>
+    <div class="col" style="flex:2"><input class="gm-m-nombre" value="${(nombre||'').replace(/"/g,'&quot;')}" placeholder="Nombre del ingrediente" oninput="this.parentElement.parentElement.dataset.auto=''"></div>
+    <div class="col sm"><input class="gm-m-pct" type="number" value="${pct||0}" min="0" step="0.1" placeholder="%"></div>
+    <button class="btn-red btn-xs" onclick="document.getElementById('${id}').remove()">✕</button>`;
+  document.getElementById('gm-m-ing-list').appendChild(div);
+}
+
+function gmManualAgregarABandeja(){
+  const nombre = document.getElementById('gm-m-nombre').value.trim();
+  if (!nombre){ toast('Ponele un nombre a la receta'); return; }
+  const dup = gmYaExiste(nombre);
+  if (dup){
+    toast(`Ya existe una receta "${nombre}" ${dup === 'labrec' ? 'en Labrec' : 'en la bandeja'} — no se agregó`);
+    return;
+  }
+  const lines = [...document.querySelectorAll('#gm-m-ing-list .line')];
+  if (!lines.length){ toast('Agregá al menos un ingrediente'); return; }
+
+  const ingredients = lines.map(div => ({
+    name: div.querySelector('.gm-m-nombre').value.trim(),
+    percentage: parseFloat(div.querySelector('.gm-m-pct').value) || 0,
+    esHarina: div.dataset.harina === '1'
+  })).filter(i => i.name);
+
+  const nuevaEntrada = {
+    name: nombre,
+    weight: parseFloat(document.getElementById('gm-m-peso').value) || 1000,
+    note: document.getElementById('gm-m-nota').value || '',
+    ingredients
+  };
+  window._gmBandeja.push(nuevaEntrada);
+
+  document.getElementById('gm-m-nombre').value = '';
+  document.getElementById('gm-m-peso').value = 1000;
+  document.getElementById('gm-m-nota').value = '';
+  document.getElementById('gm-m-ing-list').innerHTML = '';
+  toast('Agregada a la bandeja');
+  gmRenderBandeja();
+  gmArchivarCrudo([nuevaEntrada]).then(() => gmCargarArchivo());
+}
+
+// ─── Bandeja de revisión ─────────────────────────────────────────────────
+function gmRenderBandeja(){
+  const el = document.getElementById('gm-bandeja');
+  document.getElementById('gm-bandeja-count').textContent = window._gmBandeja.length;
+  if (!window._gmBandeja.length){ el.innerHTML = '<div class="ph">Vacía por ahora</div>'; return; }
+  el.innerHTML = window._gmBandeja.map((item, idx) => {
+    const harina = (item.ingredients||[]).find(i => i.esHarina);
+    return `
+    <div class="recrow">
+      <div>
+        <div style="font-weight:600">${item.name}</div>
+        <div class="hint">${(item.ingredients||[]).length} ingrediente(s) · harina detectada: ${harina ? harina.name : '—'}</div>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="btn-out btn-xs" onclick="gmRevisar(${idx})">Revisar en Editor</button>
+        <button class="btn-red btn-xs" onclick="gmDescartar(${idx})">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function gmRevisar(idx){
+  const item = window._gmBandeja[idx];
+  if (!item) return;
+  const flour = (item.ingredients||[]).filter(i => i.esHarina).map(i => ({ pct: i.percentage, manualName: i.name }));
+  const other = (item.ingredients||[]).filter(i => !i.esHarina).map(i => ({ pct: i.percentage, manualName: i.name }));
+  cargarDesdeJson({
+    name: item.name,
+    cat: 'pan',
+    totalMass: item.weight,
+    units: 1,
+    merma: 0,
+    notes: item.note,
+    flour, other, subrecs: []
+  });
+  window._gmBandeja.splice(idx, 1);
+  gmRenderBandeja();
+  if (document.getElementById('gm-import-wrap').style.display !== 'none') gmRenderLista();
+  toast('Cargada en el Editor — revisala y guardala ahí. Si no la guardás, se pierde de la bandeja.');
+}
+
+function gmDescartar(idx){
+  window._gmBandeja.splice(idx, 1);
+  gmRenderBandeja();
+  if (document.getElementById('gm-import-wrap').style.display !== 'none') gmRenderLista();
+}
+
+cargarCatalogos();
+</script>
+</body>
+</html>
