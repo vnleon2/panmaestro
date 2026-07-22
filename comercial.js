@@ -154,7 +154,7 @@ async function pcCargarSb() {
 // Método de pago elegido por pedido — se guarda con el pedido local
 // (antes vivía solo en memoria y se perdía al recargar, ver _pcMetodoPagoSel viejo)
 function pcSetMetodoPago(id, v) {
-  const p = G.pedidosCom.find(x => x.id === id);
+  const p = G.pedidosCom.find(x => String(x.id) === String(id));
   if (p) { p.metodoPago = v; pmSave('comercial'); }
 }
 
@@ -217,7 +217,7 @@ function pcRender() {
 
 // ── Cambiar estado pedido (local-first) ──
 async function pcChgSt(pedId, st) {
-  const p = G.pedidosCom.find(x => x.id === pedId);
+  const p = G.pedidosCom.find(x => String(x.id) === String(pedId));
   if (!p) return;
   const prevSt = p.status;
   p.status = st; pmSave('comercial'); pcRender();
@@ -267,7 +267,7 @@ async function pcChgSt(pedId, st) {
 // ── Abrir modal producto — precios especiales desde la caché local
 // (funciona offline, ver _precioClienteLocal en plan_libre.js) ──
 async function pcOpenLinea(pedId) {
-  const p = G.pedidosCom.find(x => x.id === pedId);
+  const p = G.pedidosCom.find(x => String(x.id) === String(pedId));
   if (!p) return;
   document.getElementById('lc-id').value     = pedId;
   document.getElementById('lc-cli-id').value = p.cliId || '';
@@ -319,7 +319,7 @@ async function pcOpenLinea(pedId) {
 // ── Guardar línea de pedido (local-first) ──
 function lcSave() {
   const pedId = document.getElementById('lc-id').value;
-  const p = G.pedidosCom.find(x => x.id === pedId);
+  const p = G.pedidosCom.find(x => String(x.id) === String(pedId));
   if (!p) return;
   const sel    = document.getElementById('lc-prod');
   const pid    = sel.value;
@@ -363,7 +363,7 @@ function lcSave() {
 
 // ── Eliminar línea de pedido (local-first) ──
 function pcDelLinea(pedId, lid) {
-  const p = G.pedidosCom.find(x => x.id === pedId);
+  const p = G.pedidosCom.find(x => String(x.id) === String(pedId));
   if (!p) return;
   const l = p.lineas.find(x => String(x.lid) === String(lid));
   p.lineas = p.lineas.filter(x => String(x.lid) !== String(lid));
@@ -387,7 +387,7 @@ function pcDelLinea(pedId, lid) {
 // ── Eliminar pedido completo (local-first) ──
 function pcDel(pedId) {
   if (!confirm('¿Eliminar este pedido?')) return;
-  const p = G.pedidosCom.find(x => x.id === pedId);
+  const p = G.pedidosCom.find(x => String(x.id) === String(pedId));
   G.pedidosCom = G.pedidosCom.filter(x => x.id !== pedId);
   pmSave('comercial'); pcRender();
   pmToast('Pedido eliminado');

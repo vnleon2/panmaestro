@@ -62,7 +62,7 @@ function docSelTodos() {
 function _docGetSeleccionados() {
   const ids = [...document.querySelectorAll('.doc-check:checked')].map(c => c.value);
   if (!ids.length) { pmToast('Seleccioná al menos un pedido', 'err'); return null; }
-  return ids.map(id => G.pedidosCom.find(p => p.id === id)).filter(Boolean);
+  return ids.map(id => G.pedidosCom.find(p => String(p.id) === String(id))).filter(Boolean);
 }
 
 function docImprimirNota() {
@@ -703,7 +703,7 @@ async function repCom(fecha) {
 
   const filtroEl    = document.getElementById('rep-com-filtro');
   const filtroPedId = filtroEl ? filtroEl.value || '' : '';
-  const pedsFiltro  = filtroPedId ? peds.filter(p => p.id === filtroPedId) : peds;
+  const pedsFiltro  = filtroPedId ? peds.filter(p => String(p.id) === String(filtroPedId)) : peds;
 
   let totalGlobal = 0;
   const bloques = pedsFiltro.map(p => {
