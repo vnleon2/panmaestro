@@ -62,6 +62,33 @@ textarea{min-height:70px;resize:vertical;font-family:'DM Sans',sans-serif}
 </head>
 <body>
 
+<!-- ═══ 🔐 LOGIN (gate — sin sesión válida no se ve ni se carga nada) ═══ -->
+<div id="lr-login" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:9000;
+  align-items:center;justify-content:center;padding:20px">
+  <div style="width:100%;max-width:340px">
+    <div style="text-align:center;margin-bottom:28px">
+      <div style="font-size:40px;margin-bottom:6px">🧪</div>
+      <h1>Labrec</h1>
+      <div style="font-size:11px;color:var(--cream2);margin-top:4px">Laboratorio de Recetas</div>
+    </div>
+    <div class="card">
+      <div id="lr-login-error" style="display:none;background:rgba(220,38,38,.1);border:1px solid var(--red);
+        color:var(--red);border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:14px"></div>
+      <label>Email</label>
+      <input type="email" id="lr-login-email" placeholder="tu@email.com" autocomplete="email"
+        style="margin-bottom:12px" onkeydown="if(event.key==='Enter')lrLoginSubmit()">
+      <label>Contraseña</label>
+      <input type="password" id="lr-login-pass" placeholder="••••••••" autocomplete="current-password"
+        style="margin-bottom:16px" onkeydown="if(event.key==='Enter')lrLoginSubmit()">
+      <button id="lr-login-btn" onclick="lrLoginSubmit()"
+        style="width:100%;padding:11px;background:var(--gold);color:#fff;font-weight:600;font-size:14px;
+        border:none;border-radius:var(--rs);cursor:pointer">Entrar</button>
+      <div id="lr-login-loading" style="display:none;text-align:center;color:var(--cream2);font-size:12px;margin-top:10px">Verificando...</div>
+    </div>
+  </div>
+</div>
+
+<div id="app-root" style="display:none">
 <div class="topbar">
   <h1>🧪 Labrec</h1>
   <div class="sub">Laboratorio de Recetas — standalone, conectado a tu Supabase</div>
@@ -318,6 +345,51 @@ textarea{min-height:70px;resize:vertical;font-family:'DM Sans',sans-serif}
 const SUPABASE_URL = "https://xmhokxmuxfkfypttvkjz.supabase.co";
 const SUPABASE_KEY = "sb_publishable_pmKVIGa_lNxtzRos-iY_0Q_LXEcj77v";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ─── Gate de sesión (ver PanMaestro index.html para el mismo patrón) ───
+function _lrMostrarApp() {
+  document.getElementById('lr-login').style.display = 'none';
+  document.getElementById('app-root').style.display = '';
+}
+function _lrMostrarLogin() {
+  document.getElementById('lr-login').style.display = 'flex';
+  document.getElementById('app-root').style.display = 'none';
+}
+async function lrLoginSubmit() {
+  const email = document.getElementById('lr-login-email').value.trim();
+  const pass  = document.getElementById('lr-login-pass').value;
+  const errEl = document.getElementById('lr-login-error');
+  const btnEl = document.getElementById('lr-login-btn');
+  const ldEl  = document.getElementById('lr-login-loading');
+  errEl.style.display = 'none';
+  if (!email || !pass) {
+    errEl.textContent = 'Completá email y contraseña.';
+    errEl.style.display = 'block';
+    return;
+  }
+  btnEl.style.display = 'none';
+  ldEl.style.display = 'block';
+  try {
+    const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+    if (error) throw error;
+    _lrMostrarApp();
+    cargarCatalogos();
+  } catch(e) {
+    errEl.textContent = e.message === 'Invalid login credentials'
+      ? 'Email o contraseña incorrectos.' : e.message;
+    errEl.style.display = 'block';
+    btnEl.style.display = 'block';
+    ldEl.style.display = 'none';
+  }
+}
+async function _lrCheckSession() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) {
+    sb.auth.onAuthStateChange((event) => { if (event === 'SIGNED_OUT') _lrMostrarLogin(); });
+    return true;
+  }
+  return false;
+}
 
 let ingredientes = [];   // maestro de ingredientes {id, nombre, ...}
 let recetasPM    = [];   // maestro de recetas de PanMaestro (para sub/addons), filtradas code startsWith R-
@@ -1239,7 +1311,11 @@ function gmDescartar(idx){
   if (document.getElementById('gm-import-wrap').style.display !== 'none') gmRenderLista();
 }
 
-cargarCatalogos();
+_lrCheckSession().then(tieneSession => {
+  if (tieneSession) { _lrMostrarApp(); cargarCatalogos(); }
+  else { _lrMostrarLogin(); }
+});
 </script>
+</div><!-- /app-root -->
 </body>
 </html>
