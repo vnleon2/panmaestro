@@ -265,7 +265,8 @@ async function pcChgSt(pedId, st) {
 }
 
 // ── Abrir modal producto — precios especiales desde la caché local
-// (funciona offline, ver _precioClienteLocal en plan_libre.js) ──
+// (funciona offline usando G.preciosClienteCache — solo lista el portafolio
+// del cliente, cae al catálogo completo si no tiene precios especiales) ──
 async function pcOpenLinea(pedId) {
   const p = G.pedidosCom.find(x => String(x.id) === String(pedId));
   if (!p) return;
@@ -290,14 +291,32 @@ async function pcOpenLinea(pedId) {
   }
 
   const prods = [...(G.tiposPan||[]), ...(G.tiposGalleta||[])];
-  let opciones = prods.map(prod => {
-    const sbId  = _sbProdMap?.[prod.id] || '';
-    const espec = p.cliId ? _precioClienteLocal(p.cliId, sbId) : null;
-    const precioBase = espec && espec.precio_especial != null ? espec.precio_especial : prod.precio;
-    const descPct     = espec?.descuento_pct || 0;
-    const precioEf    = Math.round(precioBase * (1 - descPct/100));
-    return { id: prod.id, sbId, nombre: prod.nombre, precioFull: prod.precio, descPct, precioEfectivo: precioEf };
-  });
+
+  // Portafolio: solo se listan los productos que tienen precio especial
+  // asignado a ESTE cliente — no el catálogo completo. Si el cliente no
+  // tiene ningún precio especial configurado, recién ahí se cae al
+  // catálogo completo a precio normal (mismo comportamiento que tenía
+  // el comercial.js original — "productos según portafolio asignado").
+  let opciones = [];
+  if (p.cliId) {
+    const rows = _sbPreciosClienteCache || G.preciosClienteCache || [];
+    const misPrecios = rows.filter(r => r.cliente_id === p.cliId);
+    opciones = misPrecios.map(r => {
+      const prod = prods.find(x => (_sbProdMap?.[x.id] || '') === r.producto_id);
+      if (!prod) return null;
+      const precioBase = r.precio_especial != null ? r.precio_especial : prod.precio;
+      const descPct     = r.descuento_pct || 0;
+      const precioEf    = Math.round(precioBase * (1 - descPct/100));
+      return { id: prod.id, sbId: r.producto_id, nombre: prod.nombre, precioFull: prod.precio, descPct, precioEfectivo: precioEf };
+    }).filter(Boolean);
+  }
+  if (!opciones.length) {
+    // Sin precios especiales — catálogo completo a precio normal
+    opciones = prods.map(prod => ({
+      id: prod.id, sbId: _sbProdMap?.[prod.id] || '', nombre: prod.nombre,
+      precioFull: prod.precio, descPct: 0, precioEfectivo: prod.precio
+    }));
+  }
 
   sel.innerHTML = '<option value="">— seleccionar producto —</option>' +
     opciones.map(o =>
