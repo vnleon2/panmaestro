@@ -601,6 +601,23 @@ function pmToast(msg, type='ok') {
 function mOpen(id) { document.getElementById(id).classList.add('open'); }
 function mClose(id) { document.getElementById(id).classList.remove('open'); }
 
+// ── Punto 5 del plan de auditoría — optimistic locking ──────────
+// "Pantalla clásica" de conflicto: se llama cuando, al guardar, se
+// detecta que el registro cambió en Supabase después de que se abrió
+// para editar (otro dispositivo/pestaña/persona lo tocó primero).
+// Reutilizable: cada llamador pasa su propio mensaje y qué hacer en
+// cada botón — este helper solo maneja el modal en sí.
+function pmMostrarConflicto(mensaje, onRecargar, onSobrescribir) {
+  document.getElementById('m-conflicto-msg').textContent = mensaje;
+  const btnRecargar = document.getElementById('m-conflicto-recargar');
+  const btnSobrescribir = document.getElementById('m-conflicto-sobrescribir');
+  // Reasignar onclick (no addEventListener) para no ir acumulando
+  // handlers viejos de conflictos anteriores en la misma sesión.
+  btnRecargar.onclick = () => { mClose('m-conflicto'); onRecargar && onRecargar(); };
+  btnSobrescribir.onclick = () => { mClose('m-conflicto'); onSobrescribir && onSobrescribir(); };
+  mOpen('m-conflicto');
+}
+
 function toggleBody(id) {
   const b = document.getElementById('pb-' + id);
   if (b) b.classList.toggle('open');

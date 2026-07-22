@@ -136,6 +136,21 @@
 </div>
 
 <!-- Modal vincular cliente -->
+<!-- Modal genérico de conflicto de edición concurrente (punto 5 del plan
+     de auditoría — optimistic locking). Reutilizable para cualquier
+     formulario: se le cambia el mensaje y los dos handlers desde JS
+     antes de abrirlo, ver pmMostrarConflicto() en pm_core.js. -->
+<div class="modal-bg" id="m-conflicto">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-title">⚠️ Cambios más recientes</div>
+    <div id="m-conflicto-msg" style="font-size:13px;color:var(--cream2);margin-bottom:16px"></div>
+    <div class="modal-foot" style="justify-content:flex-end;gap:8px">
+      <button class="btn btn-out" id="m-conflicto-recargar">Recargar lo más reciente</button>
+      <button class="btn btn-red" id="m-conflicto-sobrescribir">Sobrescribir con lo mío</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-bg" id="m-vincular-cli">
   <div class="modal" style="max-width:420px">
     <div class="modal-title">🔗 Vincular con cliente</div>

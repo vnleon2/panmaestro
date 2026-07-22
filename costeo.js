@@ -296,6 +296,7 @@ function cvActualizarGG(recId, val) {
 let mrIngCount = 0, mrSubCount = 0;
 
 function recNuevo() {
+  window._mrEditUpdatedAt = null; // punto 5: sin receta base, nada que comparar al guardar
   document.getElementById('cv-nueva-titulo').textContent = 'Nueva receta';
   document.getElementById('mr-id').value = '';
   document.getElementById('mr-code').value = 'R-' + String(_sbRecLista().filter(r=>r.code&&r.code.startsWith('R-')).length+1).padStart(4,'0');
@@ -327,6 +328,10 @@ async function recEditar(id) {
   }
   const r = _sbGetRec(id) || (G.recetas||[]).find(x=>x.id===id);
   if (!r) return;
+  // Punto 5 del plan de auditoría: guardamos con qué updated_at se abrió
+  // este formulario, para poder detectar en recSave() si alguien más
+  // (otro dispositivo/pestaña) cambió la receta mientras la editábamos.
+  window._mrEditUpdatedAt = r.updated_at || null;
   cvMostrar('cv-nueva');
   document.getElementById('cv-nueva-titulo').textContent = 'Editar: ' + r.name;
   document.getElementById('mr-id').value = r.id;
@@ -972,7 +977,7 @@ function _pmNextRecCode() {
   return 'R-' + String(max + 1).padStart(4, '0');
 }
 
-function recSave() {
+async function recSave() {
   const id    = document.getElementById('mr-id').value;
   const code  = document.getElementById('mr-code').value.trim();
   const name  = document.getElementById('mr-name').value.trim();
@@ -1132,6 +1137,35 @@ function recSave() {
     }
   } else if (realId) {
     // Editing existing recipe
+    // Punto 5 del plan de auditoría — optimistic locking: si tenemos con
+    // qué comparar (la receta vino de Supabase y sabemos el updated_at
+    // con el que se abrió el formulario), verificamos que nadie más la
+    // haya cambiado entretanto. Solo aplica cuando hay conexión y sbId —
+    // si no, no hay con qué comparar y se guarda como siempre.
+    const cachedParaConflicto = _sbGetRec(realId);
+    if (pmDB.disponible() && cachedParaConflicto?.sbId && window._mrEditUpdatedAt) {
+      try {
+        const actual = await pmDB.recetas.obtener(cachedParaConflicto.sbId);
+        if (actual && actual.updated_at && actual.updated_at !== window._mrEditUpdatedAt) {
+          pmMostrarConflicto(
+            `La receta "${cachedParaConflicto.name || obj.name}" fue modificada en otro dispositivo o pestaña mientras la editabas.`,
+            () => { recEditar(realId); }, // Recargar lo más reciente — descarta lo que escribiste acá
+            () => {
+              // Sobrescribir con lo mío: aceptamos el updated_at actual como
+              // nueva base de comparación y reintentamos — ya no habrá
+              // conflicto en el segundo intento (a menos que alguien vuelva
+              // a cambiarlo en el ratito entre que aceptás y se guarda).
+              window._mrEditUpdatedAt = actual.updated_at;
+              recSave();
+            }
+          );
+          return; // pausar acá — no seguir guardando hasta que Victor elija
+        }
+      } catch (e) {
+        console.warn('[pmDB] recSave — verificación de conflicto falló, se guarda igual:', e.message);
+      }
+    }
+
     // SESIÓN 11 fix crítico: antes esto solo buscaba en la copia LOCAL — si
     // la receta existía en Supabase pero nunca se había agregado a este
     // navegador (posible ahora que Costeo/Recetario leen de Supabase),
