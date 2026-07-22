@@ -19,6 +19,12 @@ function showTab(id) {
   document.querySelectorAll('.ntab').forEach(t => t.classList.remove('on'));
   const btn = document.querySelector('.ntab[data-tab="' + id + '"]');
   if (btn) btn.classList.add('on');
+  // Menú agrupado: resaltar también el botón de categoría (Pedidos/Recetas/etc)
+  // al que pertenece la pestaña activa, para saber en qué grupo estás.
+  document.querySelectorAll('.nav-toggle').forEach(t => t.classList.remove('on'));
+  const grupo = btn ? btn.closest('.nav-group') : null;
+  const toggle = grupo ? grupo.querySelector('.nav-toggle') : null;
+  if (toggle) toggle.classList.add('on');
   const labels = {
     'pg-dash':'DASHBOARD','pg-pedidos':'PAN','pg-galletas':'GALLETAS',
     'pg-com':'COMERCIAL','pg-prod':'PRODUCCIÓN','pg-rep':'REPORTES',
@@ -202,5 +208,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   } else {
     _pmMostrarLogin();
+  }
+});
+
+// ── MENÚ AGRUPADO (punto estético, julio 2026) ──────────────────
+// Escritorio: cada categoría (Pedidos, Recetas, etc) es un dropdown.
+// Celular (≤860px, ver CSS): el hamburguesa abre un panel con todas
+// las categorías apiladas y visibles, sin necesidad de tocar cada una.
+
+function pmToggleGroup(btn) {
+  const drop = btn.parentElement.querySelector('.group-drop');
+  const yaAbierto = drop.classList.contains('show');
+  document.querySelectorAll('.group-drop').forEach(d => d.classList.remove('show'));
+  if (!yaAbierto) drop.classList.add('show');
+}
+
+function pmToggleNavPanel() {
+  document.getElementById('nav').classList.toggle('open');
+}
+
+// Cierra el panel de celular y cualquier dropdown de escritorio —
+// se llama después de elegir una pestaña, para que el menú no se
+// quede abierto tapando la pantalla.
+function pmCloseNav() {
+  document.getElementById('nav').classList.remove('open');
+  document.querySelectorAll('.group-drop').forEach(d => d.classList.remove('show'));
+}
+
+// Cerrar los dropdowns de escritorio si se hace clic afuera del menú
+// (sin esto, quedarían abiertos hasta elegir una pestaña).
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.nav-group') && !e.target.closest('.hamburger-btn')) {
+    document.querySelectorAll('.group-drop').forEach(d => d.classList.remove('show'));
   }
 });

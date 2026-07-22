@@ -57,21 +57,51 @@
     <span class="brand-icon">🍞</span>
     <div><div class="brand-name">PanMaestro</div><div class="brand-mod">DASHBOARD</div></div>
   </div>
-  <div id="nav">
-    <button class="ntab" data-tab="pg-dash" onclick="showTab('pg-dash')">📊 Dashboard</button>
-    <button class="ntab" data-tab="pg-pedidos" onclick="showTab('pg-pedidos')">📋 Pan</button>
-    <button class="ntab" data-tab="pg-galletas" onclick="showTab('pg-galletas')">🍪 Galletas</button>
-    <button class="ntab" data-tab="pg-com" onclick="showTab('pg-com')">🏪 Comercial</button>
-    <button class="ntab" data-tab="pg-prod" onclick="showTab('pg-prod')">🔥 Producción</button>
-    <button class="ntab" data-tab="pg-rep" onclick="showTab('pg-rep')">🖨 Reportes</button>
-    <button class="ntab" data-tab="pg-gastos" onclick="showTab('pg-gastos')">💰 Gastos</button>
-    <button class="ntab" data-tab="pg-costeo" onclick="showTab('pg-costeo')">📖 Costeo</button>
-    <button class="ntab" data-tab="pg-hid" onclick="showTab('pg-hid')">💧 Hidrat.</button>
-    <button class="ntab" data-tab="app-inner" onclick="showTab('app-inner')">⚙️ Maestros</button>
-    <button class="ntab" data-tab="pg-rec" onclick="showTab('pg-rec')">📚 Recetario</button>
-    <button class="ntab" data-tab="pg-gmrec" onclick="showTab('pg-gmrec')">🌾 Gluten Morgen</button>
-    <button class="ntab" data-tab="pg-planlibre" onclick="showTab('pg-planlibre');planLibreRender()">📋 Plan Libre</button>
-    <button class="ntab" onclick="pmOpenModule('utilidades.html')">🧮 Utilidades</button>
+  <button class="hamburger-btn" onclick="pmToggleNavPanel()" aria-label="Abrir menú">☰</button>
+  <div id="nav" class="nav-panel">
+    <button class="ntab" data-tab="pg-dash" onclick="showTab('pg-dash');pmCloseNav()">📊 Dashboard</button>
+
+    <div class="nav-group">
+      <button class="nav-toggle" onclick="pmToggleGroup(this)">📋 Pedidos ▾</button>
+      <span class="nav-group-label">📋 Pedidos</span>
+      <div class="group-drop">
+        <button class="ntab" data-tab="pg-pedidos" onclick="showTab('pg-pedidos');pmCloseNav()">🍞 Pan</button>
+        <button class="ntab" data-tab="pg-galletas" onclick="showTab('pg-galletas');pmCloseNav()">🍪 Galletas</button>
+        <button class="ntab" data-tab="pg-com" onclick="showTab('pg-com');pmCloseNav()">🏪 Comercial</button>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <button class="nav-toggle" onclick="pmToggleGroup(this)">🔥 Producción ▾</button>
+      <span class="nav-group-label">🔥 Producción</span>
+      <div class="group-drop">
+        <button class="ntab" data-tab="pg-prod" onclick="showTab('pg-prod');pmCloseNav()">🔥 Producción</button>
+        <button class="ntab" data-tab="pg-planlibre" onclick="showTab('pg-planlibre');planLibreRender();pmCloseNav()">📋 Plan Libre</button>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <button class="nav-toggle" onclick="pmToggleGroup(this)">📖 Recetas ▾</button>
+      <span class="nav-group-label">📖 Recetas</span>
+      <div class="group-drop">
+        <button class="ntab" data-tab="pg-costeo" onclick="showTab('pg-costeo');pmCloseNav()">📖 Costeo</button>
+        <button class="ntab" data-tab="pg-rec" onclick="showTab('pg-rec');pmCloseNav()">📚 Recetario</button>
+        <button class="ntab" data-tab="pg-gmrec" onclick="showTab('pg-gmrec');pmCloseNav()">🌾 Gluten Morgen</button>
+        <button class="ntab" data-tab="pg-hid" onclick="showTab('pg-hid');pmCloseNav()">💧 Hidratación</button>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <button class="nav-toggle" onclick="pmToggleGroup(this)">⚙️ Administración ▾</button>
+      <span class="nav-group-label">⚙️ Administración</span>
+      <div class="group-drop">
+        <button class="ntab" data-tab="app-inner" onclick="showTab('app-inner');pmCloseNav()">⚙️ Maestros</button>
+        <button class="ntab" data-tab="pg-gastos" onclick="showTab('pg-gastos');pmCloseNav()">💰 Gastos</button>
+        <button class="ntab" data-tab="pg-rep" onclick="showTab('pg-rep');pmCloseNav()">🖨 Reportes</button>
+      </div>
+    </div>
+
+    <button class="ntab" onclick="pmOpenModule('utilidades.html');pmCloseNav()">🧮 Utilidades</button>
 </div>
   <button onclick="pmLogout()" title="Cerrar sesión" class="no-print"
     style="flex-shrink:0;margin-left:8px;padding:5px 10px;background:transparent;border:1px solid var(--border);
