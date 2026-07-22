@@ -55,7 +55,7 @@ async function pcCargarClientes() {
   sel.innerHTML = '<option value="">— seleccionar cliente —</option>' +
     clientes
       .sort((a,b) => (a.codigo||'').localeCompare(b.codigo||''))
-      .map(c => `<option value="${c.id}" data-nom="${c.nombre}">${c.codigo ? c.codigo+' · ' : ''}${c.nombre}</option>`)
+      .map(c => `<option value="${c.id}" data-nom="${pmEsc(c.nombre)}">${c.codigo ? pmEsc(c.codigo)+' · ' : ''}${pmEsc(c.nombre)}</option>`)
       .join('');
 }
 
@@ -122,8 +122,8 @@ async function pcRender() {
     const estOpts = G.estados.map(e => `<option value="${e}"${p.status===e?' selected':''}>${e}</option>`).join('');
     return `<div class="ped-card">
       <div class="ped-head" onclick="toggleBody('sb-${p.id}')">
-        <div class="ped-cli">${p.cliente_nom}
-          ${p.numero_pedido ? `<span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--cream2);margin-left:8px">${p.numero_pedido}</span>` : ''}
+        <div class="ped-cli">${pmEsc(p.cliente_nom)}
+          ${p.numero_pedido ? `<span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--cream2);margin-left:8px">${pmEsc(p.numero_pedido)}</span>` : ''}
           ${lineas.length ? `<span style="font-size:10px;color:var(--cream2);margin-left:6px">(${lineas.length} producto${lineas.length!==1?'s':''})</span>` : ''}
         </div>
         <div class="ped-meta">${pmFmtDateShort(p.fecha||p.date)}</div>
@@ -134,8 +134,8 @@ async function pcRender() {
         ${lineasHtml}
         <div class="row" style="margin-top:10px;gap:6px">
           <select title="Método de pago" onchange="pcSetMetodoPago('${p.id}',this.value)" style="font-size:12px;flex:0 0 auto">${pmMetodoPagoOpts(_pcMetodoPagoSel[p.id])}</select>
-          <select onchange="pcChgSt('${p.id}',this.value,'${(p.cliente_nom||'').replace(/'/g,"\\'")}')" style="flex:1;font-size:12px">${estOpts}</select>
-          <button class="btn btn-out btn-sm" onclick="pcOpenLinea('${p.id}','${p.cliente_id||''}','${(p.cliente_nom||'').replace(/'/g,"\\'")}')">+ Producto</button>
+          <select onchange="pcChgSt('${p.id}',this.value,'${pmEsc((p.cliente_nom||'').replace(/'/g,"\\'"))}')" style="flex:1;font-size:12px">${estOpts}</select>
+          <button class="btn btn-out btn-sm" onclick="pcOpenLinea('${p.id}','${p.cliente_id||''}','${pmEsc((p.cliente_nom||'').replace(/'/g,"\\'"))}')">+ Producto</button>
           <button class="btn btn-red btn-sm" onclick="pcDel('${p.id}')">🗑</button>
         </div>
       </div>

@@ -373,6 +373,17 @@ function pmHoy() {
 }
 function pmMoney(n) { return '₡' + Number(n||0).toLocaleString('es-CR'); }
 
+// Escapa texto libre antes de insertarlo en innerHTML (nombres de cliente,
+// notas, instrucciones, observaciones, etc.). Úsese en TODO texto que no
+// haya sido escrito por el código mismo — cualquier dato que venga de un
+// formulario (staff o cliente externo) o de Supabase debe pasar por acá
+// antes de ir a un template literal que se asigna a innerHTML.
+function pmEsc(str) {
+  return String(str ?? '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
 // FIX D3: selector de método de pago — valores EXACTOS que acepta el
 // constraint ventas_metodo_pago_check en Supabase (confirmado por SQL):
 // 'efectivo' | 'sinpe' | 'transferencia' | 'otro'. No agregar otros
