@@ -322,7 +322,7 @@ function ppCard(p) {
       lineasHtml += `<tr id="lr-${l.lid}" style="border-bottom:1px solid var(--border)">
         <td style="padding:6px 10px;font-weight:600">${nom}</td>
         <td style="padding:6px 10px"><strong>${l.cant}</strong></td>
-        <td style="padding:6px 10px">${l.inst?`<span style="font-size:11px;color:var(--blue)">📌 ${l.inst}</span>`:''}</td>
+        <td style="padding:6px 10px">${l.inst?`<span style="font-size:11px;color:var(--blue)">📌 ${pmEsc(l.inst)}</span>`:''}</td>
         ${locked
           ? `<td colspan="2" style="padding:6px 10px;font-size:11px;color:var(--cream2)">🔒 Bloqueado</td>`
           : `<td style="padding:6px 4px"><button class="btn btn-out btn-sm" onclick="ppEditLinea(${p.id},'${l.lid}')">✏</button></td>
@@ -369,10 +369,10 @@ function ppCard(p) {
   return `<div class="ped-card" id="card-${p.id}" style="margin-bottom:14px;border-radius:12px;overflow:hidden;border:1px solid var(--border)">
     <div style="display:flex;justify-content:space-between;align-items:center;background:var(--sf);padding:11px 16px;gap:10px;flex-wrap:wrap;cursor:pointer" onclick="ppToggle(${p.id})">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-        <span style="font-family:'Playfair Display',serif;font-size:15px;color:var(--cream);font-weight:700">👤 ${p.cli}</span>
+        <span style="font-family:'Playfair Display',serif;font-size:15px;color:var(--cream);font-weight:700">👤 ${pmEsc(p.cli)}</span>
         ${p.cliId ? (() => {
           const nomCli = p.cliNom || (_sbCliCache||[]).find(c=>c.id===p.cliId)?.nombre || '';
-          return `<span style="font-size:10px;color:var(--green);background:rgba(22,163,74,.1);border:1px solid rgba(22,163,74,.2);border-radius:8px;padding:1px 7px">✓ ${p.cliCod||''} ${nomCli}</span>`;
+          return `<span style="font-size:10px;color:var(--green);background:rgba(22,163,74,.1);border:1px solid rgba(22,163,74,.2);border-radius:8px;padding:1px 7px">✓ ${pmEsc(p.cliCod||'')} ${pmEsc(nomCli)}</span>`;
         })() : ''}
         <span style="font-size:12px;font-weight:600;color:var(--gold)" id="ct-${p.id}">${totCli} unidad(es)</span>
         ${pmBadge(p.status)}
@@ -414,7 +414,7 @@ async function ppVincularCliente(pedId) {
     return;
   }
   if (!clientes || !clientes.length) {
-    res.innerHTML = `<div style="color:var(--cream2);font-size:12px;padding:8px 0">No hay clientes en el maestro aún.<br>Usá <b>+ Crear cliente nuevo</b> para agregar a <b>${p.cli}</b>.</div>`;
+    res.innerHTML = `<div style="color:var(--cream2);font-size:12px;padding:8px 0">No hay clientes en el maestro aún.<br>Usá <b>+ Crear cliente nuevo</b> para agregar a <b>${pmEsc(p.cli)}</b>.</div>`;
     return;
   }
   const q = p.cli.toLowerCase();
@@ -430,11 +430,11 @@ async function ppVincularCliente(pedId) {
     ${coincidencias.map(c => `
       <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;background:var(--sf);border-radius:8px;margin-bottom:6px;border:1px solid var(--border)">
         <div>
-          <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--cream2)">${c.codigo}</span>
-          <span style="font-weight:600;margin-left:8px">${c.nombre}</span>
-          <span style="font-size:10px;color:var(--cream2);margin-left:6px">${c.tipo||'regular'}</span>
+          <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--cream2)">${pmEsc(c.codigo)}</span>
+          <span style="font-weight:600;margin-left:8px">${pmEsc(c.nombre)}</span>
+          <span style="font-size:10px;color:var(--cream2);margin-left:6px">${pmEsc(c.tipo||'regular')}</span>
         </div>
-        <button class="btn btn-gold btn-sm" onclick="ppConfirmarVinculo(${pedId},'${c.id}','${c.codigo}','${c.nombre.replace(/'/g,"\\'")}')">
+        <button class="btn btn-gold btn-sm" onclick="ppConfirmarVinculo(${pedId},'${c.id}','${pmEsc(c.codigo)}','${pmEsc(c.nombre.replace(/'/g,"\\'"))}')">
           Vincular
         </button>
       </div>`).join('')}`;
