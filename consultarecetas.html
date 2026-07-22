@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Consulta de Recetas · PanMaestro</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root{
     --masa:#F6F0E4;
@@ -205,6 +206,31 @@
 </style>
 </head>
 <body>
+
+<!-- ═══ 🔐 LOGIN (gate) ═══ -->
+<div id="cr-login" style="display:none;position:fixed;inset:0;background:var(--masa);z-index:9000;
+  align-items:center;justify-content:center;padding:20px">
+  <div style="width:100%;max-width:320px;font-family:inherit">
+    <div style="text-align:center;margin-bottom:20px">
+      <div style="font-size:36px">🔍🍞</div>
+      <h1 style="margin:0">Consulta de Recetas</h1>
+    </div>
+    <div id="cr-login-error" style="display:none;background:#FBEAEA;border:1px solid var(--rojo);
+      color:var(--rojo);border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:14px"></div>
+    <input type="email" id="cr-login-email" placeholder="tu@email.com" autocomplete="email"
+      style="width:100%;padding:10px;margin-bottom:10px;border:1px solid var(--linea);border-radius:8px;font-size:14px"
+      onkeydown="if(event.key==='Enter')crLoginSubmit()">
+    <input type="password" id="cr-login-pass" placeholder="••••••••" autocomplete="current-password"
+      style="width:100%;padding:10px;margin-bottom:14px;border:1px solid var(--linea);border-radius:8px;font-size:14px"
+      onkeydown="if(event.key==='Enter')crLoginSubmit()">
+    <button id="cr-login-btn" onclick="crLoginSubmit()"
+      style="width:100%;padding:11px;background:var(--gold);color:#fff;font-weight:600;font-size:14px;
+      border:none;border-radius:8px;cursor:pointer">Entrar</button>
+    <div id="cr-login-loading" style="display:none;text-align:center;color:var(--gold-dark);font-size:12px;margin-top:10px">Verificando...</div>
+  </div>
+</div>
+
+<div id="app-root" style="display:none">
 <div class="wrap">
   <header>
     <div class="icon">🔍🍞</div>
@@ -259,12 +285,59 @@
 <script>
 const SB_URL = 'https://xmhokxmuxfkfypttvkjz.supabase.co';
 const SB_KEY = 'sb_publishable_pmKVIGa_lNxtzRos-iY_0Q_LXEcj77v';
+const sb = supabase.createClient(SB_URL, SB_KEY);
 
 const $ = id => document.getElementById(id);
 
+// ─── Gate de sesión ───
+function _crMostrarApp() {
+  document.getElementById('cr-login').style.display = 'none';
+  document.getElementById('app-root').style.display = '';
+}
+function _crMostrarLogin() {
+  document.getElementById('cr-login').style.display = 'flex';
+  document.getElementById('app-root').style.display = 'none';
+}
+async function crLoginSubmit() {
+  const email = document.getElementById('cr-login-email').value.trim();
+  const pass  = document.getElementById('cr-login-pass').value;
+  const errEl = document.getElementById('cr-login-error');
+  const btnEl = document.getElementById('cr-login-btn');
+  const ldEl  = document.getElementById('cr-login-loading');
+  errEl.style.display = 'none';
+  if (!email || !pass) {
+    errEl.textContent = 'Completá email y contraseña.';
+    errEl.style.display = 'block';
+    return;
+  }
+  btnEl.style.display = 'none';
+  ldEl.style.display = 'block';
+  try {
+    const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+    if (error) throw error;
+    _crMostrarApp();
+  } catch(e) {
+    errEl.textContent = e.message === 'Invalid login credentials'
+      ? 'Email o contraseña incorrectos.' : e.message;
+    errEl.style.display = 'block';
+    btnEl.style.display = 'block';
+    ldEl.style.display = 'none';
+  }
+}
+async function _crCheckSession() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) {
+    sb.auth.onAuthStateChange((event) => { if (event === 'SIGNED_OUT') _crMostrarLogin(); });
+    return true;
+  }
+  return false;
+}
+
 async function sbGet(path) {
+  const { data: { session } } = await sb.auth.getSession();
+  const token = session?.access_token || SB_KEY;
   const res = await fetch(`${SB_URL}/rest/v1/${path}`, {
-    headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` }
+    headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${token}` }
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const text = await res.text();
@@ -361,6 +434,12 @@ async function buscarReceta() {
 }
 
 $('inp-codigo').addEventListener('keydown', e => { if (e.key === 'Enter') buscarReceta(); });
+
+_crCheckSession().then(tieneSession => {
+  if (tieneSession) _crMostrarApp();
+  else _crMostrarLogin();
+});
 </script>
+</div><!-- /app-root -->
 </body>
 </html>

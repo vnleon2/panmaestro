@@ -70,6 +70,27 @@
 </head>
 <body>
 
+<!-- ═══ 🔐 LOGIN (gate) ═══ -->
+<div id="ep-login" style="display:none;position:fixed;inset:0;background:#F4F6F9;z-index:9000;
+  align-items:center;justify-content:center;padding:20px">
+  <div style="width:100%;max-width:320px">
+    <h1 style="text-align:center">Etiquetas de producto</h1>
+    <div id="ep-login-error" style="display:none;background:#FCEBEB;border:1px solid #E24B4A;
+      color:#A32D2D;border-radius:6px;padding:10px 14px;font-size:13px;margin:14px 0"></div>
+    <label for="ep-login-email">Email</label>
+    <input type="email" id="ep-login-email" placeholder="tu@email.com" autocomplete="email"
+      onkeydown="if(event.key==='Enter')epLoginSubmit()">
+    <label for="ep-login-pass">Contraseña</label>
+    <input type="password" id="ep-login-pass" placeholder="••••••••" autocomplete="current-password"
+      onkeydown="if(event.key==='Enter')epLoginSubmit()">
+    <button id="ep-login-btn" onclick="epLoginSubmit()"
+      style="width:100%;padding:11px;margin-top:16px;background:#185FA5;color:#fff;font-weight:600;
+      font-size:14px;border:none;border-radius:6px;cursor:pointer">Entrar</button>
+    <div id="ep-login-loading" style="display:none;text-align:center;color:#666;font-size:12px;margin-top:10px">Verificando...</div>
+  </div>
+</div>
+
+<div id="app-root" style="display:none">
 <h1>Etiquetas de producto</h1>
 <p class="sub">Genera etiquetas 7x4cm para producción genérica (sin cliente)</p>
 
@@ -112,6 +133,51 @@
 const SUPABASE_URL = "https://xmhokxmuxfkfypttvkjz.supabase.co";
 const SUPABASE_KEY = "sb_publishable_pmKVIGa_lNxtzRos-iY_0Q_LXEcj77v";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ─── Gate de sesión ───
+function _epMostrarApp() {
+  document.getElementById('ep-login').style.display = 'none';
+  document.getElementById('app-root').style.display = '';
+}
+function _epMostrarLogin() {
+  document.getElementById('ep-login').style.display = 'flex';
+  document.getElementById('app-root').style.display = 'none';
+}
+async function epLoginSubmit() {
+  const email = document.getElementById('ep-login-email').value.trim();
+  const pass  = document.getElementById('ep-login-pass').value;
+  const errEl = document.getElementById('ep-login-error');
+  const btnEl = document.getElementById('ep-login-btn');
+  const ldEl  = document.getElementById('ep-login-loading');
+  errEl.style.display = 'none';
+  if (!email || !pass) {
+    errEl.textContent = 'Completá email y contraseña.';
+    errEl.style.display = 'block';
+    return;
+  }
+  btnEl.style.display = 'none';
+  ldEl.style.display = 'block';
+  try {
+    const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+    if (error) throw error;
+    _epMostrarApp();
+    cargarCatalogo();
+  } catch(e) {
+    errEl.textContent = e.message === 'Invalid login credentials'
+      ? 'Email o contraseña incorrectos.' : e.message;
+    errEl.style.display = 'block';
+    btnEl.style.display = 'block';
+    ldEl.style.display = 'none';
+  }
+}
+async function _epCheckSession() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) {
+    sb.auth.onAuthStateChange((event) => { if (event === 'SIGNED_OUT') _epMostrarLogin(); });
+    return true;
+  }
+  return false;
+}
 
 let productos = [];
 let actual = null;
@@ -202,8 +268,12 @@ $('peso').addEventListener('input', actualizarPreview);
 $('precio').addEventListener('input', actualizarPreview);
 $('btn-imprimir').addEventListener('click', imprimir);
 
-cargarCatalogo();
+_epCheckSession().then(tieneSession => {
+  if (tieneSession) { _epMostrarApp(); cargarCatalogo(); }
+  else { _epMostrarLogin(); }
+});
 </script>
+</div><!-- /app-root -->
 
 </body>
 </html>
