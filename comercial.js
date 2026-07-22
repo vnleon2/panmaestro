@@ -280,12 +280,13 @@ async function pcOpenLinea(pedId) {
   mOpen('m-lc');
 
   // Asegurar que tengamos mapa de productos y precios especiales — si hay
-  // conexión los refresca, si no usa lo que ya esté cacheado localmente.
+  // conexión SIEMPRE se refresca al abrir (no se confía en si la caché ya
+  // se disparó antes en segundo plano, para no toparse con un selector
+  // abierto justo antes de que esa carga terminara). Si no hay conexión,
+  // usa lo que ya esté cacheado localmente.
   if (pmDB.disponible()) {
     await _sbProdEnsureMap().catch(()=>{});
-    if (!_sbPreciosClienteCache && !G.preciosClienteCache?.length) {
-      await _sbPreciosClienteCargar().catch(()=>{});
-    }
+    await _sbPreciosClienteCargar().catch(()=>{});
   }
 
   const prods = [...(G.tiposPan||[]), ...(G.tiposGalleta||[])];
@@ -314,6 +315,26 @@ async function pcOpenLinea(pedId) {
     document.getElementById('lc-precio-info').textContent =
       full !== ef ? `Precio normal ₡${full} → precio cliente ₡${ef}${desc?' (−'+desc+'%)':''}` : `Precio normal ₡${full}`;
   };
+}
+
+// ── Autorreparación de pedidos huérfanos ─────────────────────────────────
+// Si Supabase rechaza una escritura porque el pedido_id ya no existe
+// (23503 = violación de llave foránea) — por ejemplo, alguien borró la
+// fila directo desde el panel de Supabase — el pedido local queda
+// "colgado" apuntando a una fila muerta. En vez de fallar cada vez, se
+// detecta este caso puntual y se recrea el pedido en Supabase (con un
+// _sbId y numPed nuevos) antes de reintentar.
+function _pcEsErrorPedidoInexistente(e) {
+  const m = ((e && e.message) || '').toLowerCase();
+  return m.includes('23503') && m.includes('pedidos');
+}
+async function _pcRecrearSiHuerfano(p, e) {
+  if (!_pcEsErrorPedidoInexistente(e)) return false;
+  console.warn('[pmDB] pedido huérfano (ya no existe en Supabase) — recreando:', p.id);
+  p._sbId = null; p.numPed = null;
+  p._sbCreatePromise = _pcCrearEnSupabase(p);
+  await p._sbCreatePromise.catch(()=>{});
+  return !!p._sbId;
 }
 
 // ── Guardar línea de pedido (local-first) ──
@@ -345,10 +366,22 @@ function lcSave() {
     let prodSbId = sbId || _sbProdMap?.[pid];
     if (!prodSbId) { await _sbProdEnsureMap(true).catch(()=>{}); prodSbId = _sbProdMap?.[pid]; }
     if (!prodSbId) throw new Error('producto no sincronizado con Supabase todavía');
-    const rows = await pmDB.pedidos.lineas.agregar({
-      pedido_id: p._sbId, producto_id: prodSbId,
-      cantidad: cant, precio_applied: precio, descuento_pct: desc
-    });
+    let rows;
+    try {
+      rows = await pmDB.pedidos.lineas.agregar({
+        pedido_id: p._sbId, producto_id: prodSbId,
+        cantidad: cant, precio_applied: precio, descuento_pct: desc
+      });
+    } catch(e) {
+      if (await _pcRecrearSiHuerfano(p, e)) {
+        rows = await pmDB.pedidos.lineas.agregar({
+          pedido_id: p._sbId, producto_id: prodSbId,
+          cantidad: cant, precio_applied: precio, descuento_pct: desc
+        });
+      } else {
+        throw e;
+      }
+    }
     if (rows?.[0]) linea._sbId = rows[0].id;
     const totalActual = pmTotalCom(p);
     await pmDB.update('pedidos', p._sbId, { total: totalActual });
