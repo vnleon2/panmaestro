@@ -40,15 +40,9 @@ function prodGetPlan(fecha) {
 async function prodRenderConSb() {
   const fecha = document.getElementById('prod-date').value || pmHoy();
   await prodCargarDesdeSb(fecha);
-  // Cargar pedidos comerciales del día desde Supabase
-  let pedsCom = [];
-  if (pmDB.disponible()) {
-    try {
-      await _sbProdEnsureMap();
-      const todos  = _sbPedComCache || await _sbPedComCargar();
-      pedsCom = todos.filter(p => (p.fecha||p.date) === fecha && _docEstaAbierto(p));
-    } catch(e) { console.warn('[prodRenderConSb] pedsCom:', e.message); }
-  }
+  // Pedidos comerciales del día — ahora viven local en G.pedidosCom
+  // (punto 7 del plan de auditoría: comercial.js pasó a local-first).
+  const pedsCom = G.pedidosCom.filter(p => p.date === fecha && _docEstaAbierto(p));
   prodRender(pedsCom);
 }
 
@@ -69,12 +63,11 @@ function prodRender(pedsCom = []) {
 
   // Sumar pedidos comerciales del día
   pedsCom.forEach(p => {
-    (p._lineasSb || []).forEach(l => {
-      const cod = _sbProdMapInv?.[l.producto_id] || '';
-      if (!cod) return;
-      if (!byProd[cod]) byProd[cod] = { pedido:0, clientes:[] };
-      byProd[cod].pedido += (l.cantidad||1);
-      byProd[cod].clientes.push({ cli: p.cliente_nom + ' 🏪', cant: l.cantidad||1, inst: '' });
+    (p.lineas || []).forEach(l => {
+      if (!l.pid) return;
+      if (!byProd[l.pid]) byProd[l.pid] = { pedido:0, clientes:[] };
+      byProd[l.pid].pedido += (l.cant||1);
+      byProd[l.pid].clientes.push({ cli: p.cliNom + ' 🏪', cant: l.cant||1, inst: '' });
     });
   });
 

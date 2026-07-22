@@ -298,7 +298,14 @@ const pmDB = (() => {
         { cliente_id: clienteId, producto_id: productoId, activo: true }
       );
       return data?.[0] || null;
-    }
+    },
+    /**
+     * Todos los precios especiales de todos los clientes en una sola
+     * consulta — para cachear localmente y que funcione offline
+     * (punto 7 del plan de auditoría), en vez de pedir por cliente cada
+     * vez que se abre un pedido comercial.
+     */
+    listarTodosPrecios: () => get('precios_cliente', { activo: true })
   };
 
   // ── PEDIDOS ───────────────────────────────────────────────────────────────

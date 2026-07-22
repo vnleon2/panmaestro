@@ -199,16 +199,61 @@ function planLibreLimpiar() {
 let _sbCliCache = null;
 
 // ── Cargar clientes desde Supabase ──
+// Punto 7 del plan de auditoría: antes esto vivía SOLO en memoria — si no
+// había conexión (incluso al recargar la página), el selector de cliente
+// quedaba vacío sin remedio. Ahora se persiste en G.clientesCache
+// (localStorage) y se usa como respaldo offline.
 async function _sbCliCargar() {
-  if (!pmDB.disponible()) return [];
+  if (!pmDB.disponible()) {
+    _sbCliCache = G.clientesCache || [];
+    return _sbCliCache;
+  }
   try {
     const rows = await pmDB.clientes.listar();
     _sbCliCache = rows || [];
+    G.clientesCache = _sbCliCache;
+    pmSave('clientes');
+    // Refrescar precios especiales en segundo plano — no bloquea el
+    // selector de clientes, que ya puede mostrarse con lo de arriba.
+    _sbPreciosClienteCargar().catch(()=>{});
     return _sbCliCache;
   } catch(e) {
     console.warn('[pmDB] cliCargar:', e.message);
-    return [];
+    _sbCliCache = G.clientesCache || [];
+    return _sbCliCache;
   }
+}
+
+// ── Cargar TODOS los precios especiales (punto 7) ──────────────────────
+// Antes se pedían uno por uno por cliente (pmDB.get('precios_cliente',
+// {cliente_id})) justo al abrir un pedido comercial — si no había señal
+// en ESE momento, no se veía ningún precio especial. Ahora se trae todo
+// de una vez cuando hay conexión y se guarda en G.preciosClienteCache
+// para usar offline después.
+let _sbPreciosClienteCache = null;
+async function _sbPreciosClienteCargar() {
+  if (!pmDB.disponible()) {
+    _sbPreciosClienteCache = G.preciosClienteCache || [];
+    return _sbPreciosClienteCache;
+  }
+  try {
+    const rows = await pmDB.clientes.listarTodosPrecios();
+    _sbPreciosClienteCache = rows || [];
+    G.preciosClienteCache = _sbPreciosClienteCache;
+    pmSave('clientes');
+    return _sbPreciosClienteCache;
+  } catch(e) {
+    console.warn('[pmDB] preciosClienteCargar:', e.message);
+    _sbPreciosClienteCache = G.preciosClienteCache || [];
+    return _sbPreciosClienteCache;
+  }
+}
+
+// Buscar el precio especial de un cliente para un producto en la caché
+// local — funciona offline. Devuelve la fila de precios_cliente o null.
+function _precioClienteLocal(clienteId, productoId) {
+  const rows = _sbPreciosClienteCache || G.preciosClienteCache || [];
+  return rows.find(r => r.cliente_id === clienteId && r.producto_id === productoId) || null;
 }
 
 // ── Generar próximo código ──

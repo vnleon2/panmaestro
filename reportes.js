@@ -9,25 +9,28 @@ function _docEstaAbierto(p) {
 }
 
 async function repDocumentosRender() {
-  const pedidos = (_sbPedComCache || await _sbPedComCargar())
+  // Punto 7 del plan de auditoría: los pedidos comerciales ahora viven
+  // local en G.pedidosCom (comercial.js pasó a local-first), así que ya
+  // no hace falta pedirlos a Supabase acá.
+  const pedidos = G.pedidosCom
     .filter(_docEstaAbierto)
-    .sort((a,b) => (b.numero_pedido||'').localeCompare(a.numero_pedido||''));
+    .sort((a,b) => (b.numPed||'').localeCompare(a.numPed||''));
 
   if (!pedidos.length) {
     return '<div class="ph" style="padding:24px"><span class="ph-icon">📄</span>No hay pedidos comerciales abiertos</div>';
   }
 
   const filas = pedidos.map(p => {
-    const lineas = p._lineasSb || [];
-    const tot    = lineas.reduce((s,l) => s + (l.precio_applied||0)*(l.cantidad||1), 0);
+    const lineas = p.lineas || [];
+    const tot    = pmTotalCom(p);
     const items  = lineas.length;
     return `<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border)">
       <input type="checkbox" class="doc-check" value="${p.id}"
         style="width:18px;height:18px;accent-color:var(--gold);cursor:pointer;flex-shrink:0">
       <div style="flex:1;min-width:0">
-        <div style="font-weight:600;font-size:14px">${pmEsc(p.cliente_nom)}</div>
+        <div style="font-weight:600;font-size:14px">${pmEsc(p.cliNom)}</div>
         <div style="font-size:11px;color:var(--cream2);margin-top:2px">
-          ${pmFmtDateShort(p.fecha)} · ${p.numero_pedido||''} · ${items} producto${items!==1?'s':''} · ₡${pmMoney(tot)}
+          ${pmFmtDateShort(p.date)} · ${p.numPed||'pendiente'} · ${items} producto${items!==1?'s':''} · ₡${pmMoney(tot)}
         </div>
       </div>
       <span style="font-size:11px;font-weight:600;padding:2px 10px;border-radius:10px;border:1px solid var(--border);color:var(--cream2)">${p.status}</span>
@@ -59,7 +62,7 @@ function docSelTodos() {
 function _docGetSeleccionados() {
   const ids = [...document.querySelectorAll('.doc-check:checked')].map(c => c.value);
   if (!ids.length) { pmToast('Seleccioná al menos un pedido', 'err'); return null; }
-  return ids.map(id => (_sbPedComCache||[]).find(p => p.id === id)).filter(Boolean);
+  return ids.map(id => G.pedidosCom.find(p => String(p.id) === String(id))).filter(Boolean);
 }
 
 function docImprimirNota() {
@@ -108,7 +111,7 @@ function _docAbrir(peds, tipo) {
     const docNum = String(p.id).slice(-6).padStart(6,'0');
     const lineas = (p.lineas || []).map(l => {
       const nombre = pmNombrePan(l.pid);
-      const precio = l.precioAplicado || pmPrecioPan(l.pid) * (1-(l.desc||0)/100);
+      const precio = l.precio != null ? l.precio : pmPrecioPan(l.pid) * (1-(l.desc||0)/100);
       const subtot = precio * (l.cant||1);
       const precioCol = esFactura
         ? `<td class="r">₡${precio.toLocaleString('es-CR')}</td><td class="r">₡${subtot.toLocaleString('es-CR')}</td>`
@@ -145,7 +148,7 @@ function _docAbrir(peds, tipo) {
         </div>
       </div>
       <div class="meta">
-        <div class="meta-block"><label>Cliente</label><div class="val">${pmEsc(p.cliente_nom)}</div></div>
+        <div class="meta-block"><label>Cliente</label><div class="val">${pmEsc(p.cliNom)}</div></div>
         <div class="meta-block"><label>Fecha</label><div class="val">${fecha}</div></div>
         <div class="meta-block"><label>Estado</label><div class="val">${p.status}</div></div>
       </div>
@@ -687,38 +690,35 @@ function repGall(fecha) {
 }
 
 async function repCom(fecha) {
-  const todos = _sbPedComCache || await _sbPedComCargar();
-  const peds  = todos.filter(p => (p.fecha||p.date) === fecha);
+  // Punto 7 del plan de auditoría: pedidos comerciales ahora viven local
+  // en G.pedidosCom — ya no hace falta pedirlos a Supabase acá.
+  const peds = G.pedidosCom.filter(p => p.date === fecha);
   if (!peds.length) return `<div class="ph"><span class="ph-icon">🏪</span>Sin pedidos comerciales para ${pmFmtDate(fecha)}</div>`;
 
-  await _sbProdEnsureMap();
   const prods = [...(G.tiposPan||[]), ...(G.tiposGalleta||[])];
-  const getProd = uuid => {
-    const cod = _sbProdMapInv?.[uuid] || '';
-    return prods.find(p => p.id === cod) || { nombre: uuid, precio: 0 };
-  };
+  const getProd = pid => prods.find(p => p.id === pid) || { nombre: pid || '(producto)', precio: 0 };
 
   const todosOpt = `<option value="">— Todos los clientes —</option>`;
-  const cliOpts  = peds.map(p => `<option value="${p.id}">${pmEsc(p.cliente_nom)}${p.numero_pedido?' ('+pmEsc(p.numero_pedido)+')':''}</option>`).join('');
+  const cliOpts  = peds.map(p => `<option value="${p.id}">${pmEsc(p.cliNom)}${p.numPed?' ('+pmEsc(p.numPed)+')':''}</option>`).join('');
 
   const filtroEl    = document.getElementById('rep-com-filtro');
   const filtroPedId = filtroEl ? filtroEl.value || '' : '';
-  const pedsFiltro  = filtroPedId ? peds.filter(p => p.id === filtroPedId) : peds;
+  const pedsFiltro  = filtroPedId ? peds.filter(p => String(p.id) === String(filtroPedId)) : peds;
 
   let totalGlobal = 0;
   const bloques = pedsFiltro.map(p => {
-    const lineas = p._lineasSb || [];
-    const tot    = lineas.reduce((s,l) => s + (l.precio_applied||0)*(l.cantidad||1), 0);
+    const lineas = p.lineas || [];
+    const tot    = pmTotalCom(p);
     totalGlobal += tot;
 
     const rows = lineas.map(l => {
-      const prod   = getProd(l.producto_id);
-      const pr     = l.precio_applied || 0;
-      const subtot = pr * (l.cantidad||1);
+      const prod   = getProd(l.pid);
+      const pr     = l.precio || 0;
+      const subtot = pr * (l.cant||1);
       return `<tr>
-        <td>${prod.nombre}</td>
-        <td style="text-align:center;font-family:'DM Mono',monospace;font-weight:700">${l.cantidad}</td>
-        <td style="text-align:right;color:var(--cream2);font-family:'DM Mono',monospace">${l.descuento_pct||0}%</td>
+        <td>${pmEsc(prod.nombre)}</td>
+        <td style="text-align:center;font-family:'DM Mono',monospace;font-weight:700">${l.cant}</td>
+        <td style="text-align:right;color:var(--cream2);font-family:'DM Mono',monospace">${l.desc||0}%</td>
         <td style="text-align:right;font-family:'DM Mono',monospace">₡${pmMoney(pr)}</td>
         <td style="text-align:right;font-family:'DM Mono',monospace;font-weight:700;color:var(--gold)">₡${pmMoney(subtot)}</td>
       </tr>`;
@@ -727,9 +727,9 @@ async function repCom(fecha) {
     return `<div style="background:var(--sf);border-radius:12px;padding:16px;margin-bottom:12px;border:1px solid var(--border)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <div>
-          <div style="font-weight:700;font-size:15px">${pmEsc(p.cliente_nom)}</div>
+          <div style="font-weight:700;font-size:15px">${pmEsc(p.cliNom)}</div>
           <div style="font-size:11px;color:var(--cream2);margin-top:2px">
-            ${pmFmtDate(fecha)} · ${p.numero_pedido||''} · ${pmBadge(p.status)}
+            ${pmFmtDate(fecha)} · ${p.numPed||'pendiente'} · ${pmBadge(p.status)}
           </div>
         </div>
         <div style="font-family:'DM Mono',monospace;font-size:18px;font-weight:900;color:var(--gold)">₡${pmMoney(tot)}</div>
@@ -744,7 +744,7 @@ async function repCom(fecha) {
         </tr></thead>
         <tbody>${rows}</tbody>
         <tfoot><tr style="border-top:2px solid var(--border)">
-          <td colspan="4" style="padding:8px;font-weight:700">Total ${pmEsc(p.cliente_nom)}</td>
+          <td colspan="4" style="padding:8px;font-weight:700">Total ${pmEsc(p.cliNom)}</td>
           <td style="padding:8px;text-align:right;font-family:'DM Mono',monospace;font-weight:900;color:var(--gold)">₡${pmMoney(tot)}</td>
         </tr></tfoot>
       </table>
@@ -826,33 +826,33 @@ async function repComImprimir(peds, tipo) {
   `;
 
   const paginas = lista.map(p => {
-    const docNum  = esFactura ? (p.numFac || 'FAC-???????') : (p.numero_pedido || 'PED-???????');
-    const fecha   = pmFmtDateShort ? pmFmtDateShort(p.fecha||p.date) : (p.fecha||p.date);
-    const lineas  = p._lineasSb || [];
+    const docNum  = esFactura ? (p.numFac || 'FAC-???????') : (p.numPed || 'PED-???????');
+    const fecha   = pmFmtDateShort ? pmFmtDateShort(p.date) : p.date;
+    const lineas  = p.lineas || [];
 
     const filas = lineas.map(l => {
-      const prod   = (() => { const cod = _sbProdMapInv?.[l.producto_id]||''; return [...(G.tiposPan||[]),...(G.tiposGalleta||[])].find(x=>x.id===cod)||{nombre:l.producto_id,precio:0}; })();
+      const prod   = [...(G.tiposPan||[]),...(G.tiposGalleta||[])].find(x=>x.id===l.pid) || { nombre: l.pid, precio: 0 };
       const nombre = prod.nombre;
-      const cant   = l.cantidad || 1;
+      const cant   = l.cant || 1;
       if (esFactura) {
-        const precio = l.precio_applied || 0;
+        const precio = l.precio || 0;
         const subtot = precio * cant;
         return `<tr>
-          <td>${nombre}</td>
+          <td>${pmEsc(nombre)}</td>
           <td class="r">${cant}</td>
           <td class="r">₡${precio.toLocaleString('es-CR',{minimumFractionDigits:0})}</td>
           <td class="r">₡${subtot.toLocaleString('es-CR',{minimumFractionDigits:0})}</td>
         </tr>`;
       } else {
         return `<tr>
-          <td>${nombre}</td>
+          <td>${pmEsc(nombre)}</td>
           <td class="r">${cant}</td>
         </tr>`;
       }
     }).join('');
 
     const totalRow = esFactura ? (() => {
-      const tot = lineas.reduce((s,l) => s + (l.precio_applied||0) * (l.cantidad||1), 0);
+      const tot = pmTotalCom(p);
       return `<tr class="total-row">
         <td colspan="2">Total</td>
         <td class="r"></td>
@@ -876,10 +876,10 @@ async function repComImprimir(peds, tipo) {
         </div>
       </div>
       <div class="meta">
-        <div class="meta-item"><label>Cliente</label><div class="val">${pmEsc(p.cliente_nom)}</div></div>
+        <div class="meta-item"><label>Cliente</label><div class="val">${pmEsc(p.cliNom)}</div></div>
         <div class="meta-item"><label>Fecha</label><div class="val">${fecha}</div></div>
         <div class="meta-item"><label>Estado</label><div class="val">${p.status}</div></div>
-        ${esFactura && p.numero_pedido ? `<div class="meta-item"><label>N° Pedido</label><div class="val">${p.numero_pedido}</div></div>` : ''}
+        ${esFactura && p.numPed ? `<div class="meta-item"><label>N° Pedido</label><div class="val">${p.numPed}</div></div>` : ''}
       </div>
       <table>
         <thead><tr>
@@ -917,19 +917,16 @@ function repProduccion(fecha) {
     });
   });
 
-  // Sumar pedidos comerciales del día desde cache
-  if (_sbPedComCache) {
-    const comHoy = _sbPedComCache.filter(p => (p.fecha||p.date) === fecha && _docEstaAbierto(p));
-    comHoy.forEach(p => {
-      (p._lineasSb||[]).forEach(l => {
-        const cod = _sbProdMapInv?.[l.producto_id] || '';
-        if (!cod) return;
-        if (!byProd[cod]) byProd[cod] = { pedido:0, clientes:[] };
-        byProd[cod].pedido += (l.cantidad||1);
-        byProd[cod].clientes.push({ cli: p.cliente_nom + ' 🏪', cant: l.cantidad||1, inst: '', status: p.status });
-      });
+  // Sumar pedidos comerciales del día — ahora viven local en G.pedidosCom
+  const comHoy = G.pedidosCom.filter(p => p.date === fecha && _docEstaAbierto(p));
+  comHoy.forEach(p => {
+    (p.lineas||[]).forEach(l => {
+      if (!l.pid) return;
+      if (!byProd[l.pid]) byProd[l.pid] = { pedido:0, clientes:[] };
+      byProd[l.pid].pedido += (l.cant||1);
+      byProd[l.pid].clientes.push({ cli: p.cliNom + ' 🏪', cant: l.cant||1, inst: '', status: p.status });
     });
-  }
+  });
 
   // All pids: from orders + from plan
   const allPids = new Set([...Object.keys(byProd), ...Object.keys(plan)]);

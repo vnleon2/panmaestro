@@ -36,6 +36,8 @@ const SEED = {
   pedidosPan: [],
   pedidosGalletas: [],
   pedidosCom: [],
+  clientesCache: [],
+  preciosClienteCache: [],
   gastos: [],
   lastUpdated: '',
   lastUpdatedBy: ''
@@ -440,7 +442,15 @@ function pmTotalGall(ped) {
 }
 
 function pmTotalCom(ped) {
+  // Punto 7 del plan de auditoría: si la línea ya trae el precio capturado
+  // al momento del pedido (l.precio — como hacen ahora los pedidos
+  // comerciales local-first), se usa ese directo. Antes esta función
+  // siempre recalculaba desde el precio de catálogo actual + % de
+  // descuento, lo que perdía precisión con clientes que tienen un precio
+  // especial PLANO (no un % de descuento) — quedaba como respaldo para
+  // líneas viejas que no traigan l.precio.
   return (ped.lineas||[]).reduce((s,l) => {
+    if (l.precio != null) return s + l.precio * (l.cant||1);
     return s + pmPrecioPan(l.pid) * (1-(l.desc||0)/100) * (l.cant||1);
   }, 0);
 }
