@@ -102,6 +102,7 @@
     </div>
 
     <button class="ntab" data-tab="pg-etiquetas" onclick="showTab('pg-etiquetas');pmCloseNav()">🏷️ Etiquetas</button>
+    <button class="ntab" data-tab="pg-mercadeo" onclick="showTab('pg-mercadeo');pmCloseNav()">🎯 Mercadeo</button>
     <button class="ntab" onclick="pmOpenModule('utilidades.html');pmCloseNav()">🧮 Utilidades</button>
     <button class="ntab" onclick="pmOpenModule('labrec.html');pmCloseNav()">🧪 Laboratorio</button>
 </div>
@@ -1226,6 +1227,72 @@
   </div>
 </div>
 
+<!-- ═══ 🎯 Mercadeo ═══ -->
+<div class="page" id="pg-mercadeo">
+  <div class="pg-title">🎯 Mercadeo</div>
+  <div class="pg-sub">Categorías, estilos y atributos de producto — módulo independiente, no afecta Maestros ni Costeo</div>
+
+  <div class="pills" id="mkt-pills">
+    <button class="pill on" onclick="mktTab('cat',this)">🗂 Categorías</button>
+    <button class="pill" onclick="mktTab('est',this)">🌎 Estilos</button>
+    <button class="pill" onclick="mktTab('atr',this)">🏷 Atributos</button>
+    <button class="pill" onclick="mktTab('prod',this)">📦 Productos</button>
+  </div>
+
+  <!-- CATEGORÍAS -->
+  <div id="mktt-cat">
+    <div class="card">
+      <div class="ctitle">Nueva categoría</div>
+      <div class="row">
+        <div class="col xs"><label>Código</label><input type="text" id="mktcat-codigo" placeholder="MSAL" style="text-transform:uppercase"></div>
+        <div class="col"><label>Nombre</label><input type="text" id="mktcat-nombre" placeholder="Masas saladas"></div>
+        <div class="col xs"><label>Orden</label><input type="number" id="mktcat-orden" placeholder="1"></div>
+        <div class="col xs"><label>&nbsp;</label><button class="btn btn-gold" onclick="mktCatAdd()">+ Agregar</button></div>
+      </div>
+    </div>
+    <div class="sec"><h2 id="mktcat-count">Categorías</h2></div>
+    <div id="mktcat-list"></div>
+  </div>
+
+  <!-- ESTILOS -->
+  <div id="mktt-est" style="display:none">
+    <div class="card">
+      <div class="ctitle">Nuevo estilo</div>
+      <div class="row">
+        <div class="col xs"><label>Código</label><input type="text" id="mktest-codigo" placeholder="TICA" style="text-transform:uppercase"></div>
+        <div class="col"><label>Nombre</label><input type="text" id="mktest-nombre" placeholder="Costarricense (tica)"></div>
+        <div class="col xs"><label>Orden</label><input type="number" id="mktest-orden" placeholder="1"></div>
+        <div class="col xs"><label>&nbsp;</label><button class="btn btn-gold" onclick="mktEstAdd()">+ Agregar</button></div>
+      </div>
+    </div>
+    <div class="sec"><h2 id="mktest-count">Estilos</h2></div>
+    <div id="mktest-list"></div>
+  </div>
+
+  <!-- ATRIBUTOS -->
+  <div id="mktt-atr" style="display:none">
+    <div class="card">
+      <div class="ctitle">Nuevo atributo</div>
+      <div class="row">
+        <div class="col xs"><label>Código</label><input type="text" id="mktatr-codigo" placeholder="VEGANO" style="text-transform:uppercase"></div>
+        <div class="col"><label>Nombre</label><input type="text" id="mktatr-nombre" placeholder="Vegano"></div>
+        <div class="col xs"><label>Orden</label><input type="number" id="mktatr-orden" placeholder="1"></div>
+        <div class="col xs"><label>&nbsp;</label><button class="btn btn-gold" onclick="mktAtrAdd()">+ Agregar</button></div>
+      </div>
+    </div>
+    <div class="sec"><h2 id="mktatr-count">Atributos</h2></div>
+    <div id="mktatr-list"></div>
+  </div>
+
+  <!-- ASIGNACIÓN POR PRODUCTO -->
+  <div id="mktt-prod" style="display:none">
+    <div class="sec"><h2 id="mktprod-count">Productos</h2>
+      <div class="srch" style="width:160px"><input type="text" id="mktprod-search" placeholder="Buscar..." oninput="mktProdRender()"></div>
+    </div>
+    <div id="mktprod-list"></div>
+  </div>
+</div>
+
 </div><!-- /#app -->
 
 <div class="pm-toast" id="pm-toast"></div>
@@ -1280,6 +1347,8 @@
 <script src="catalogo.js"></script>
 
 <script src="etiquetas.js"></script>
+
+<script src="mercadeo.js"></script>
 
 <script src="plan_libre.js"></script>
 
