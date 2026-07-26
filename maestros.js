@@ -187,12 +187,27 @@ function panRecetaPopulate() {
     recetas.map(r => `<option value="${r.code}"${r.code===current?' selected':''}>${r.code} · ${r.name}</option>`).join('');
 }
 
-function panEdit(id) {
+async function panEdit(id) {
   const p = G.tiposPan.find(x => x.id===id);
   if (!p) return;
   document.querySelectorAll('.pan-edit-form').forEach(el => el.remove());
   const row = document.getElementById('pan-row-' + id);
   if (!row) { panRender(); return; }
+  // Punto 5 del plan de auditoría — optimistic locking: leemos el updated_at
+  // REAL de Supabase (no el de la copia local G.tiposPan, que puede estar
+  // desactualizada) con el que se abre este formulario.
+  if (!window._peEditUpdatedAt) window._peEditUpdatedAt = {};
+  window._peEditUpdatedAt[id] = null;
+  if (pmDB.disponible()) {
+    await _sbProdEnsureMap();
+    const uuidChk = _sbProdMap?.[id];
+    if (uuidChk) {
+      try {
+        const actual = await pmDB.productos.obtener(uuidChk);
+        window._peEditUpdatedAt[id] = actual?.updated_at || null;
+      } catch (e) { console.warn('[pmDB] panEdit — no se pudo leer updated_at:', e.message); }
+    }
+  }
   const recetas = _sbRecLista().filter(r => r.code && r.code.startsWith('R-'));
   const recOpts = '<option value="">— Sin receta —</option>' +
     recetas.map(r => `<option value="${r.code}"${r.code===(p.recetaCod||'')?' selected':''}>${r.code} · ${r.name}</option>`).join('');
@@ -228,7 +243,7 @@ function panEditCancelar() {
   document.querySelectorAll('.pan-edit-form').forEach(el => el.remove());
 }
 
-function panEditSave(id) {
+async function panEditSave(id) {
   const p = G.tiposPan.find(x => x.id===id);
   if (!p) return;
   const nom  = document.getElementById('pe-nom-'  + id)?.value.trim();
@@ -236,6 +251,33 @@ function panEditSave(id) {
   const peso = parseFloat(document.getElementById('pe-peso-' + id)?.value)||0;
   const rec  = document.getElementById('pe-rec-'  + id)?.value || '';
   if (!nom) { pmToast('El nombre no puede estar vacío','err'); return; }
+
+  // Punto 5 del plan de auditoría — optimistic locking: verificamos que
+  // nadie más haya cambiado este tipo de pan mientras lo editábamos.
+  if (pmDB.disponible()) {
+    await _sbProdEnsureMap();
+    const uuidChk = _sbProdMap?.[id];
+    const storedUpdatedAt = window._peEditUpdatedAt?.[id];
+    if (uuidChk && storedUpdatedAt) {
+      try {
+        const actual = await pmDB.productos.obtener(uuidChk);
+        if (actual && actual.updated_at && actual.updated_at !== storedUpdatedAt) {
+          pmMostrarConflicto(
+            `El tipo de pan "${p.nombre}" fue modificado en otro dispositivo o pestaña mientras lo editabas.`,
+            () => { panEditCancelar(); panEdit(id); }, // Recargar — descarta lo que escribiste acá
+            () => {
+              window._peEditUpdatedAt[id] = actual.updated_at;
+              panEditSave(id);
+            }
+          );
+          return; // pausar acá — no seguir guardando hasta que Victor elija
+        }
+      } catch (e) {
+        console.warn('[pmDB] panEditSave — verificación de conflicto falló, se guarda igual:', e.message);
+      }
+    }
+  }
+
   p.nombre = nom; p.precio = pr; p.peso = peso; p.recetaCod = rec;
   pmSave('sistema');
   panRender();
@@ -301,22 +343,57 @@ function gallRender() {
     </div>`).join('') || '<div class="ph"><span class="ph-icon">🍪</span>Sin tipos de galleta</div>';
 }
 
-function gallEdit(id) {
+async function gallEdit(id) {
   const p = G.tiposGalleta.find(x=>x.id===id);
   if (!p) return;
+
+  // Punto 5 del plan de auditoría — optimistic locking: leemos el updated_at
+  // REAL de Supabase ANTES de mostrar los prompts, para poder comparar
+  // después de que Victor confirme los valores.
+  let storedUpdatedAt = null, uuidChk = null;
+  if (pmDB.disponible()) {
+    await _sbProdEnsureMap();
+    uuidChk = _sbProdMap?.[id];
+    if (uuidChk) {
+      try {
+        const actual = await pmDB.productos.obtener(uuidChk);
+        storedUpdatedAt = actual?.updated_at || null;
+      } catch (e) { console.warn('[pmDB] gallEdit — no se pudo leer updated_at:', e.message); }
+    }
+  }
+
   const nom=prompt('Nombre:',p.nombre); if(!nom) return;
   const pr=prompt('Precio:',p.precio); if(pr===null) return;
   const peso=prompt('Peso:',p.peso); if(peso===null) return;
-  p.nombre=nom; p.precio=parseFloat(pr)||p.precio; p.peso=parseFloat(peso)||p.peso;
-  pmSave('sistema'); gallRender(); pmToast('Actualizado ✓');
-  // Supabase — dual write
-  if (pmDB.disponible()) {
-    _sbProdEnsureMap().then(() => {
-      const uuid = _sbProdMap?.[id];
-      if (uuid) pmDB.productos.editar(uuid, { nombre:p.nombre, precio_full:p.precio, peso_g:p.peso||null })
+
+  const aplicarYGuardar = () => {
+    p.nombre=nom; p.precio=parseFloat(pr)||p.precio; p.peso=parseFloat(peso)||p.peso;
+    pmSave('sistema'); gallRender(); pmToast('Actualizado ✓');
+    if (uuidChk) {
+      pmDB.productos.editar(uuidChk, { nombre:p.nombre, precio_full:p.precio, peso_g:p.peso||null })
         .catch(e => console.warn('[pmDB] gallEdit sync error:', e.message));
-    });
+    }
+  };
+
+  // Verificar conflicto justo antes de guardar (entre que se abrieron los
+  // prompts y ahora pudo pasar tiempo — otro dispositivo pudo cambiarlo).
+  if (uuidChk && storedUpdatedAt) {
+    try {
+      const actual = await pmDB.productos.obtener(uuidChk);
+      if (actual && actual.updated_at && actual.updated_at !== storedUpdatedAt) {
+        pmMostrarConflicto(
+          `El tipo de galleta "${p.nombre}" fue modificado en otro dispositivo o pestaña mientras lo editabas.`,
+          () => { gallRender(); }, // Recargar — descarta lo que escribiste acá
+          aplicarYGuardar // Sobrescribir con lo mío
+        );
+        return;
+      }
+    } catch (e) {
+      console.warn('[pmDB] gallEdit — verificación de conflicto falló, se guarda igual:', e.message);
+    }
   }
+
+  aplicarYGuardar();
 }
 
 function gallDel(id) {
@@ -549,6 +626,11 @@ async function ingEdit(nom) {
   const ing = G.ingredientes[nom];
   if (!ing) return;
   await _sbIngEnsureMap();
+  // Punto 5 del plan de auditoría — optimistic locking: guardamos con qué
+  // updated_at se abrió esta fila, para detectar en ingEditSave() si otro
+  // dispositivo/pestaña cambió el ingrediente mientras lo editábamos.
+  if (!window._ieEditUpdatedAt) window._ieEditUpdatedAt = {};
+  window._ieEditUpdatedAt[nom] = _sbIngCache?.[nom]?.updated_at || null;
   const rows = document.querySelectorAll('#ing-list .item-row');
   let targetRow = null;
   rows.forEach(row => {
@@ -605,6 +687,34 @@ async function ingEditSave(nomOriginal) {
   if (renombrando && G.ingredientes[nuevoNombre]) {
     pmToast(`Ya existe un ingrediente llamado "${nuevoNombre}" — elegí otro nombre o borrá el duplicado primero`, 'err');
     return;
+  }
+
+  // Punto 5 del plan de auditoría — optimistic locking: verificamos que
+  // nadie más haya cambiado este ingrediente mientras lo editábamos.
+  // Solo aplica cuando hay conexión y ya sabemos con qué updated_at se
+  // abrió la fila — si no, no hay con qué comparar y se guarda como siempre.
+  if (pmDB.disponible()) {
+    await _sbIngEnsureMap();
+    const uuidChk = _sbIngMap?.[nomOriginal];
+    const storedUpdatedAt = window._ieEditUpdatedAt?.[nomOriginal];
+    if (uuidChk && storedUpdatedAt) {
+      try {
+        const actual = await pmDB.ingredientes.obtener(uuidChk);
+        if (actual && actual.updated_at && actual.updated_at !== storedUpdatedAt) {
+          pmMostrarConflicto(
+            `El ingrediente "${nomOriginal}" fue modificado en otro dispositivo o pestaña mientras lo editabas.`,
+            () => { ingEdit(nomOriginal); }, // Recargar lo más reciente — descarta lo que escribiste acá
+            () => {
+              window._ieEditUpdatedAt[nomOriginal] = actual.updated_at;
+              ingEditSave(nomOriginal);
+            }
+          );
+          return; // pausar acá — no seguir guardando hasta que Victor elija
+        }
+      } catch (e) {
+        console.warn('[pmDB] ingEditSave — verificación de conflicto falló, se guarda igual:', e.message);
+      }
+    }
   }
 
   // Local — mismo patrón "local primero, avisar si falla Supabase" que ya usa panAdd/panEditSave

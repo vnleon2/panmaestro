@@ -374,6 +374,26 @@ async function cliSave() {
   const datos = { codigo: cod, nombre: nom, tipo, telefono: tel || null, condicion_pago: cond, dias_credito: dias, email, direccion_facturacion: dirFact, direccion_envio: dirEnv };
   try {
     if (editId) {
+      // Punto 5 del plan de auditoría — optimistic locking: verificamos
+      // que nadie más haya cambiado este cliente mientras lo editábamos.
+      if (window._cliEditUpdatedAt) {
+        try {
+          const actual = await pmDB.clientes.obtener(editId);
+          if (actual && actual.updated_at && actual.updated_at !== window._cliEditUpdatedAt) {
+            pmMostrarConflicto(
+              `El cliente "${actual.nombre || nom}" fue modificado en otro dispositivo o pestaña mientras lo editabas.`,
+              () => { cliEditar(editId); }, // Recargar — descarta lo que escribiste acá
+              () => {
+                window._cliEditUpdatedAt = actual.updated_at;
+                cliSave();
+              }
+            );
+            return; // pausar acá — no seguir guardando hasta que Victor elija
+          }
+        } catch (e) {
+          console.warn('[pmDB] cliSave — verificación de conflicto falló, se guarda igual:', e.message);
+        }
+      }
       await pmDB.clientes.editar(editId, datos);
       pmToast('Cliente actualizado ✓', 'ok');
     } else {
@@ -445,6 +465,10 @@ async function cliSave() {
 function cliEditar(id) {
   const c = (_sbCliCache || []).find(x => x.id === id);
   if (!c) return;
+  // Punto 5 del plan de auditoría — optimistic locking: guardamos con qué
+  // updated_at se abrió este formulario, para detectar en cliSave() si
+  // otro dispositivo/pestaña cambió el cliente mientras lo editábamos.
+  window._cliEditUpdatedAt = c.updated_at || null;
   document.getElementById('cli-edit-id').value   = id;
   document.getElementById('cli-cod').value        = c.codigo || '';
   document.getElementById('cli-nom').value        = c.nombre;
