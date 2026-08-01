@@ -249,8 +249,22 @@ textarea{min-height:70px;resize:vertical;font-family:'DM Sans',sans-serif}
   <div id="v-diseno" class="view">
 
     <div class="card">
-      <div class="ctitle">Paso 1 — Describí el pan</div>
-      <div class="hint" style="margin-bottom:8px">Contá qué pan querés hacer — sabor, textura, ocasión, lo que se te ocurra. Con esto se arma un prompt para pegarle a Claude.</div>
+      <div class="ctitle">Paso 1 — Elegí o describí el pan</div>
+      <div class="hint" style="margin-bottom:8px">Pegá o escribí tu lista de panes (uno por línea) para armar el selector, elegí uno, y ajustá la descripción antes de generar el prompt.</div>
+      <div class="row" style="margin-bottom:10px">
+        <div class="col">
+          <label>Tu lista de panes (uno por línea)</label>
+          <textarea id="dz-lista-raw" style="min-height:70px" placeholder="Ej:&#10;Masa madre blanco&#10;Integral multigrano con arándanos&#10;Queso ahumado y chile morrón" oninput="dzPoblarLista()"></textarea>
+        </div>
+      </div>
+      <div class="row" style="margin-bottom:10px">
+        <div class="col">
+          <label>Elegir de la lista</label>
+          <select id="dz-lista" onchange="dzElegirDeLista()">
+            <option value="">— Elegir de la lista —</option>
+          </select>
+        </div>
+      </div>
       <textarea id="dz-desc" style="min-height:100px" placeholder="Ej: un pan de molde suave, ligeramente dulce, con miga bien esponjosa, para sándwiches..."></textarea>
       <div class="row" style="margin-top:10px">
         <div class="col sm">
@@ -963,6 +977,31 @@ Instrucciones:
 // DISEÑADOR IA — arma un prompt para Claude, el resultado ya viene en el
 // mismo schema que Labrec entiende, así que "capturar" es directo.
 // ═══════════════════════════════════════════════════════════════════════
+// ─── Selector de panes armado al momento desde el textarea de lista ──────
+function dzPoblarLista(){
+  const raw = document.getElementById('dz-lista-raw').value;
+  const nombres = raw.split('\n').map(l => l.trim()).filter(Boolean);
+  const sel = document.getElementById('dz-lista');
+  const valorPrevio = sel.value;
+  sel.innerHTML = '<option value="">— Elegir de la lista —</option>';
+  nombres.forEach((nombre, i) => {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = nombre;
+    sel.appendChild(opt);
+  });
+  sel.dataset.nombres = JSON.stringify(nombres);
+  if (valorPrevio && parseInt(valorPrevio) < nombres.length) sel.value = valorPrevio;
+}
+
+function dzElegirDeLista(){
+  const sel = document.getElementById('dz-lista');
+  if (sel.value === '') return;
+  const nombres = JSON.parse(sel.dataset.nombres || '[]');
+  const nombre = nombres[parseInt(sel.value)];
+  if (nombre) document.getElementById('dz-desc').value = nombre;
+}
+
 function dzGenerarPrompt(){
   const desc = document.getElementById('dz-desc').value.trim();
   if (!desc){ toast('Contame qué pan querés antes de generar el prompt'); return; }
