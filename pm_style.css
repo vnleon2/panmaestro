@@ -191,6 +191,11 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 .et-campo .et-k{font-size:9px;color:var(--cream2)}
 .et-campo .et-v{font-size:15px;font-weight:600;color:var(--cream)}
 .et-mm{border:2px solid var(--cream);border-radius:20px;padding:0.1cm 0.3cm;font-size:11px;font-weight:700;text-align:center;white-space:nowrap;color:var(--cream)}
+.et-mk-label{align-items:center;justify-content:space-evenly}
+.et-mk-logo{width:2.2cm;height:2.2cm;border-radius:50%;object-fit:cover}
+.et-mk-nombre{font-size:15px;font-weight:600;text-align:center;color:var(--cream)}
+.et-mk-redes{display:flex;gap:0.4cm;font-size:11px;color:var(--cream2)}
+.et-mk-red b{display:inline-block;width:16px;height:16px;border-radius:50%;background:var(--cream);color:#fff;text-align:center;line-height:16px;font-size:10px;margin-right:3px}
 @media(max-width:480px){.stats{grid-template-columns:repeat(2,1fr)}.brand{padding:0 8px}.page{padding:11px 10px}.col.xs{flex:1 1 100%;min-width:0}.col.sm{flex:1 1 100%;min-width:0}}
 
 
