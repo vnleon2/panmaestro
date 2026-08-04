@@ -171,14 +171,16 @@ function etmkImprimir() {
 
   const CSS = `
     *{box-sizing:border-box;margin:0;padding:0}
+    html,body{width:4cm}
     body{font-family:-apple-system,'Segoe UI',Roboto,sans-serif}
-    .label{width:7cm;height:4cm;border:2px solid #000;padding:0.35cm;display:flex;flex-direction:column;align-items:center;justify-content:space-evenly;background:#fff;page-break-after:always}
+    .label{width:4cm;height:7cm;padding:0.25cm;display:flex;flex-direction:column;align-items:center;justify-content:space-evenly;background:#fff;overflow:hidden;page-break-after:always}
     .label:last-child{page-break-after:auto}
-    .logo{width:2.2cm;height:2.2cm;border-radius:50%;object-fit:cover}
-    .nombre{font-size:15px;font-weight:600;text-align:center}
-    .redes{display:flex;gap:0.4cm;font-size:11px;color:#333}
-    #qr{display:flex;justify-content:center}
-    @page{size:7cm 4cm;margin:0}
+    .logo{width:1.8cm;height:1.8cm;border-radius:50%;object-fit:cover;flex-shrink:0}
+    .nombre{font-size:12px;font-weight:600;text-align:center;line-height:1.2}
+    .redes{display:flex;flex-direction:column;align-items:center;gap:0.08cm;font-size:9px;color:#333}
+    #qr{width:2.3cm;height:2.3cm;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    #qr img,#qr canvas{width:100%;height:100%}
+    @page{size:4cm 7cm;margin:0}
   `;
 
   const unaEtiqueta = `
@@ -198,7 +200,7 @@ function etmkImprimir() {
   </head><body>${unaEtiqueta.repeat(cantidad)}<script>
     window.onload = () => {
       document.querySelectorAll('#qr').forEach(el => {
-        new QRCode(el, { text: ${JSON.stringify(etmkVcard())}, width: 90, height: 90, correctLevel: QRCode.CorrectLevel.M });
+        new QRCode(el, { text: ${JSON.stringify(etmkVcard())}, width: 130, height: 130, correctLevel: QRCode.CorrectLevel.M });
       });
       setTimeout(() => window.print(), 200);
     };
