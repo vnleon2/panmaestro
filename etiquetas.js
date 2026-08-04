@@ -166,8 +166,22 @@ function etmkRenderPreview() {
   new QRCode(cont, { text: etmkVcard(), width: 96, height: 96, correctLevel: QRCode.CorrectLevel.M });
 }
 
+function etmkGenerarQRDataURL() {
+  if (typeof QRCode === 'undefined') return '';
+  const tmp = document.createElement('div');
+  tmp.style.cssText = 'position:absolute;left:-9999px;top:-9999px';
+  document.body.appendChild(tmp);
+  new QRCode(tmp, { text: etmkVcard(), width: 260, height: 260, correctLevel: QRCode.CorrectLevel.M });
+  const canvas = tmp.querySelector('canvas');
+  const dataUrl = canvas ? canvas.toDataURL('image/png') : '';
+  document.body.removeChild(tmp);
+  return dataUrl;
+}
+
 function etmkImprimir() {
   const cantidad = Math.max(1, parseInt(document.getElementById('et-mk-cantidad').value) || 1);
+  const qrDataUrl = etmkGenerarQRDataURL();
+  if (!qrDataUrl) { pmToast('No se pudo generar el QR, recargá la página e intentá de nuevo', 'err'); return; }
 
   const CSS = `
     *{box-sizing:border-box;margin:0;padding:0}
@@ -178,8 +192,7 @@ function etmkImprimir() {
     .logo{width:1.8cm;height:1.8cm;border-radius:50%;object-fit:cover;flex-shrink:0}
     .nombre{font-size:12px;font-weight:600;text-align:center;line-height:1.2}
     .redes{display:flex;flex-direction:column;align-items:center;gap:0.08cm;font-size:9px;color:#333}
-    #qr{width:2.3cm;height:2.3cm;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-    #qr img,#qr canvas{width:100%;height:100%}
+    .qr{width:2.3cm;height:2.3cm;flex-shrink:0}
     @page{size:4cm 7cm;margin:0}
   `;
 
@@ -188,7 +201,7 @@ function etmkImprimir() {
       <img class="logo" src="${ETMK_LOGO}">
       <div class="nombre">${pmEsc(ETMK_DATOS.nombre)}</div>
       <div class="redes">${etmkRedesHTML()}</div>
-      <div id="qr"></div>
+      <img class="qr" src="${qrDataUrl}">
     </div>`;
 
   const win = window.open('', '_blank');
@@ -196,14 +209,8 @@ function etmkImprimir() {
     <meta charset="UTF-8">
     <title>Etiqueta de marca -- ${pmEsc(ETMK_DATOS.nombre)}</title>
     <style>${CSS}</style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>
   </head><body>${unaEtiqueta.repeat(cantidad)}<script>
-    window.onload = () => {
-      document.querySelectorAll('#qr').forEach(el => {
-        new QRCode(el, { text: ${JSON.stringify(etmkVcard())}, width: 130, height: 130, correctLevel: QRCode.CorrectLevel.M });
-      });
-      setTimeout(() => window.print(), 200);
-    };
+    window.onload = () => { setTimeout(() => window.print(), 150); };
   <\/script></body></html>`);
   win.document.close();
 }
