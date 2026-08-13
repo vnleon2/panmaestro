@@ -1,5 +1,9 @@
 // ── 📚 RECETARIO ──────────────────────────────────────────────
 let _recetarioActual = null;
+// SESIÓN — Ficha profesional: snapshot del último escalado calculado por
+// recetarioEscalar(), reusado por recetarioImprimirFicha() para no recalcular
+// (mismos ingLines/subLines/addonLines que ya muestra la vista de costeo).
+let _recetarioLastData = null;
 
 function recetarioRender() {
   recetarioFiltrar();
@@ -134,6 +138,13 @@ async function recetarioEscalar() {
   const gMasa    = ingLines.reduce((s,l)=>s+l.g,0) + subLines.reduce((s,l)=>s+l.g,0);
   const gAddons  = addonLines.reduce((s,l)=>s+l.g,0);
   const pesoUnit = pesoBaseUd; // always the base unit weight
+
+  // Snapshot para Ficha profesional (recetarioImprimirFicha) — mismos datos
+  // ya calculados arriba, sin volver a llamar pmCostoReceta.
+  _recetarioLastData = {
+    r, icon, masaObj, merma, masaTotal, factor, units,
+    pesoBaseUd, ingLines, subLines, addonLines
+  };
 
   function row(label, pct, g, cost, style='') {
     return `<tr style="border-bottom:1px solid var(--border);${style}">
@@ -321,5 +332,136 @@ function recetarioImprimir() {
   w.document.close();
   w.focus();
   setTimeout(() => w.print(), 600);
+}
+
+// ── 🖨️ FICHA PROFESIONAL (formato tipo Instituto Lycée) ─────────
+// Genera un procedimiento paso a paso. Si la receta ya tiene texto en
+// "Notas / Procedimiento" (mr-notes / r.notes), se usa tal cual (una línea
+// = un paso). Si no, se genera un procedimiento genérico según la categoría
+// de la receta — editable a mano después, guardando el texto definitivo en
+// el campo Notas / Procedimiento de la receta para que quede fijo.
+function _recetarioGenerarProcedimiento(r, hayRelleno) {
+  const notes = (r.notes || '').trim();
+  if (notes) {
+    return notes.split('\n').map(s => s.trim()).filter(Boolean);
+  }
+
+  const cat = r.cat || 'otro';
+  const pasos = ['Pesar todos los ingredientes según la tabla anterior.'];
+
+  if (cat === 'pan' || cat === 'pan_mm') {
+    pasos.push('Incorporar todos los ingredientes en la amasadora (o en un bol) y amasar hasta obtener una masa homogénea y elástica.');
+    pasos.push('Dejar reposar la masa hasta que duplique su volumen.');
+    pasos.push('Dividir y formar las piezas según el peso por unidad indicado.');
+    if (hayRelleno) pasos.push('Rellenar o cubrir cada pieza según corresponda.');
+    pasos.push('Colocar en placas y dejar fermentar hasta que dupliquen su volumen.');
+    pasos.push('Realizar cortes si corresponde y cocinar en horno hasta dorar.');
+  } else if (cat === 'galleta') {
+    pasos.push('Cremar mantequilla y azúcar; incorporar el resto de los ingredientes hasta obtener una masa homogénea.');
+    pasos.push('Dejar reposar la masa en refrigeración si la receta lo requiere.');
+    pasos.push('Dividir y formar las piezas según el peso por unidad indicado.');
+    if (hayRelleno) pasos.push('Rellenar o decorar cada pieza según corresponda.');
+    pasos.push('Cocinar en horno hasta dorar u obtener el punto deseado.');
+  } else if (cat === 'masa') {
+    pasos.push('Mezclar todos los ingredientes hasta obtener una masa homogénea.');
+    pasos.push('Dejar reposar según la técnica correspondiente a esta masa base.');
+    pasos.push('Utilizar como base o sub-receta dentro del proceso final del producto.');
+  } else {
+    pasos.push('Mezclar todos los ingredientes según la técnica correspondiente al producto.');
+    pasos.push('Formar o porcionar según el peso por unidad indicado.');
+    if (hayRelleno) pasos.push('Rellenar o cubrir cada pieza según corresponda.');
+    pasos.push('Cocinar u hornear hasta el punto deseado.');
+  }
+  return pasos;
+}
+
+function _fichaFilaIng(l) {
+  return `<tr>
+    <td class="c-num">${Math.round(l.g)}</td>
+    <td class="c-num">g</td>
+    <td>${(l.flour ? '🌾 ' : '') + l.name}</td>
+    <td class="c-num">${l.pct ? parseFloat(l.pct).toFixed(1) + '%' : '—'}</td>
+  </tr>`;
+}
+
+function _fichaFilaAddon(l) {
+  return `<tr>
+    <td class="c-num">${Math.round(l.g)}</td>
+    <td class="c-num">g</td>
+    <td>${l.name}</td>
+    <td class="c-num">${l.gPorUnidad ? Math.round(l.gPorUnidad) + 'g/ud' : '—'}</td>
+  </tr>`;
+}
+
+function recetarioImprimirFicha() {
+  const d = _recetarioLastData;
+  if (!d) { pmToast && pmToast('Seleccioná y escalá una receta primero'); return; }
+  const { r, masaObj, merma, masaTotal, factor, units, ingLines, subLines, addonLines } = d;
+  const unidadesTxt = Number.isInteger(units) ? units : units.toFixed(1);
+
+  let ingRows = '';
+  if (ingLines.length) {
+    ingRows += `<tr class="sec"><td colspan="4">🌾 Ingredientes de masa</td></tr>`;
+    ingRows += ingLines.map(_fichaFilaIng).join('');
+  }
+  if (subLines.length) {
+    ingRows += `<tr class="sec"><td colspan="4">🔗 Sub-recetas de masa</td></tr>`;
+    ingRows += subLines.map(_fichaFilaIng).join('');
+  }
+
+  const rellenoBlock = addonLines.length ? `
+    <div class="lbl">Relleno / Cobertura</div>
+    <table class="ing">
+      <thead><tr><th>Cantidad</th><th>Unidad</th><th>Ingredientes</th><th>Observaciones</th></tr></thead>
+      <tbody>${addonLines.map(_fichaFilaAddon).join('')}</tbody>
+    </table>` : '';
+
+  const pasos = _recetarioGenerarProcedimiento(r, addonLines.length > 0);
+  const pasosHtml = pasos.map(p => `<li>${p}</li>`).join('');
+
+  const w = window.open('', '_blank', 'width=850,height=1000');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
+    <title>Ficha — ${r.name}</title>
+    <style>
+      @page { size: letter; margin: 1.6cm; }
+      *{box-sizing:border-box}
+      body{font-family:Georgia,'Times New Roman',serif;font-size:12.5px;color:#111;margin:0;padding:26px 30px;background:#fff}
+      h1{text-align:center;font-size:19px;margin:0 0 2px;letter-spacing:.5px}
+      h2{text-align:center;font-size:14px;margin:0 0 4px;text-decoration:underline}
+      .meta{text-align:center;font-size:11px;color:#555;margin-bottom:18px}
+      .box{border:1px solid #000;padding:7px 10px;font-weight:bold;font-size:13px;margin-bottom:12px}
+      table.ing{width:100%;border-collapse:collapse;margin-bottom:14px;font-size:12px}
+      table.ing th{background:#e6e6e6;border:1px solid #000;padding:5px 8px;text-align:center;font-size:11px;text-transform:uppercase;letter-spacing:.4px}
+      table.ing td{border:1px solid #000;padding:5px 8px}
+      table.ing td.c-num{text-align:center;font-family:'Courier New',monospace}
+      tr.sec td{background:#f0f0f0;font-weight:bold;font-size:11px;text-transform:uppercase;letter-spacing:.6px}
+      .lbl{font-weight:bold;margin:12px 0 4px;font-size:13px}
+      .proc{border:1px solid #000;padding:12px 16px;margin-top:8px}
+      .proc .t{font-weight:bold;margin-bottom:8px;font-size:13px}
+      .proc ol{margin:0;padding-left:20px}
+      .proc li{margin-bottom:6px;line-height:1.45}
+      .note{font-size:11px;margin-top:12px;color:#333}
+      .toolbar{margin-bottom:14px}
+      .toolbar button{font-size:12px;padding:6px 14px;cursor:pointer}
+      @media print{ .toolbar{display:none} }
+    </style></head><body>
+    <div class="toolbar"><button onclick="window.print()">🖨 Imprimir</button></div>
+    <h1>PANADERO PROFESIONAL</h1>
+    <h2>VARIEDADES DE PANES</h2>
+    <div class="meta">PanMaestro · ${r.code} · factor ×${factor.toFixed(2)} · ${unidadesTxt} unidades</div>
+    <div class="box">Nombre de la receta: ${(r.name || '').toUpperCase()}</div>
+    <table class="ing">
+      <thead><tr><th>Cantidad</th><th>Unidad</th><th>Ingredientes</th><th>Observaciones</th></tr></thead>
+      <tbody>${ingRows}</tbody>
+    </table>
+    ${rellenoBlock}
+    <div class="proc">
+      <div class="t">Procedimiento:</div>
+      <ol>${pasosHtml}</ol>
+    </div>
+    <div class="note">Masa objetivo: ${masaObj}g${merma > 0 ? ` (+${merma}% merma → ${Math.round(masaTotal)}g)` : ''} · Rendimiento: ${unidadesTxt} unidades.</div>
+  </body></html>`);
+  w.document.close();
+  w.focus();
 }
 
