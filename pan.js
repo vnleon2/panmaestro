@@ -178,6 +178,12 @@ async function ppVerPlanVsPedidos() {
 }
 
 // ── Cerrar vista extra y volver a pedidos ──
+// Imprime / exporta a PDF un pedido individual de Pan (ver pmImprimirPedidoUnico en pm_core.js)
+function ppImprimirPedido(id) {
+  const p = G.pedidosPan.find(x => x.id === id);
+  pmImprimirPedidoUnico(p, 'pan');
+}
+
 function ppCerrarVista() {
   const v = document.getElementById('pp-vista-extra');
   v.style.display = 'none';
@@ -377,6 +383,7 @@ function ppCard(p) {
         ${locked?`<button class="btn btn-out btn-sm" onclick="ppDesbloquear(${p.id})">🔓</button>`:`<select style="font-size:11px;padding:4px 6px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--cream)" onchange="ppChgStatus(${p.id},this.value)">${estOpts}</select>`}
         ${locked?'':`<button class="btn btn-out btn-sm" onclick="ppToggleForm(${p.id})">＋ Producto</button>`}
         ${locked?'':`<button class="btn btn-gold btn-sm" onclick="ppListo(${p.id})">✓ Listo</button>`}
+        <button class="btn btn-out btn-sm" title="Imprimir / Guardar PDF" onclick="ppImprimirPedido(${p.id})">🖨️ PDF</button>
         <button class="btn btn-red btn-sm" onclick="ppDel(${p.id})">✕</button>
       </div>
     </div>

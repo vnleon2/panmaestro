@@ -112,6 +112,12 @@ function pgVerPlanVsPedidos() {
   vistaEl.scrollIntoView({ behavior:'smooth', block:'nearest' });
 }
 
+// Imprime / exporta a PDF un pedido individual de Galletas (ver pmImprimirPedidoUnico en pm_core.js)
+function pgImprimirPedido(id) {
+  const p = G.pedidosGalletas.find(x => x.id === id);
+  pmImprimirPedidoUnico(p, 'galleta');
+}
+
 function pgCerrarVista() {
   const v = document.getElementById('pg-vista-extra');
   v.style.display = 'none';
@@ -294,6 +300,7 @@ function pgCard(p) {
         ${locked?`<button class="btn btn-out btn-sm" onclick="pgDesbloquear(${p.id})">🔓</button>`:`<select style="font-size:11px;padding:4px 6px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--cream)" onchange="pgChgSt(${p.id},this.value)">${estOpts}</select>`}
         ${locked?'':`<button class="btn btn-out btn-sm" onclick="pgToggleForm(${p.id})">＋ Producto</button>`}
         ${locked?'':`<button class="btn btn-gold btn-sm" onclick="pgListo(${p.id})">✓ Listo</button>`}
+        <button class="btn btn-out btn-sm" title="Imprimir / Guardar PDF" onclick="pgImprimirPedido(${p.id})">🖨️ PDF</button>
         <button class="btn btn-red btn-sm" onclick="pgDel(${p.id})">✕</button>
       </div>
     </div>

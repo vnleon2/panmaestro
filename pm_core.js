@@ -430,6 +430,86 @@ function pmGetGall(id) { return (G.tiposGalleta||[]).find(p => p.id === id); }
 function pmNombrePan(id) { return pmGetPan(id)?.nombre || id; }
 function pmNombreGall(id) { return pmGetGall(id)?.nombre || id; }
 
+// Imprime/exporta a PDF un solo pedido (Pan o Galletas) — botón "🖨️ PDF"
+// en pgCard/ppCard. Abre ventana aparte con window.print() (mismo patrón
+// que repComImprimir/docImprimirNota) para que el usuario elija "Guardar
+// como PDF" y lo comparta por WhatsApp. tipo: 'pan' | 'galleta'.
+function pmImprimirPedidoUnico(p, tipo) {
+  if (!p) { pmToast('Pedido no encontrado', 'err'); return; }
+  const esGalleta = tipo === 'galleta';
+  const nombreFn  = esGalleta ? pmNombreGall : pmNombrePan;
+  const tipoLabel = esGalleta ? 'Galletas' : 'Pan';
+  const lineas    = p.lineas || [];
+  const totCli    = lineas.reduce((s,l) => s + (l.cant||0), 0);
+
+  const filas = lineas.length ? lineas.map(l => `
+    <tr>
+      <td>${pmEsc(nombreFn(l.pid))}</td>
+      <td class="r">${l.cant||1}</td>
+      <td>${l.inst ? pmEsc(l.inst) : '—'}</td>
+    </tr>`).join('') : `<tr><td colspan="3" style="color:#999">Sin productos agregados</td></tr>`;
+
+  const CSS = `
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Helvetica Neue',Arial,sans-serif;font-size:13px;color:#1a1a1a;background:#fff}
+    .page{width:100%;max-width:720px;margin:0 auto;padding:32px 36px}
+    .header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:16px;border-bottom:2px solid #1a1a1a;margin-bottom:24px}
+    .brand{font-size:22px;font-weight:900;letter-spacing:-.5px}
+    .brand-sub{font-size:10px;color:#777;margin-top:4px;text-transform:uppercase;letter-spacing:1.2px}
+    .doc-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#777;text-align:right}
+    .doc-num{font-size:18px;font-weight:900;text-align:right;margin-top:4px}
+    .meta{display:flex;gap:32px;margin-bottom:24px;flex-wrap:wrap}
+    .meta-item label{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:#888;display:block;margin-bottom:3px}
+    .meta-item .val{font-size:14px;font-weight:600}
+    table{width:100%;border-collapse:collapse;margin-bottom:16px}
+    thead tr{border-bottom:2px solid #1a1a1a}
+    th{padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:#444;font-weight:700}
+    th.r,td.r{text-align:right}
+    td{padding:9px 10px;border-bottom:1px solid #e8e8e8;vertical-align:middle}
+    .total-row td{padding-top:12px;font-weight:700;font-size:14px;border-bottom:none;border-top:2px solid #1a1a1a}
+    .footer{margin-top:28px;padding-top:14px;border-top:1px solid #ddd;font-size:10px;color:#aaa;text-align:center}
+    @media print{.page{padding:28px 32px}}
+  `;
+
+  const html = `<div class="page">
+    <div class="header">
+      <div>
+        <div class="brand">Victor's Bakery &amp; Sweets</div>
+        <div class="brand-sub">Panadería artesanal</div>
+      </div>
+      <div>
+        <div class="doc-label">Pedido de ${tipoLabel}</div>
+        <div class="doc-num">#${p.id}</div>
+      </div>
+    </div>
+    <div class="meta">
+      <div class="meta-item"><label>Cliente</label><div class="val">${pmEsc(p.cli||'')}</div></div>
+      <div class="meta-item"><label>Fecha</label><div class="val">${pmFmtDate(p.date)}</div></div>
+      <div class="meta-item"><label>Estado</label><div class="val">${pmEsc(p.status||'')}</div></div>
+    </div>
+    <table>
+      <thead><tr>
+        <th>Producto</th>
+        <th class="r">Cantidad</th>
+        <th>Instrucción</th>
+      </tr></thead>
+      <tbody>${filas}</tbody>
+      <tfoot><tr class="total-row"><td>Total</td><td class="r">${totCli}</td><td></td></tr></tfoot>
+    </table>
+    <div class="footer">Victor's Bakery &amp; Sweets · Pedido de ${tipoLabel} #${p.id}</div>
+  </div>`;
+
+  const win = window.open('', '_blank');
+  if (!win) { pmToast('El navegador bloqueó la ventana de impresión', 'err'); return; }
+  win.document.write(`<!DOCTYPE html><html><head>
+    <meta charset="UTF-8">
+    <title>Pedido de ${tipoLabel} — ${pmEsc(p.cli||'')}</title>
+    <style>${CSS}</style>
+  </head><body>${html}</body></html>`);
+  win.document.close();
+  setTimeout(() => { win.focus(); win.print(); }, 300);
+}
+
 function pmPrecioPan(id) { return pmGetPan(id)?.precio || 0; }
 function pmPrecioGall(id) { return pmGetGall(id)?.precio || 0; }
 
