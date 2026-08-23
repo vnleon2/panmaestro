@@ -80,22 +80,39 @@ function premRender() {
   const masaObj = parseFloat(document.getElementById('prem-masa-obj').value) || r.totalMass || 1000;
   const pct     = Math.min(100, Math.max(0, parseFloat(document.getElementById('prem-pct').value) || 0));
 
-  const c        = pmCostoReceta(r, masaObj);
-  const flourW   = c.flourW;
-  const preHarina = flourW * pct / 100;
-
-  const hidr = tipo.fija
-    ? tipo.hidr
-    : Math.max(0, parseFloat(document.getElementById('prem-mm-ratio').value) || 1);
-  const preAgua = preHarina * hidr;
-
-  // Levadura mínima del prefermento: % sobre la harina DEL PREFERMENTO
-  // (práctica usual), solo aplica a poolish/biga/pâte — no a masa madre.
-  const levaduraPct = esMm ? 0 : Math.max(0, parseFloat(document.getElementById('prem-levadura-pct').value) || 0);
-  const preLevadura = preHarina * levaduraPct / 100;
+  const c      = pmCostoReceta(r, masaObj);
+  const flourW = c.flourW;
 
   const cultivoCode = esMm ? (document.getElementById('prem-mm-sub').value || null) : null;
   const cultivo = cultivoCode ? (_sbRecLista() || []).find(x => x.code === cultivoCode) : null;
+
+  let preHarina, preAgua, preLevadura = 0, levaduraPct = 0, cultivoLines = [], preTotalG;
+
+  if (esMm) {
+    // El % indicado es % de LEVAIN respecto a la harina total de la receta
+    // (no % de harina del prefermento). Ese peso total de levain se
+    // desglosa con la fórmula PROPIA de la subreceta elegida (su propio
+    // baker's %), no con una proporción manual aparte.
+    preTotalG = flourW * pct / 100;
+    if (cultivo) {
+      const cCultivo = pmCostoReceta(cultivo, preTotalG);
+      cultivoLines = cCultivo.lines.filter(l => !l.isAddon);
+      preHarina = cCultivo.flourW;
+      preAgua = cultivoLines
+        .filter(l => !l.flour && !l.isSub && (l.name || '').toLowerCase().includes('agua'))
+        .reduce((s, l) => s + l.g, 0);
+    } else {
+      preHarina = 0; preAgua = 0;
+    }
+  } else {
+    preHarina = flourW * pct / 100;
+    preAgua   = preHarina * tipo.hidr;
+    // Levadura mínima del prefermento: % sobre la harina DEL PREFERMENTO
+    // (práctica usual), solo aplica a poolish/biga/pâte — no a masa madre.
+    levaduraPct  = Math.max(0, parseFloat(document.getElementById('prem-levadura-pct').value) || 0);
+    preLevadura  = preHarina * levaduraPct / 100;
+    preTotalG    = preHarina + preAgua + preLevadura;
+  }
 
   // Masa restante: se reduce proporcionalmente cada línea de harina, se
   // resta el agua del prefermento de la(s) línea(s) cuyo nombre incluye
@@ -148,16 +165,25 @@ function premRender() {
   }
 
   let tbody = '';
-  tbody += header(`🫧 Prefermento — ${tipo.label} (${pct}% de la harina)`, 'var(--blue)', 'rgba(74,128,192,.06)');
-  tbody += row('Harina', preHarina, 0, '🌾 ');
-  tbody += row('Agua', preAgua, 0, '💧 ');
-  if (!esMm && preLevadura > 0) tbody += row(`Levadura (${levaduraPct}% s/harina prefermento)`, preLevadura, 0, '🟤 ');
-  if (cultivo) {
-    tbody += `<tr><td colspan="3" style="padding:6px 10px;font-size:11px;color:var(--cream2)">🔗 Cultivo/inóculo: ${cultivo.code} · ${cultivo.name} — cantidad según tu manejo habitual de refresco</td></tr>`;
+  tbody += header(
+    esMm ? `🫧 Prefermento — ${tipo.label} (${pct}% de levain s/harina)` : `🫧 Prefermento — ${tipo.label} (${pct}% de la harina)`,
+    'var(--blue)', 'rgba(74,128,192,.06)'
+  );
+  if (esMm) {
+    if (cultivo) {
+      cultivoLines.forEach(l => { tbody += row(l.name, l.g, l.cost, l.flour ? '🌾 ' : (l.isSub ? '🔗 ' : '💧 ')); });
+      tbody += `<tr><td colspan="3" style="padding:6px 10px;font-size:11px;color:var(--cream2)">🔗 Fórmula aplicada: ${cultivo.code} · ${cultivo.name} (fórmula propia de esa subreceta)</td></tr>`;
+    } else {
+      tbody += `<tr><td colspan="3" style="padding:8px 10px;font-size:12px;color:var(--red)">Elegí un cultivo de masa madre arriba para calcular el desglose.</td></tr>`;
+    }
+  } else {
+    tbody += row('Harina', preHarina, 0, '🌾 ');
+    tbody += row('Agua', preAgua, 0, '💧 ');
+    if (preLevadura > 0) tbody += row(`Levadura (${levaduraPct}% s/harina prefermento)`, preLevadura, 0, '🟤 ');
   }
   tbody += `<tr style="font-weight:700;background:rgba(74,128,192,.08)">
     <td style="padding:7px 10px;color:var(--blue)">Subtotal prefermento</td>
-    <td style="padding:7px 10px;text-align:right;font-family:'DM Mono',monospace;color:var(--blue)">${Math.round(preHarina + preAgua + preLevadura)}g</td>
+    <td style="padding:7px 10px;text-align:right;font-family:'DM Mono',monospace;color:var(--blue)">${Math.round(preTotalG)}g</td>
     <td></td></tr>`;
 
   tbody += header('🍞 Resto de la masa (ya ajustado)');
