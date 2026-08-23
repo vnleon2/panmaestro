@@ -1273,9 +1273,24 @@ function cvMaestroRender() {
   let list  = _sbRecLista().slice();
   if (origen === 'R') list = list.filter(r =>  r.code && r.code.startsWith('R-'));
   if (origen === 'G') list = list.filter(r => !r.code || !r.code.startsWith('R-'));
-  list = list.sort((a,b) => (a.name||'').localeCompare(b.name||'', 'es'));
   if (q)   list = list.filter(r => (r.name||'').toLowerCase().includes(q) || (r.code||'').toLowerCase().includes(q));
   if (cat) list = list.filter(r => String(r.cat||'').trim().toLowerCase() === cat.trim().toLowerCase());
+
+  // Orden — código (por defecto) o alfabético, igual que en la vista
+  // Recetas. Se recuerda en localStorage por separado (pm_mro_orden) para
+  // que no se pisen entre sí las dos vistas.
+  const ordenEl = document.getElementById('mro-orden');
+  let orden = ordenEl ? ordenEl.value : (localStorage.getItem('pm_mro_orden') || 'codigo');
+  if (ordenEl && !ordenEl.dataset.init) {
+    ordenEl.value = localStorage.getItem('pm_mro_orden') || 'codigo';
+    orden = ordenEl.value;
+    ordenEl.dataset.init = '1';
+  }
+  localStorage.setItem('pm_mro_orden', orden);
+  list = orden === 'nombre'
+    ? list.sort((a,b) => (a.name||'').localeCompare(b.name||'', 'es'))
+    : list.sort((a,b) => (a.code||'').localeCompare(b.code||''));
+
   const el  = document.getElementById('mro-list');
   if (!el) return;
 
