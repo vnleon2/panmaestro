@@ -44,17 +44,42 @@ function recetarioFiltrar() {
   }).join('');
 }
 
+let _recVistaModo = 'escalador'; // 'escalador' | 'prefermentos'
+
 function recetarioSeleccionar(id) {
   _recetarioActual = id;
   recetarioFiltrar();
   const r = _sbGetRec(id) || (G.recetas||[]).find(x => x.id === id);
   if (!r) return;
-  // Set masa objetivo to recipe's base mass
+  // Set masa objetivo to recipe's base mass en ambas vistas
   document.getElementById('rec-masa-obj').value = r.totalMass || 1000;
-  document.getElementById('rec-vista').style.display = 'block';
-  recetarioEscalar();
-  // Scroll to vista
-  document.getElementById('rec-vista').scrollIntoView({behavior:'smooth', block:'start'});
+  if (document.getElementById('prem-masa-obj')) document.getElementById('prem-masa-obj').value = r.totalMass || 1000;
+  if (typeof premPoblarTipos === 'function') premPoblarTipos();
+  if (typeof premPoblarCultivos === 'function') premPoblarCultivos();
+  recVistaMostrar(_recVistaModo);
+}
+
+// Alterna entre el escalador normal y la calculadora de prefermentos —
+// ambas vistas comparten la misma receta seleccionada (_recetarioActual).
+function recVistaMostrar(modo) {
+  _recVistaModo = modo;
+  const btnEsc  = document.getElementById('recModoEscaladorBtn');
+  const btnPrem = document.getElementById('recModoPrefermentosBtn');
+  if (btnEsc)  btnEsc.className  = 'btn btn-sm ' + (modo==='escalador'    ? 'btn-gold' : 'btn-out');
+  if (btnPrem) btnPrem.className = 'btn btn-sm ' + (modo==='prefermentos'? 'btn-gold' : 'btn-out');
+
+  const hayReceta = !!_recetarioActual;
+  document.getElementById('rec-vista').style.display  = (modo==='escalador'     && hayReceta) ? 'block' : 'none';
+  document.getElementById('prem-vista').style.display = (modo==='prefermentos' && hayReceta) ? 'block' : 'none';
+
+  if (!hayReceta) return;
+  if (modo === 'escalador') {
+    recetarioEscalar();
+    document.getElementById('rec-vista').scrollIntoView({behavior:'smooth', block:'start'});
+  } else {
+    if (typeof premRender === 'function') premRender();
+    document.getElementById('prem-vista').scrollIntoView({behavior:'smooth', block:'start'});
+  }
 }
 
 /**
