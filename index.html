@@ -598,8 +598,10 @@
           <input type="file" accept=".json" id="gm-file-input" style="display:none" onchange="gmLoadJson(event)">
         </label>
         <button id="gm-clear-btn" onclick="gmClear()" class="btn btn-red btn-sm" style="display:none">🗑 Limpiar GM</button>
+        <button class="btn btn-out btn-sm" onclick="gmReconciliar()">🔗 Reconciliar con recetas existentes</button>
         <span id="gm-counter" style="font-size:11px;color:var(--cream2);font-family:'DM Mono',monospace"></span>
       </div>
+      <pre id="gm-reconciliar-log" style="display:none;margin-top:10px;font-size:11px;color:var(--cream2);background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px;max-height:220px;overflow-y:auto;white-space:pre-wrap"></pre>
     </div>
     <div id="gm-search-wrap" style="display:none;margin-bottom:12px">
       <input type="text" id="gm-search" placeholder="Buscar receta GM..." oninput="gmRenderList()" style="width:100%">

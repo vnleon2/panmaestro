@@ -427,6 +427,7 @@ function gmDoTransfer(name, toEditor) {
       pmDB.recetas.editar(cached.sbId, {
         nombre: rec.name, categoria: rec.cat, masa_total_g: rec.totalMass,
         unidades: rec.units, merma_pct: rec.merma, notas: rec.notes,
+        gm_source: rec.gmSource || null,
         subrecs: rec.subrecs || [], addons: rec.addons || []
       }).then(() => _sbSaveRecetaItems(cached.sbId, rec.flour, rec.other))
         .catch(e => console.warn('[pmDB] gmDoTransfer update error:', e.message));
@@ -436,6 +437,7 @@ function gmDoTransfer(name, toEditor) {
         masa_total_g: rec.totalMass, unidades: rec.units,
         merma_pct: rec.merma, margen_pct: null,
         notas: rec.notes, origen: 'propia', activo: true,
+        gm_source: rec.gmSource || null,
         subrecs: rec.subrecs || [], addons: rec.addons || []
       }).then(rows => {
         if (rows?.[0]) {
@@ -450,6 +452,82 @@ function gmDoTransfer(name, toEditor) {
   fillRscSel();
   gmRenderList();
   gmCloseModal();
+}
+
+/**
+ * Reconciliador de una sola vez: para las recetas R- que todavía no tienen
+ * gmSource (porque se perdió al vivir solo en localStorage — ver charla con
+ * Victor 23/08), compara sus nombres contra la biblioteca GM cargada con
+ * matching EXACTO normalizado (sin tildes/mayúsculas/espacios de más — no
+ * es fuzzy, no tolera nombres distintos aunque se parezcan). Solo marca
+ * automático cuando hay una única receta R- candidata para ese nombre; si
+ * hay más de una (o ninguna), lo deja listado para decidir a mano.
+ */
+async function gmReconciliar() {
+  const logEl = document.getElementById('gm-reconciliar-log');
+  if (!logEl) return;
+  logEl.style.display = 'block';
+  const log = (msg) => { logEl.textContent += msg + '\n'; logEl.scrollTop = logEl.scrollHeight; };
+  logEl.textContent = '';
+
+  const gm = G.gmRecipes || [];
+  if (!gm.length) { log('⚠️ No hay ninguna biblioteca de Gluten Morgen cargada — cargá el JSON primero.'); return; }
+  if (!pmDB.disponible()) { log('⚠️ Sin conexión a Supabase — no se puede guardar nada ahora.'); return; }
+
+  const norm = s => (s||'')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')  // quita tildes
+    .toLowerCase()
+    .replace(/[().,]/g,'')
+    .replace(/\s+/g,' ')
+    .trim();
+
+  const gmNorm = new Set(gm.map(r => norm(r.name)));
+
+  // Recetas R- que todavía no tienen la etiqueta gmSource
+  const candidatas = _sbRecLista().filter(r => r.code && r.code.startsWith('R-') && !r.gmSource);
+  log(`Recetas R- sin etiqueta GM: ${candidatas.length}`);
+  log(`Recetas en tu biblioteca GM cargada: ${gm.length}`);
+  log('──────────');
+
+  // Agrupar por nombre normalizado, para detectar ambigüedad (2+ recetas
+  // R- con el mismo nombre "casi igual" — no se puede saber cuál es cuál).
+  const grupos = {};
+  candidatas.forEach(r => {
+    const n = norm(r.name);
+    (grupos[n] = grupos[n] || []).push(r);
+  });
+
+  let marcadas = 0, ambiguas = 0, sinConexion = 0;
+  for (const [nombreNorm, grupo] of Object.entries(grupos)) {
+    if (!gmNorm.has(nombreNorm)) continue; // no hay receta GM con ese nombre — nada que hacer
+    if (grupo.length > 1) {
+      ambiguas++;
+      log(`⚠️ Ambiguo — ${grupo.length} recetas con nombre "casi igual": ${grupo.map(r=>r.code).join(', ')} ("${grupo[0].name}") — marcalas a mano desde el editor.`);
+      continue;
+    }
+    const r = grupo[0];
+    const gmMatch = gm.find(g => norm(g.name) === nombreNorm); // nombre original tal cual vive en GM
+    if (!r.sbId) {
+      sinConexion++;
+      log(`⚠️ ${r.code} · "${r.name}" — coincide pero no está sincronizada a Supabase todavía, no se puede marcar.`);
+      continue;
+    }
+    try {
+      await pmDB.recetas.editar(r.sbId, { gm_source: gmMatch.name });
+      const localRec = (G.recetas||[]).find(x => x.id === r.id);
+      if (localRec) localRec.gmSource = gmMatch.name;
+      marcadas++;
+      log(`✓ ${r.code} · "${r.name}" ← "${gmMatch.name}"`);
+    } catch(e) {
+      log(`✗ ${r.code} · "${r.name}" — error al guardar: ${e.message}`);
+    }
+  }
+
+  log('──────────');
+  log(`✅ Listo. ${marcadas} marcadas automático · ${ambiguas} ambiguas (revisar a mano) · ${sinConexion} sin conexión a Supabase.`);
+  pmSave('costeo');
+  _sbRecCache = null;
+  await _sbCosteoCargar();
 }
 
 

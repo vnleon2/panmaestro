@@ -1116,6 +1116,7 @@ async function recSave() {
         pmDB.recetas.editar(cached.sbId, {
           nombre: obj.name, categoria: obj.cat, masa_total_g: obj.totalMass,
           unidades: obj.units, merma_pct: obj.merma, margen_pct: obj.margen, notas: obj.notes,
+          gm_source: gmSource || null,
           subrecs: obj.subrecs || [], addons: obj.addons || []
         }).then(() => _sbSaveRecetaItems(cached.sbId, obj.flour, obj.other))
           .catch(e => console.warn('[pmDB] recSave gmSource update error:', e.message));
@@ -1125,6 +1126,7 @@ async function recSave() {
           masa_total_g: obj.totalMass, unidades: obj.units,
           merma_pct: obj.merma, margen_pct: obj.margen || null,
           notas: obj.notes, origen: 'propia', activo: true,
+          gm_source: gmSource || null,
           subrecs: obj.subrecs || [], addons: obj.addons || []
         }).then(rows => {
           if (rows?.[0]) {
@@ -1638,7 +1640,7 @@ async function _sbCosteoCargar() {
         // fue migrada (columna vacía), se cae al local como antes.
         subrecs: (row.subrecs && row.subrecs.length ? row.subrecs : local.subrecs) || [],
         addons:  (row.addons  && row.addons.length  ? row.addons  : local.addons)  || [],
-        gmSource: local.gmSource,
+        gmSource: row.gm_source || local.gmSource,
       };
       _sbRecMap[row.id] = merged;
       return merged;
