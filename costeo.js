@@ -51,7 +51,7 @@ function recRender() {
     return name.includes(q) || code.includes(q) || notes.includes(q) || ings.includes(q);
   });
 
-  if (cat) list = list.filter(r => r.cat === cat);
+  if (cat) list = list.filter(r => String(r.cat||'').trim().toLowerCase() === cat.trim().toLowerCase());
 
   // Orden elegido: código (por defecto) o alfabético. Se recuerda en
   // localStorage para que quede como el usuario lo dejó la última vez.
@@ -191,7 +191,7 @@ function recCard(r, _sharedCache) {
         <div class="cpill">🌾 Ing: <span>${pmMoney(Math.round(costIng))}</span></div>
         ${subLines.length?`<div class="cpill">🔗 Subs: <span>${pmMoney(Math.round(costSubs))}</span></div>`:''}
         ${addonLines.length?`<div class="cpill">🎂 Rellenos: <span>${pmMoney(Math.round(costAddons))}</span></div>`:''}
-        ${merma?`<div class="cpill">Merma: <span>${merma}%</span></div>`:''}
+        ${merma?`<div class="cpill">Merma: <span>${merma}%</span></div>`:`<div class="cpill" style="background:rgba(192,64,64,.12);border-color:rgba(192,64,64,.3);color:var(--red)">⚠️ Receta sin merma</div>`}
         <div class="cpill" style="background:rgba(200,146,42,.15)">Total: <span style="color:var(--gold2)">${pmMoney(Math.round(costTotal))}</span></div>
         <div class="cpill">💰 Costo/ud: <span style="color:var(--gold2)">${pmMoney(Math.round(costTotalUd))}</span></div>
         <div class="cpill">₡/g: <span>${costTotalG.toFixed(2)}</span></div>
@@ -1255,7 +1255,7 @@ function cvMaestroRender() {
   if (origen === 'G') list = list.filter(r => !r.code || !r.code.startsWith('R-'));
   list = list.sort((a,b) => (a.name||'').localeCompare(b.name||'', 'es'));
   if (q)   list = list.filter(r => (r.name||'').toLowerCase().includes(q) || (r.code||'').toLowerCase().includes(q));
-  if (cat) list = list.filter(r => r.cat === cat);
+  if (cat) list = list.filter(r => String(r.cat||'').trim().toLowerCase() === cat.trim().toLowerCase());
   const el  = document.getElementById('mro-list');
   if (!el) return;
 
@@ -1279,7 +1279,7 @@ function cvMaestroRender() {
     return `<tr onclick="recEditar('${r.id}');cvMostrar('cv-nueva')" style="cursor:pointer;border-bottom:1px solid var(--border)">
       <td style="padding:8px 10px;font-family:'DM Mono',monospace;font-size:12px;color:var(--gold2);white-space:nowrap">${r.code||'—'}</td>
       <td style="padding:8px 10px">
-        <div style="font-weight:600;font-size:13px">${icon} ${r.name}</div>
+        <div style="font-weight:600;font-size:13px">${icon} ${r.name}${!r.merma?' <span style="font-size:10px;font-weight:600;color:var(--red)" title="Esta receta no tiene % de merma configurado">⚠️ sin merma</span>':''}</div>
         <div style="font-size:10px;color:var(--cream2);margin-top:2px">
           ${r.totalMass||1000}g · ${r.units||1} ud · ${ingCount} ing${subCount?` · ${subCount} sub`:''}
         </div>
@@ -1472,6 +1472,21 @@ let _sbIngCache  = null;
 let _sbRecMap    = null;   // { sbId → objeto receta } para lookups por uuid de Supabase
 let _sbIngMapNom = null;   // { nombre → sbId }
 
+// FIX BUG FILTROS MAESTRO: _sbCosteoCargar() se dispara desde varios sitios
+// a la vez sin coordinarse (router de pm_app.js al entrar al tab, pm_core.js
+// tras el pull en background ~1200ms después, dashboard.js al arrancar,
+// recetario.js, etc.). Como todas escriben sobre la MISMA variable global
+// _sbRecCache, si dos llamadas quedan en vuelo a la vez, la que responde
+// último "gana" sin importar cuál se disparó después — puede pisar datos más
+// nuevos con una foto más vieja (o al revés), y como cada llamada repinta la
+// lista con recRender() fijo (nunca cvMaestroRender()), el Maestro de
+// Recetas se queda con una tabla vieja mientras el filtro ya cambió de
+// caché por debajo. Esto es lo que producía listas "mezcladas" o con menos
+// recetas de las esperadas al filtrar por tipo. _sbCargaSeq numera cada
+// llamada; si al terminar ya no es la más reciente, se descarta sin tocar
+// la caché ni redibujar.
+let _sbCargaSeq  = 0;
+
 /**
  * Carga recetas e ingredientes desde Supabase y los guarda en cache local.
  * Las recetas de Supabase se fusionan con los objetos en G.recetas para
@@ -1479,9 +1494,19 @@ let _sbIngMapNom = null;   // { nombre → sbId }
  * existen en localStorage.
  */
 async function _sbCosteoCargar() {
+  const miSeq = ++_sbCargaSeq;
+  function _refrescarVistaActiva() {
+    // Repinta la sub-vista de Costeo que esté visible en este momento —
+    // antes siempre llamaba a recRender(), así que si el usuario estaba en
+    // "Maestro de Recetas" con un filtro puesto, esa tabla nunca se
+    // refrescaba cuando la caché cambiaba por debajo.
+    const maestro = document.getElementById('cv-maestro');
+    if (maestro && maestro.style.display !== 'none') cvMaestroRender();
+    else recRender();
+  }
   if (!pmDB.disponible()) {
     fillRscSel();
-    recRender();
+    _refrescarVistaActiva();
     return;
   }
   try {
@@ -1521,7 +1546,12 @@ async function _sbCosteoCargar() {
     const gByCode = {};
     (G.recetas || []).forEach(r => { if (r.code) gByCode[r.code] = r; });
 
-    _sbRecCache = (sbRecs || []).map(row => {
+    // Si mientras se esperaban estas dos consultas (recetas + receta_items)
+    // otra llamada a _sbCosteoCargar() más reciente ya terminó, esta
+    // respuesta está vieja — se descarta sin pisar la caché ni redibujar.
+    if (miSeq !== _sbCargaSeq) return;
+
+    const _nuevaCache = (sbRecs || []).map(row => {
       const local = gByCode[row.codigo] || {};
       const items = itemsPorReceta[row.id] || [];
 
@@ -1583,17 +1613,21 @@ async function _sbCosteoCargar() {
     const sbCodes = new Set((sbRecs||[]).map(r=>r.codigo));
     (G.recetas||[]).forEach(r => {
       if (r.code && !sbCodes.has(r.code)) {
-        _sbRecCache.push(r);
+        _nuevaCache.push(r);
       }
     });
 
+    _sbRecCache = _nuevaCache;
+
   } catch(e) {
     console.warn('[pmDB] Costeo cache error — usando localStorage:', e.message);
+    if (miSeq !== _sbCargaSeq) return; // otra llamada más nueva ya está corriendo
     _sbRecCache = null;
     _sbIngCache = null;
   }
+  if (miSeq !== _sbCargaSeq) return; // otra llamada más nueva terminó primero
   fillRscSel();
-  recRender();
+  _refrescarVistaActiva();
 }
 
 /** Lista de recetas: Supabase cache si disponible, G.recetas como fallback */
