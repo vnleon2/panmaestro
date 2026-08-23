@@ -1221,10 +1221,24 @@ async function recSave() {
     }
   }
 
+  // FIX "de repente no se ven": _sbRecCache = null (arriba) solo BORRA la
+  // caché fusionada — no la recarga. _sbRecLista() con caché en null cae de
+  // vuelta a G.recetas (el array local del navegador), que NO tiene todas
+  // las recetas que sí existen en Supabase pero nunca se sincronizaron a
+  // este navegador. Antes, acá se llamaba a recRender() en el mismo
+  // instante que se invalidaba la caché, así que la lista se repintaba con
+  // ese subconjunto incompleto — cualquier receta que solo viviera en
+  // Supabase "desaparecía" hasta la próxima vez que se entrara al tab
+  // Costeo (que sí dispara una recarga completa). Ahora se espera a
+  // recargar la caché real antes de repintar.
   pmSave('costeo');
-  fillRscSel();
   cvMostrar('cv-lista');
-  recRender();
+  if (pmDB.disponible()) {
+    await _sbCosteoCargar(); // repuebla _sbRecCache y ya repinta la vista activa
+  } else {
+    fillRscSel();
+    recRender();
+  }
 }
 
 function recEliminar(id) {
@@ -1240,9 +1254,15 @@ function recEliminar(id) {
   }
   G.recetas = G.recetas.filter(x=>x.id!==id);
   pmSave('costeo');
-  fillRscSel();
-  recRender();
   pmToast('Receta eliminada');
+  // FIX mismo bug que en recSave(): no repintar con la caché recién
+  // invalidada (cae a G.recetas local, incompleto) — recargar primero.
+  if (pmDB.disponible()) {
+    _sbCosteoCargar();
+  } else {
+    fillRscSel();
+    recRender();
+  }
 }
 // ── 📋 MAESTRO DE RECETAS ──────────────────────────────────────
 function cvMaestroRender() {
