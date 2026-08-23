@@ -273,8 +273,18 @@ const pmDB = (() => {
   };
 
   // ── RECETAS ───────────────────────────────────────────────────────────────
+  // FIX "faltan recetas": listar() filtraba con activo=eq.true en el
+  // servidor (PostgREST). En SQL, `activo = true` NUNCA hace match con filas
+  // donde activo es NULL — no es lo mismo que "no está explícitamente en
+  // false". Cualquier receta cuya columna 'activo' haya quedado en NULL
+  // (import viejo, fila creada antes de que existiera la columna, etc.)
+  // desaparecía en silencio de TODAS las vistas de Costeo, incluso sin
+  // ningún filtro de tipo/origen puesto — porque nunca llegaba ni siquiera
+  // a la caché. Ahora se trae todo y se descarta en el cliente solo lo que
+  // está explícitamente en false (borrado con softDelete), así NULL cuenta
+  // como activo.
   const recetas = {
-    listar:   ()       => get('recetas', { activo: true }),
+    listar:   ()       => get('recetas', {}).then(rows => (rows||[]).filter(r => r.activo !== false)),
     obtener:  (id)     => getById('recetas', id),
     crear:    (datos)  => insert('recetas', datos),
     editar:   (id, d)  => update('recetas', id, d),
