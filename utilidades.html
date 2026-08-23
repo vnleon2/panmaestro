@@ -166,6 +166,10 @@
           </div>
           <input type="range" id="ratio" min="1" max="5" step="0.5" value="2">
           <div class="scale-labels"><span>1:1:1</span><span>1:3:3</span><span>1:5:5</span></div>
+          <div class="two-col" style="margin-top:12px;">
+            <div><label for="ratioFlourManual" style="font-size:12.5px;">Harina (partes)</label><input type="number" id="ratioFlourManual" value="2" min="0.1" step="0.1"></div>
+            <div><label for="ratioWaterManual" style="font-size:12.5px;">Agua (partes)</label><input type="number" id="ratioWaterManual" value="2" min="0.1" step="0.1"></div>
+          </div>
           <div class="ratio-title" style="margin-top:14px;">Zona: <span class="ratio-name" id="zoneName">Intermedia</span></div>
         </div>
         <div class="field">
@@ -482,6 +486,8 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
 (function(){
   const starterInput = document.getElementById('starter');
   const ratioInput = document.getElementById('ratio');
+  const ratioFlourInput = document.getElementById('ratioFlourManual');
+  const ratioWaterInput = document.getElementById('ratioWaterManual');
   const tempInput = document.getElementById('temp');
   const btnLiquid = document.getElementById('btnLiquid');
   const btnRigid = document.getElementById('btnRigid');
@@ -540,13 +546,14 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
 
   function render(){
     const starter = Math.max(1, parseFloat(starterInput.value)||50);
-    const r = parseFloat(ratioInput.value);
+    const r = Math.max(0.1, parseFloat(ratioFlourInput.value)||2);
+    const rWater = Math.max(0.1, parseFloat(ratioWaterInput.value)||2);
     const t = parseFloat(tempInput.value);
     const flourAmt = starter*r;
-    const waterAmt = hydrationMode==='liquid'? starter*r : starter*r*0.5;
+    const waterAmt = starter*rWater;
     const total = starter+flourAmt+waterAmt;
 
-    document.getElementById('ratioLabel').innerHTML = `1 : ${r} : ${hydrationMode==='liquid'? r : (r*0.5)} <small>(harina : agua)</small>`;
+    document.getElementById('ratioLabel').innerHTML = `1 : ${r} : ${rWater} <small>(harina : agua)</small>`;
     document.getElementById('tempLabel').innerHTML = `${t} <small>°C</small>`;
     document.getElementById('outStarter').textContent = Math.round(starter)+' g';
     document.getElementById('outFlour').textContent = Math.round(flourAmt)+' g';
@@ -601,11 +608,18 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
   }
 
   starterInput.addEventListener('input', render);
-  ratioInput.addEventListener('input', render);
+  ratioInput.addEventListener('input', ()=>{
+    const r = parseFloat(ratioInput.value);
+    ratioFlourInput.value = r;
+    ratioWaterInput.value = hydrationMode==='liquid'? r : r*0.5;
+    render();
+  });
+  ratioFlourInput.addEventListener('input', render);
+  ratioWaterInput.addEventListener('input', render);
   tempInput.addEventListener('input', render);
   kneadTimeInput.addEventListener('input', render);
-  btnLiquid.addEventListener('click', ()=>{ hydrationMode='liquid'; btnLiquid.classList.add('active'); btnRigid.classList.remove('active'); render(); });
-  btnRigid.addEventListener('click', ()=>{ hydrationMode='rigid'; btnRigid.classList.add('active'); btnLiquid.classList.remove('active'); render(); });
+  btnLiquid.addEventListener('click', ()=>{ hydrationMode='liquid'; btnLiquid.classList.add('active'); btnRigid.classList.remove('active'); ratioWaterInput.value = parseFloat(ratioFlourInput.value)||0; render(); });
+  btnRigid.addEventListener('click', ()=>{ hydrationMode='rigid'; btnRigid.classList.add('active'); btnLiquid.classList.remove('active'); ratioWaterInput.value = (parseFloat(ratioFlourInput.value)||0)*0.5; render(); });
   modeForwardBtn.addEventListener('click', ()=>{ calcMode='forward'; modeForwardBtn.classList.add('active'); modeReverseBtn.classList.remove('active'); reverseField.style.display='none'; render(); });
   modeReverseBtn.addEventListener('click', ()=>{ calcMode='reverse'; modeReverseBtn.classList.add('active'); modeForwardBtn.classList.remove('active'); reverseField.style.display='block'; render(); });
 
