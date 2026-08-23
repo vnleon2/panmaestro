@@ -130,10 +130,16 @@ function premRender() {
   const restoTotalG = restoLines.reduce((s, l) => s + l.g, 0);
   const restoCostoG = restoLines.reduce((s, l) => s + l.cost, 0);
 
+  // Cantidades chicas (levadura, sal en algunas recetas) redondeadas a
+  // enteros mostraban "0g" — con decimal cuando pesa menos de 10g.
+  function fmtG(g) {
+    if (!(g > 0)) return '—';
+    return (g < 10 ? g.toFixed(1) : Math.round(g)) + 'g';
+  }
   function row(name, g, cost, icon = '') {
     return `<tr style="border-bottom:1px solid var(--border)">
       <td style="padding:7px 10px;font-weight:500">${icon}${name}</td>
-      <td style="padding:7px 10px;text-align:right;font-family:'DM Mono',monospace;font-size:15px;font-weight:700;color:var(--gold2)">${g > 0 ? Math.round(g) + 'g' : '—'}</td>
+      <td style="padding:7px 10px;text-align:right;font-family:'DM Mono',monospace;font-size:15px;font-weight:700;color:var(--gold2)">${fmtG(g)}</td>
       <td style="padding:7px 10px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--cream2)">${cost > 0 ? pmMoney(Math.round(cost)) : '—'}</td>
     </tr>`;
   }
@@ -151,7 +157,7 @@ function premRender() {
   }
   tbody += `<tr style="font-weight:700;background:rgba(74,128,192,.08)">
     <td style="padding:7px 10px;color:var(--blue)">Subtotal prefermento</td>
-    <td style="padding:7px 10px;text-align:right;font-family:'DM Mono',monospace;color:var(--blue)">${Math.round(preHarina + preAgua)}g</td>
+    <td style="padding:7px 10px;text-align:right;font-family:'DM Mono',monospace;color:var(--blue)">${Math.round(preHarina + preAgua + preLevadura)}g</td>
     <td></td></tr>`;
 
   tbody += header('🍞 Resto de la masa (ya ajustado)');
