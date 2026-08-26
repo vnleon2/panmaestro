@@ -299,7 +299,17 @@ function recNuevo() {
   window._mrEditUpdatedAt = null; // punto 5: sin receta base, nada que comparar al guardar
   document.getElementById('cv-nueva-titulo').textContent = 'Nueva receta';
   document.getElementById('mr-id').value = '';
-  document.getElementById('mr-code').value = 'R-' + String(_sbRecLista().filter(r=>r.code&&r.code.startsWith('R-')).length+1).padStart(4,'0');
+  // FIX (26 ago 2026): antes se calculaba contando cuántas recetas hay
+  // (length+1) en vez de mirar el código más alto ya usado — si alguna
+  // vez se borró una receta o quedó un hueco en la numeración, el conteo
+  // no coincidía con el máximo real y podía proponer un código YA
+  // EXISTENTE (ej. R-0086 repetido). Como recetas.codigo no tiene
+  // restricción de único en Supabase, el guardado no lo rechazaba, y como
+  // subrecetas/addons resuelven por código (no por id), la receta con
+  // código duplicado "tapaba" a la otra en los selectores. Ahora usa la
+  // misma función que ya se usaba en otros puntos del archivo, que sí
+  // calcula el máximo real + 1.
+  document.getElementById('mr-code').value = _pmNextRecCode();
   // FIX SESIÓN 2 (B2): reactivar el campo código — solo queda bloqueado
   // al editar una receta ya existente (ver recEditar).
   document.getElementById('mr-code').disabled = false;
