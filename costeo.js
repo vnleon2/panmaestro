@@ -310,9 +310,13 @@ function recNuevo() {
   // misma función que ya se usaba en otros puntos del archivo, que sí
   // calcula el máximo real + 1.
   document.getElementById('mr-code').value = _pmNextRecCode();
-  // FIX SESIÓN 2 (B2): reactivar el campo código — solo queda bloqueado
-  // al editar una receta ya existente (ver recEditar).
-  document.getElementById('mr-code').disabled = false;
+  // FIX (27 ago 2026): el código de receta debe ser 100% automático,
+  // sin excepción. Estaba editable (desde "SESIÓN 2 (B2)") y eso permitió
+  // que se escribiera encima un código casi-igual a uno ya existente
+  // (caso real: "R-0086i" pisando visualmente a "R-0086"), causando que
+  // la receta pareciera invisible. Ahora queda bloqueado también al crear,
+  // igual que ya estaba bloqueado al editar (ver recEditar).
+  document.getElementById('mr-code').disabled = true;
   document.getElementById('mr-name').value = '';
   document.getElementById('mr-masa').value = 1000;
   document.getElementById('mr-units').value = 1;
@@ -998,6 +1002,14 @@ async function recSave() {
   const cat   = document.getElementById('mr-cat').value;
   if (!name) { pmToast('Ingresá el nombre de la receta','err'); return; }
   if (!code) { pmToast('Ingresá un código','err'); return; }
+  // FIX (27 ago 2026): barrera extra contra código duplicado — no debería
+  // dispararse nunca con el campo ya bloqueado (ver recNuevo), pero cubre
+  // casos raros (doble clic, dos pestañas abiertas a la vez, etc.).
+  const yaExiste = _sbRecLista().some(r => r.code === code && r.id !== id);
+  if (yaExiste) {
+    pmToast('El código ' + code + ' ya está en uso por otra receta — recargá la página e intentá de nuevo','err');
+    return;
+  }
 
   const flour=[], other=[];
   document.querySelectorAll('#mr-ing-list > div').forEach(row => {
