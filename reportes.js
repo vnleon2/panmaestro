@@ -345,6 +345,7 @@ async function repContable(mes) {
         ${repStatBox('Pedidos', '₡'+pmMoney(totalPeds))}
         ${repStatBox('Ventas', '₡'+pmMoney(totalVents))}
         ${repStatBox('Diferencia', '₡'+pmMoney(Math.abs(totalDiff)))}
+        ${(sinVenta>0||conDiff>0) ? `<button class="btn btn-out btn-sm no-print" onclick="contableRecalcularTodo('${mes}')">🔧 Recalcular todo</button>` : ''}
         <button class="btn btn-gold btn-sm no-print" onclick="repPrintSection('rep-contable-inner')">🖨 Imprimir</button>
       </div>
     </div>
@@ -398,6 +399,95 @@ async function contableGuardarVenta(ventaId) {
   } catch(e) {
     pmToast('Error al guardar: ' + e.message, 'err');
   }
+}
+
+// ── Recalcular todo: arregla de un solo golpe los descuadres que quedaron
+// de ANTES del fix del 3 sep 2026 (pgSyncVentaTotal/ppSyncVentaTotal).
+// Para pedidos ya pagados del mes: si la venta existe pero el monto no
+// coincide, la corrige; si no existe venta, la crea. Mismo criterio que
+// usa el Reporte Contable para armar sus filas.
+async function contableRecalcularTodo(mes) {
+  if (!pmDB.disponible()) { pmToast('Sin conexión a Supabase', 'err'); return; }
+  if (!confirm(`Esto va a corregir el monto de las ventas de ${mes} que no coincidan con su pedido, y va a crear las que falten. ¿Continuar?`)) return;
+
+  let ventas = [];
+  try {
+    const todas = await pmDB.get('ventas', {});
+    ventas = (todas||[]).filter(v => {
+      const f = v.fecha_pago || v.created_at?.slice(0,10) || '';
+      return f.startsWith(mes);
+    });
+  } catch(e) { pmToast('Error al cargar ventas: ' + e.message, 'err'); return; }
+
+  const ventaPorPedido = {};
+  const ventasPorNotas = {};
+  ventas.forEach(v => {
+    if (v.pedido_id) ventaPorPedido[v.pedido_id] = v;
+    if (v.notas) ventasPorNotas[v.notas] = v;
+  });
+
+  let pedsCom = [];
+  try {
+    const todos = await pmDB.get('pedidos', { tipo: 'comercial' });
+    pedsCom = (todos||[]).filter(p => {
+      const f = p.fecha || p.date || '';
+      const st = (p.status||'').toLowerCase();
+      return f.startsWith(mes) && (st.includes('pagado') || st.includes('recepción'));
+    });
+  } catch(e) { pedsCom = []; }
+
+  const pedsPan  = G.pedidosPan.filter(p => {
+    const st = (p.status||'').toLowerCase();
+    return (p.date||'').startsWith(mes) && (st.includes('pagado') || st.includes('recepción'));
+  });
+  const pedsGall = G.pedidosGalletas.filter(p => {
+    const st = (p.status||'').toLowerCase();
+    return (p.date||'').startsWith(mes) && (st.includes('pagado') || st.includes('recepción'));
+  });
+
+  let corregidas = 0, creadas = 0, errores = 0;
+
+  const procesar = async (venta, montoPed, datosCrear) => {
+    if (venta) {
+      if (Math.abs(montoPed - (parseFloat(venta.total)||0)) > 1) {
+        try { await pmDB.update('ventas', venta.id, { total: montoPed }); corregidas++; }
+        catch(e) { errores++; console.warn('[pmDB] recalcularTodo update:', e.message); }
+      }
+    } else {
+      try { await pmDB.ventas.crear(datosCrear); creadas++; }
+      catch(e) { errores++; console.warn('[pmDB] recalcularTodo crear:', e.message); }
+    }
+  };
+
+  for (const p of pedsCom) {
+    const montoPed = parseFloat(p.total) || 0;
+    await procesar(ventaPorPedido[p.id], montoPed, {
+      pedido_id: p.id, fecha_pago: p.fecha || p.date, total: montoPed,
+      metodo_pago: 'efectivo', cliente_nom: p.cliente_nom || '—',
+      tipo: 'comercial', notas: 'COM-' + p.id
+    });
+  }
+  for (const p of pedsPan) {
+    const refId = 'PAN-' + p.id;
+    const montoPed = pmTotalPan(p);
+    await procesar(ventasPorNotas[refId], montoPed, {
+      pedido_id: p._sbId || null, fecha_pago: p.date, total: montoPed,
+      metodo_pago: p.metodoPago || 'efectivo', cliente_nom: p.cliNom || p.cli,
+      tipo: 'pan', notas: refId
+    });
+  }
+  for (const p of pedsGall) {
+    const refId = 'GALL-' + p.id;
+    const montoPed = pmTotalGall(p);
+    await procesar(ventasPorNotas[refId], montoPed, {
+      pedido_id: p._sbId || null, fecha_pago: p.date, total: montoPed,
+      metodo_pago: p.metodoPago || 'efectivo', cliente_nom: p.cliNom || p.cli,
+      tipo: 'galleta', notas: refId
+    });
+  }
+
+  pmToast(`✓ ${corregidas} venta(s) corregida(s), ${creadas} creada(s)${errores?', '+errores+' con error':''}`, errores ? 'err' : 'ok');
+  repRender();
 }
 
 let repCurrentTab = 'pan';
