@@ -470,6 +470,28 @@ async function pgChgSt(id, st) {
   }
 }
 
+// FIX descuadre contable: cuando un pedido de galleta ya está pagado
+// (venta ya creada en pgChgSt) y se edita una línea, la venta quedaba
+// "congelada" en el monto de cuando se pagó — el Reporte Contable
+// comparaba ese monto viejo contra pmTotalGall(ped) recalculado en vivo
+// y mostraba diferencia. Esto actualiza la venta ya existente para que
+// vuelva a cuadrar, mismo patrón que ya usa contableGuardarVenta().
+async function _pgSyncVentaTotal(ped) {
+  if (!pmDB.disponible()) return;
+  const st = (ped.status || '').toLowerCase();
+  if (!(st.includes('pagado') || st.includes('recepción'))) return;
+  const refId = 'GALL-' + ped.id;
+  try {
+    const exist = await pmDB.get('ventas', { notas: refId });
+    if (exist && exist.length) {
+      await pmDB.update('ventas', exist[0].id, { total: pmTotalGall(ped) });
+    }
+  } catch (e) {
+    console.warn('[pmDB] _pgSyncVentaTotal:', e.message);
+    pmToast('⚠️ El pedido cambió pero no se pudo actualizar la venta ya registrada: ' + e.message, 'err');
+  }
+}
+
 function pgAddLinea(pedId) {
   const ped = G.pedidosGalletas.find(p=>p.id===pedId);
   if (!ped) return;
@@ -569,6 +591,7 @@ function pgAddLinea(pedId) {
       _sbLineasPendientesGalletas = _sbLineasPendientesGalletas.filter(p => p !== escritura);
     });
   }
+  _pgSyncVentaTotal(ped);
 }
 
 function pgEditLinea(pedId, lid) {
@@ -635,6 +658,7 @@ function pgSaveLinea(pedId, lid) {
       _sbLineasPendientesGalletas = _sbLineasPendientesGalletas.filter(p => p !== escritura);
     });
   }
+  _pgSyncVentaTotal(ped);
 }
 function pgDelLinea(pedId, lid) {
   const p = G.pedidosGalletas.find(x=>x.id===pedId);
@@ -663,6 +687,7 @@ function pgDelLinea(pedId, lid) {
       _sbLineasPendientesGalletas = _sbLineasPendientesGalletas.filter(p2 => p2 !== escritura);
     });
   }
+  _pgSyncVentaTotal(p);
 }
 function pgDel(id) {
   if (!confirm('¿Eliminar este pedido?')) return;
@@ -672,5 +697,17 @@ function pgDel(id) {
   if (pmDB.disponible() && p?._sbId) {
     pmDB.hardDelete('pedidos', p._sbId)
       .catch(e => console.warn('[pmDB] pgDel error:', e.message));
+  }
+  // FIX descuadre contable: si el pedido ya estaba pagado, hay que borrar
+  // también la venta asociada — si no, queda huérfana en el Reporte
+  // Contable (una venta sin ningún pedido de respaldo).
+  if (pmDB.disponible() && p) {
+    const st = (p.status || '').toLowerCase();
+    if (st.includes('pagado') || st.includes('recepción')) {
+      const refId = 'GALL-' + id;
+      pmDB.get('ventas', { notas: refId }).then(exist => {
+        if (exist && exist.length) return pmDB.hardDelete('ventas', exist[0].id);
+      }).catch(e => console.warn('[pmDB] pgDel venta huérfana:', e.message));
+    }
   }
 }

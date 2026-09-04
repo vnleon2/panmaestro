@@ -608,6 +608,26 @@ function pgDesbloquear(id) {
   }
 }
 
+// FIX descuadre contable (mismo patrón que _pgSyncVentaTotal en galletas.js):
+// si el pedido ya está pagado (venta ya creada en ppChgStatus) y se edita
+// una línea, la venta actualiza su total para no quedar desincronizada
+// del monto real del pedido en el Reporte Contable.
+async function _ppSyncVentaTotal(ped) {
+  if (!pmDB.disponible()) return;
+  const st = (ped.status || '').toLowerCase();
+  if (!(st.includes('pagado') || st.includes('recepción'))) return;
+  const refId = 'PAN-' + ped.id;
+  try {
+    const exist = await pmDB.get('ventas', { notas: refId });
+    if (exist && exist.length) {
+      await pmDB.update('ventas', exist[0].id, { total: pmTotalPan(ped) });
+    }
+  } catch (e) {
+    console.warn('[pmDB] _ppSyncVentaTotal:', e.message);
+    pmToast('⚠️ El pedido cambió pero no se pudo actualizar la venta ya registrada: ' + e.message, 'err');
+  }
+}
+
 function ppAddLinea(pedId) {
   const ped = G.pedidosPan.find(p=>p.id===pedId);
   if (!ped) return;
@@ -721,6 +741,7 @@ function ppAddLinea(pedId) {
       _sbPedidoLineasPendientes = _sbPedidoLineasPendientes.filter(p => p !== escritura);
     });
   }
+  _ppSyncVentaTotal(ped);
 }
 
 function ppEditLinea(pedId, lid) {
@@ -797,6 +818,7 @@ function ppSaveLinea(pedId, lid) {
       _sbPedidoLineasPendientes = _sbPedidoLineasPendientes.filter(p => p !== escritura);
     });
   }
+  _ppSyncVentaTotal(ped);
 }
 
 function ppDelLinea(pedId, lid) {
@@ -828,6 +850,7 @@ function ppDelLinea(pedId, lid) {
       _sbPedidoLineasPendientes = _sbPedidoLineasPendientes.filter(p2 => p2 !== escritura);
     });
   }
+  _ppSyncVentaTotal(p);
 }
 
 function ppDel(id) {
@@ -838,5 +861,17 @@ function ppDel(id) {
   if (pmDB.disponible() && p?._sbId) {
     pmDB.hardDelete('pedidos', p._sbId)
       .catch(e => console.warn('[pmDB] ppDel error:', e.message));
+  }
+  // FIX descuadre contable: si el pedido ya estaba pagado, hay que borrar
+  // también la venta asociada — si no, queda huérfana en el Reporte
+  // Contable (una venta sin ningún pedido de respaldo).
+  if (pmDB.disponible() && p) {
+    const st = (p.status || '').toLowerCase();
+    if (st.includes('pagado') || st.includes('recepción')) {
+      const refId = 'PAN-' + id;
+      pmDB.get('ventas', { notas: refId }).then(exist => {
+        if (exist && exist.length) return pmDB.hardDelete('ventas', exist[0].id);
+      }).catch(e => console.warn('[pmDB] ppDel venta huérfana:', e.message));
+    }
   }
 }
