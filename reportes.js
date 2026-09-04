@@ -178,6 +178,59 @@ function _docAbrir(peds, tipo) {
 }
 
 // ─── REPORTE CONTABLE — CONCILIACIÓN PEDIDOS vs VENTAS ───────────────────────
+// ── Pedidos de Pan/Galleta pagados de un mes, sin depender de si ese día
+// se visitó localmente en la pestaña de Pedidos ──
+// PROBLEMA ENCONTRADO: pgCargarSb()/ppCargarSb() solo traen a G.pedidosPan/
+// G.pedidosGalletas los pedidos del DÍA que está seleccionado en esa
+// pestaña — no un mes completo. Si un mes (ej. agosto 2026) nunca se abrió
+// día por día en Pedidos > Pan/Galleta en este navegador, G.pedidosPan/
+// G.pedidosGalletas quedan vacíos para esas fechas, y el reporte/recálculo
+// no encontraba nada que corregir aunque el descuadre sí existiera en
+// Supabase. Esta función trae los pedidos DIRECTO de Supabase para el mes
+// completo (igual que ya se hacía con Comercial), y calcula el total desde
+// pedido_lineas.precio_applied (precio al momento del pedido) en vez del
+// precio de catálogo actual — más preciso para conciliar.
+async function _pmPedidosPagadosDelMes(tipo, mes) {
+  const prefix = tipo === 'pan' ? 'PAN-' : 'GALL-';
+  const out = [];
+  const vistos = new Set();
+
+  if (pmDB.disponible()) {
+    let todos = [];
+    try { todos = await pmDB.get('pedidos', { tipo }, '*'); }
+    catch(e) { console.warn('[pmDB] _pmPedidosPagadosDelMes:', e.message); todos = []; }
+    const filtrados = (todos||[]).filter(p => {
+      const f = p.fecha || '';
+      const st = (p.status||'').toLowerCase();
+      return f.startsWith(mes) && (st.includes('pagado') || st.includes('recepción'));
+    });
+    for (const sb of filtrados) {
+      let total = 0;
+      try {
+        const lins = await pmDB.get('pedido_lineas', { pedido_id: sb.id }, '*');
+        total = (lins||[]).reduce((s,l) => s + (parseFloat(l.precio_applied)||0) * (l.cantidad||1), 0);
+      } catch(e) { console.warn('[pmDB] lineas de pedido', sb.id, e.message); }
+      out.push({ _sbId: sb.id, date: sb.fecha, cli: sb.cliente_nom, status: sb.status, total, refId: null });
+      vistos.add(sb.id);
+    }
+  }
+
+  // Pedidos que solo viven en el caché local (nunca sincronizaron a
+  // Supabase — offline puro) — se completan aparte, usando el precio de
+  // catálogo actual porque no hay precio_applied guardado para ellos.
+  const arrLocal = tipo === 'pan' ? G.pedidosPan : G.pedidosGalletas;
+  const totalFn  = tipo === 'pan' ? pmTotalPan : pmTotalGall;
+  arrLocal.filter(p => {
+    const st = (p.status||'').toLowerCase();
+    return (p.date||'').startsWith(mes) && (st.includes('pagado')||st.includes('recepción'))
+      && (!p._sbId || !vistos.has(p._sbId));
+  }).forEach(p => {
+    out.push({ _sbId: p._sbId||null, date: p.date, cli: p.cliNom||p.cli, status: p.status, total: totalFn(p), refId: prefix+p.id });
+  });
+
+  return out;
+}
+
 async function repContable(mes) {
   if (!pmDB.disponible()) return '<div class="ph"><span class="ph-icon">⚠️</span>Sin conexión a Supabase</div>';
 
@@ -214,17 +267,10 @@ async function repContable(mes) {
     });
   } catch(e) { pedsCom = []; }
 
-  // ── Pedidos de pan pagados del mes (desde localStorage) ──
-  const pedsPan = G.pedidosPan.filter(p => {
-    const st = (p.status||'').toLowerCase();
-    return (p.date||'').startsWith(mes) && (st.includes('pagado') || st.includes('recepción'));
-  });
-
-  // ── Pedidos de galleta pagados del mes (desde localStorage) ──
-  const pedsGall = G.pedidosGalletas.filter(p => {
-    const st = (p.status||'').toLowerCase();
-    return (p.date||'').startsWith(mes) && (st.includes('pagado') || st.includes('recepción'));
-  });
+  // ── Pedidos de pan y galleta pagados del mes (desde Supabase, con
+  // fallback local para offline puro — ver _pmPedidosPagadosDelMes) ──
+  const pedsPan  = await _pmPedidosPagadosDelMes('pan', mes);
+  const pedsGall = await _pmPedidosPagadosDelMes('galleta', mes);
 
   // ── Construir filas de conciliación ──
   const filas = [];
@@ -247,15 +293,15 @@ async function repContable(mes) {
     });
   });
 
-  // Pan
+  // Pan (matchea primero por pedido_id contra Supabase — igual que
+  // Comercial — y solo cae a notas cuando el pedido es offline puro)
   pedsPan.forEach(p => {
-    const refId  = 'PAN-' + p.id;
-    const venta  = ventasPorNotas[refId];
-    const montoPed = pmTotalPan(p);
+    const venta   = (p._sbId && ventaPorPedido[p._sbId]) || (p.refId && ventasPorNotas[p.refId]);
+    const montoPed = parseFloat(p.total) || 0;
     const montoVen = parseFloat(venta?.total) || 0;
     filas.push({
       tipo:     '🍞 Pan',
-      ref:      refId,
+      ref:      p.refId || ('PAN-sb-' + (p._sbId||'')),
       cliente:  p.cli,
       fecha:    pmFmtDateShort(p.date),
       montoPed,
@@ -265,15 +311,14 @@ async function repContable(mes) {
     });
   });
 
-  // Galleta
+  // Galleta (mismo criterio que Pan)
   pedsGall.forEach(p => {
-    const refId  = 'GALL-' + p.id;
-    const venta  = ventasPorNotas[refId];
-    const montoPed = pmTotalGall(p);
+    const venta   = (p._sbId && ventaPorPedido[p._sbId]) || (p.refId && ventasPorNotas[p.refId]);
+    const montoPed = parseFloat(p.total) || 0;
     const montoVen = parseFloat(venta?.total) || 0;
     filas.push({
       tipo:     '🍪 Galleta',
-      ref:      refId,
+      ref:      p.refId || ('GALL-sb-' + (p._sbId||'')),
       cliente:  p.cli,
       fecha:    pmFmtDateShort(p.date),
       montoPed,
@@ -436,14 +481,8 @@ async function contableRecalcularTodo(mes) {
     });
   } catch(e) { pedsCom = []; }
 
-  const pedsPan  = G.pedidosPan.filter(p => {
-    const st = (p.status||'').toLowerCase();
-    return (p.date||'').startsWith(mes) && (st.includes('pagado') || st.includes('recepción'));
-  });
-  const pedsGall = G.pedidosGalletas.filter(p => {
-    const st = (p.status||'').toLowerCase();
-    return (p.date||'').startsWith(mes) && (st.includes('pagado') || st.includes('recepción'));
-  });
+  const pedsPan  = await _pmPedidosPagadosDelMes('pan', mes);
+  const pedsGall = await _pmPedidosPagadosDelMes('galleta', mes);
 
   let corregidas = 0, creadas = 0, errores = 0;
 
@@ -468,21 +507,19 @@ async function contableRecalcularTodo(mes) {
     });
   }
   for (const p of pedsPan) {
-    const refId = 'PAN-' + p.id;
-    const montoPed = pmTotalPan(p);
-    await procesar(ventasPorNotas[refId], montoPed, {
-      pedido_id: p._sbId || null, fecha_pago: p.date, total: montoPed,
-      metodo_pago: p.metodoPago || 'efectivo', cliente_nom: p.cliNom || p.cli,
-      tipo: 'pan', notas: refId
+    const venta = (p._sbId && ventaPorPedido[p._sbId]) || (p.refId && ventasPorNotas[p.refId]);
+    await procesar(venta, p.total, {
+      pedido_id: p._sbId || null, fecha_pago: p.date, total: p.total,
+      metodo_pago: 'efectivo', cliente_nom: p.cli,
+      tipo: 'pan', notas: p.refId || ('PAN-sb-' + (p._sbId||''))
     });
   }
   for (const p of pedsGall) {
-    const refId = 'GALL-' + p.id;
-    const montoPed = pmTotalGall(p);
-    await procesar(ventasPorNotas[refId], montoPed, {
-      pedido_id: p._sbId || null, fecha_pago: p.date, total: montoPed,
-      metodo_pago: p.metodoPago || 'efectivo', cliente_nom: p.cliNom || p.cli,
-      tipo: 'galleta', notas: refId
+    const venta = (p._sbId && ventaPorPedido[p._sbId]) || (p.refId && ventasPorNotas[p.refId]);
+    await procesar(venta, p.total, {
+      pedido_id: p._sbId || null, fecha_pago: p.date, total: p.total,
+      metodo_pago: 'efectivo', cliente_nom: p.cli,
+      tipo: 'galleta', notas: p.refId || ('GALL-sb-' + (p._sbId||''))
     });
   }
 
