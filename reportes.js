@@ -556,6 +556,7 @@ async function repRender() {
     else if (repCurrentTab === 'mensual')     html = await repMensual(mes);
     else if (repCurrentTab === 'documentos')  html = await repDocumentosRender();
     else if (repCurrentTab === 'contable')    html = await repContable(mes);
+    else if (repCurrentTab === 'facxcli')     html = await repFacturasCliente(mes);
     else html = '<div style="padding:20px;color:var(--cream)">Tab: ' + repCurrentTab + ' — no reconocido</div>';
     out.innerHTML = html;
   } catch(e) {
@@ -1028,6 +1029,94 @@ async function repComImprimir(peds, tipo) {
     <style>${CSS}</style>
   </head><body>${paginas}<script>window.onload=()=>{window.print();}<\/script></body></html>`);
   win.document.close();
+}
+
+// ── 🧾 Facturas por Cliente (consulta) ──
+// Reporte de consulta: Victor elige cliente + mes y ve, para ese cliente,
+// todos los pedidos comerciales del mes con su N° de pedido, N° de
+// factura (si ya se emitió) y estatus — sin tener que revisar pedido
+// por pedido. Usa G.pedidosCom (local-first, ver punto 7 de la
+// auditoría) filtrado por cliId + date.startsWith(mes).
+async function repFacturasCliente(mes) {
+  const clientes = _sbCliCache || await _sbCliCargar();
+  const selEl  = document.getElementById('rep-facxcli-cli');
+  const cliId  = selEl ? selEl.value : (window._repFacXCliSel || '');
+  window._repFacXCliSel = cliId;
+
+  const cliOpts = (clientes||[]).slice()
+    .sort((a,b) => (a.nombre||'').localeCompare(b.nombre||''))
+    .map(c => `<option value="${c.id}" ${String(c.id)===String(cliId)?'selected':''}>${pmEsc(c.nombre)}</option>`)
+    .join('');
+
+  const selectorHtml = `<div class="no-print" style="margin-bottom:16px">
+    <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--cream2);display:block;margin-bottom:6px">Cliente</label>
+    <select id="rep-facxcli-cli" onchange="repRender()"
+      style="padding:8px 12px;background:var(--sf);border:1px solid var(--border);border-radius:8px;color:var(--cream);font-size:13px;width:100%;max-width:320px">
+      <option value="">— Seleccionar cliente —</option>
+      ${cliOpts}
+    </select>
+  </div>`;
+
+  const header = `<div class="rep-header" style="margin-bottom:16px">
+    <div>
+      <div style="font-family:'Playfair Display',serif;font-size:20px;font-weight:900;color:var(--cream)">🧾 Facturas por Cliente</div>
+      <div style="font-size:12px;color:var(--cream2);margin-top:2px">${mes}</div>
+    </div>
+  </div>`;
+
+  if (!cliId) {
+    return `<div class="card">${header}${selectorHtml}<div class="ph"><span class="ph-icon">🧾</span>Seleccioná un cliente para ver sus pedidos y facturas del mes</div></div>`;
+  }
+
+  const cli  = (clientes||[]).find(c => String(c.id) === String(cliId));
+  const peds = (G.pedidosCom||[])
+    .filter(p => String(p.cliId) === String(cliId) && (p.date||'').startsWith(mes))
+    .sort((a,b) => (a.date||'').localeCompare(b.date||''));
+
+  window._repFacXCliPeds = peds;
+
+  if (!peds.length) {
+    return `<div class="card">${header}${selectorHtml}<div class="ph"><span class="ph-icon">🧾</span>${cli?pmEsc(cli.nombre)+' — s':'S'}in pedidos comerciales en ${mes}</div></div>`;
+  }
+
+  let totalGlobal = 0;
+  const rows = peds.map(p => {
+    const tot = pmTotalCom(p);
+    totalGlobal += tot;
+    return `<tr>
+      <td>${pmFmtDate(p.date)}</td>
+      <td style="font-family:'DM Mono',monospace">${p.numPed || 'pendiente'}</td>
+      <td style="font-family:'DM Mono',monospace">${p.numFac || '—'}</td>
+      <td>${pmBadge(p.status)}</td>
+      <td style="text-align:right;font-family:'DM Mono',monospace;font-weight:700;color:var(--gold)">₡${pmMoney(tot)}</td>
+    </tr>`;
+  }).join('');
+
+  return `<div class="card" id="rep-facxcli-inner">
+    ${header}
+    ${selectorHtml}
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+      <div style="font-weight:700;font-size:15px;color:var(--cream)">${pmEsc(cli?.nombre||'')}</div>
+      ${repStatBox('Pedidos', peds.length)}
+      ${repStatBox('Total', '₡'+pmMoney(totalGlobal))}
+      <button class="btn btn-out btn-sm no-print" onclick="repPrintSection('rep-facxcli-inner')">🖨 Imprimir lista</button>
+      <button class="btn btn-gold btn-sm no-print" onclick="repComImprimir(window._repFacXCliPeds,'factura')">🧾 Facturas</button>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="border-bottom:1px solid var(--border)">
+        <th style="padding:6px 8px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Fecha</th>
+        <th style="padding:6px 8px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.6px">N° Pedido</th>
+        <th style="padding:6px 8px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.6px">N° Factura</th>
+        <th style="padding:6px 8px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Estatus</th>
+        <th style="padding:6px 8px;text-align:right;font-size:10px;text-transform:uppercase;letter-spacing:.6px">Total</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr style="border-top:2px solid var(--border)">
+        <td colspan="4" style="padding:8px;font-weight:700">Total del mes</td>
+        <td style="padding:8px;text-align:right;font-family:'DM Mono',monospace;font-weight:900;color:var(--gold)">₡${pmMoney(totalGlobal)}</td>
+      </tr></tfoot>
+    </table>
+  </div>`;
 }
 
 function repProduccion(fecha) {
