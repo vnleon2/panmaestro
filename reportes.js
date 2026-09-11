@@ -1041,6 +1041,56 @@ async function repComImprimir(peds, tipo) {
   win.document.close();
 }
 
+// ── Refrescar pedidos de UN cliente directo desde Supabase (para reportes) ──
+// El reporte "Facturas por Cliente" necesita ser confiable como fuente de
+// verdad — no puede depender de lo que ya esté cacheado en G.pedidosCom,
+// porque ese caché solo se refresca cuando se visita la pestaña Comercial
+// en la fecha exacta de cada pedido. Si se corrige algo directo en
+// Supabase (ej. por SQL), el navegador no se entera hasta que ese pedido
+// puntual se recargue — causa real de ver un número de factura viejo/
+// incorrecto en el reporte después de corregirlo en la base de datos.
+async function _repFacXCliRefrescar(cliId) {
+  if (!pmDB.disponible()) return;
+  try {
+    await _sbProdEnsureMap();
+    const rows = await pmDB.get('pedidos', { tipo: 'comercial', cliente_id: cliId }, '*');
+    if (!rows) return;
+    const frescos = [];
+    for (const sb of rows) {
+      let lineasSb = [];
+      try { lineasSb = await pmDB.get('pedido_lineas', { pedido_id: sb.id }, '*'); } catch(e) {}
+      const local  = G.pedidosCom.find(p => p._sbId === sb.id);
+      const lineas = (lineasSb||[]).map(l => {
+        const localLin = local?.lineas?.find(x => x._sbId === l.id);
+        return {
+          lid: localLin?.lid || pmId(),
+          sbId: l.producto_id,
+          pid: _sbProdMapInv?.[l.producto_id] || '',
+          cant: l.cantidad||1,
+          precio: l.precio_applied||0,
+          desc: l.descuento_pct||0,
+          _sbId: l.id
+        };
+      });
+      frescos.push({
+        id: local?.id || pmId(),
+        date: sb.fecha, cliId: sb.cliente_id, cliNom: sb.cliente_nom,
+        status: sb.status, metodoPago: local?.metodoPago || 'efectivo',
+        numPed: sb.numero_pedido,
+        numFac: sb.numero_factura || local?.numFac || null,
+        lineas, _sbId: sb.id
+      });
+    }
+    // Reemplazar en G.pedidosCom solo los pedidos de este cliente que ya
+    // están en Supabase — se conserva todo lo demás (otros clientes,
+    // pedidos offline sin _sbId todavía).
+    const idsFrescos = new Set(frescos.map(p => p._sbId));
+    const resto = G.pedidosCom.filter(p => !idsFrescos.has(p._sbId));
+    G.pedidosCom = [...resto, ...frescos];
+    pmSave('sistema');
+  } catch(e) { console.warn('[repFacturasCliente] refresco:', e.message); }
+}
+
 // ── 🧾 Facturas por Cliente (consulta) ──
 // Reporte de consulta: Victor elige cliente + mes y ve, para ese cliente,
 // todos los pedidos comerciales del mes con su N° de pedido, N° de
@@ -1079,6 +1129,11 @@ async function repFacturasCliente(mes) {
   }
 
   const cli  = (clientes||[]).find(c => String(c.id) === String(cliId));
+
+  // Traer siempre lo más fresco de Supabase para este cliente antes de
+  // filtrar/mostrar — evita mostrar datos viejos cacheados localmente.
+  await _repFacXCliRefrescar(cliId);
+
   const peds = (G.pedidosCom||[])
     .filter(p => String(p.cliId) === String(cliId) && (p.date||'').startsWith(mes))
     .sort((a,b) => (a.date||'').localeCompare(b.date||''));
