@@ -136,7 +136,9 @@ async function pcCargarSb() {
             id: local?.id || pmId(),
             date: sb.fecha, cliId: sb.cliente_id, cliNom: sb.cliente_nom,
             status: sb.status, metodoPago: local?.metodoPago || 'efectivo',
-            numPed: sb.numero_pedido, lineas, _sbId: sb.id
+            numPed: sb.numero_pedido,
+            numFac: sb.numero_factura || local?.numFac || null,
+            lineas, _sbId: sb.id
           });
         }
         // Mantener pedidos de otras fechas + los que sigan sin _sbId

@@ -919,13 +919,23 @@ async function repComImprimir(peds, tipo) {
 
   const esFactura = tipo === 'factura';
 
-  // Si es factura, asignar correlativo único por pedido (solo una vez)
+  // Si es factura, asignar correlativo único por pedido (solo una vez).
+  // El número se persiste también en Supabase (columna numero_factura de
+  // "pedidos") — antes solo se guardaba en G.pedidosCom/localStorage, así
+  // que cada vez que pcCargarSb() reconstruía el pedido desde Supabase
+  // (con solo abrir la pestaña o cambiar de fecha) el numFac se perdía y
+  // la próxima impresión le asignaba un número nuevo — de ahí facturas
+  // "cambiando" de número (9/10/11 para el mismo pedido).
   if (esFactura) {
     for (const p of lista) {
       if (!p.numFac) {
         const n   = await _corrSiguiente('factura');
         p.numFac  = _corrFmt(n, 'FAC-');
         pmSave('sistema');
+        if (p._sbId && pmDB.disponible()) {
+          try { await pmDB.update('pedidos', p._sbId, { numero_factura: p.numFac }); }
+          catch(e) { console.warn('[repComImprimir] no se pudo guardar numero_factura en Supabase:', e.message); }
+        }
       }
     }
   }
