@@ -236,7 +236,8 @@ async function repContable(mes) {
 
   const [anio, mesN] = mes.split('-');
 
-  // Cargar ventas del mes desde Supabase
+  // Cargar ventas del mes desde Supabase — esta es la fuente de verdad:
+  // la venta se contabiliza el día que se paga, no el día del pedido.
   let ventas = [];
   try {
     const todas = await pmDB.get('ventas', {});
@@ -248,113 +249,86 @@ async function repContable(mes) {
     return `<div class="ph"><span class="ph-icon">⚠️</span>Error al cargar ventas: ${e.message}</div>`;
   }
 
-  // Mapa de ventas por pedido_id para cruce
-  const ventaPorPedido = {};
-  const ventasPorNotas = {};
-  ventas.forEach(v => {
-    if (v.pedido_id) ventaPorPedido[v.pedido_id] = v;
-    if (v.notas) ventasPorNotas[v.notas] = v;
-  });
-
-  // ── Pedidos comerciales pagados del mes (desde Supabase) ──
-  let pedsCom = [];
-  try {
-    const todos = await pmDB.get('pedidos', { tipo: 'comercial' });
-    pedsCom = (todos||[]).filter(p => {
-      const f = p.fecha || p.date || '';
-      const st = (p.status||'').toLowerCase();
-      return f.startsWith(mes) && (st.includes('pagado') || st.includes('recepción'));
-    });
-  } catch(e) { pedsCom = []; }
-
-  // ── Pedidos de pan y galleta pagados del mes (desde Supabase, con
-  // fallback local para offline puro — ver _pmPedidosPagadosDelMes) ──
-  const pedsPan  = await _pmPedidosPagadosDelMes('pan', mes);
-  const pedsGall = await _pmPedidosPagadosDelMes('galleta', mes);
-
   // ── Construir filas de conciliación ──
+  // REDISEÑO (11 sep 2026): antes esto arrancaba desde los PEDIDOS del mes
+  // (filtrados por la fecha del pedido) y buscaba su venta — así, un
+  // pedido hecho en agosto pero marcado "Pagado" recién en septiembre
+  // salía como "sin venta" en el reporte de agosto, aunque la venta sí
+  // existiera (fechada en septiembre, que es como corresponde: la venta
+  // se contabiliza el día que se paga, no el día del pedido — práctica
+  // contable confirmada por Victor). Ahora arranca desde las VENTAS del
+  // mes (ya cargadas arriba por fecha_pago) y busca su pedido de origen
+  // para comparar montos — así el reporte de un mes muestra exactamente
+  // lo que se pagó ese mes, sin importar cuándo se hizo el pedido.
   const filas = [];
+  const _pedidoCache = {}; // evita pedir el mismo pedido dos veces
 
-  // Comerciales
-  pedsCom.forEach(p => {
-    const venta   = ventaPorPedido[p.id];
-    const montoPed = parseFloat(p.total) || 0;
-    const montoVen = parseFloat(venta?.total) || 0;
-    const diff     = montoPed - montoVen;
+  for (const v of ventas) {
+    const montoVen = parseFloat(v.total) || 0;
+    let montoPed   = montoVen; // si no hay pedido de origen, no hay diferencia que mostrar
+    let ref        = v.notas || '—';
+    let cliente    = v.cliente_nom || '—';
+    let fechaRef   = v.fecha_pago || '';
+    const tipoLbl  = v.tipo === 'comercial' ? '🏪 Comercial'
+                    : v.tipo === 'pan'       ? '🍞 Pan'
+                    : v.tipo === 'galleta'   ? '🍪 Galleta'
+                    : (v.tipo || '—');
+
+    if (v.pedido_id) {
+      try {
+        let ped = _pedidoCache[v.pedido_id];
+        if (ped === undefined) {
+          ped = await pmDB.getById('pedidos', v.pedido_id);
+          _pedidoCache[v.pedido_id] = ped;
+        }
+        if (ped) {
+          cliente  = ped.cliente_nom || cliente;
+          ref      = ped.numero_pedido || ref;
+          fechaRef = ped.fecha || fechaRef;
+          if (v.tipo === 'comercial') {
+            montoPed = parseFloat(ped.total) || montoVen;
+          } else {
+            const lins = await pmDB.get('pedido_lineas', { pedido_id: ped.id }, '*');
+            montoPed = (lins||[]).reduce((s,l) => s + (parseFloat(l.precio_applied)||0) * (l.cantidad||1), 0);
+          }
+        }
+      } catch(e) { console.warn('[repContable] no se pudo cargar pedido', v.pedido_id, e.message); }
+    }
+
     filas.push({
-      tipo:     '🏪 Comercial',
-      ref:      p.numero_pedido || '—',
-      cliente:  p.cliente_nom || '—',
-      fecha:    pmFmtDateShort(p.fecha||p.date),
+      tipo: tipoLbl,
+      ref,
+      cliente,
+      fecha: pmFmtDateShort(v.fecha_pago || fechaRef),
       montoPed,
       montoVen,
-      venta,
-      diff
-    });
-  });
-
-  // Pan (matchea primero por pedido_id contra Supabase — igual que
-  // Comercial — y solo cae a notas cuando el pedido es offline puro)
-  pedsPan.forEach(p => {
-    const venta   = (p._sbId && ventaPorPedido[p._sbId]) || (p.refId && ventasPorNotas[p.refId]);
-    const montoPed = parseFloat(p.total) || 0;
-    const montoVen = parseFloat(venta?.total) || 0;
-    filas.push({
-      tipo:     '🍞 Pan',
-      ref:      p.refId || ('PAN-sb-' + (p._sbId||'')),
-      cliente:  p.cli,
-      fecha:    pmFmtDateShort(p.date),
-      montoPed,
-      montoVen,
-      venta,
+      venta: v,
       diff: montoPed - montoVen
     });
-  });
+  }
 
-  // Galleta (mismo criterio que Pan)
-  pedsGall.forEach(p => {
-    const venta   = (p._sbId && ventaPorPedido[p._sbId]) || (p.refId && ventasPorNotas[p.refId]);
-    const montoPed = parseFloat(p.total) || 0;
-    const montoVen = parseFloat(venta?.total) || 0;
-    filas.push({
-      tipo:     '🍪 Galleta',
-      ref:      p.refId || ('GALL-sb-' + (p._sbId||'')),
-      cliente:  p.cli,
-      fecha:    pmFmtDateShort(p.date),
-      montoPed,
-      montoVen,
-      venta,
-      diff: montoPed - montoVen
-    });
-  });
-
-  // Ordenar por fecha
+  // Ordenar por fecha de pago
   filas.sort((a,b) => a.fecha.localeCompare(b.fecha));
 
   // Totales
   const totalPeds  = filas.reduce((s,f) => s + f.montoPed, 0);
   const totalVents = filas.reduce((s,f) => s + f.montoVen, 0);
   const totalDiff  = totalPeds - totalVents;
-  const sinVenta   = filas.filter(f => !f.venta).length;
-  const conDiff    = filas.filter(f => f.venta && Math.abs(f.diff) > 1).length;
+  const conDiff    = filas.filter(f => Math.abs(f.diff) > 1).length;
 
   if (!filas.length) {
     return `<div class="card">
       <div class="ctitle">📊 Conciliación Contable</div>
-      <div class="ph"><span class="ph-icon">📊</span>Sin pedidos pagados en ${mes}</div>
+      <div class="ph"><span class="ph-icon">📊</span>Sin ventas registradas en ${mes}</div>
     </div>`;
   }
 
   const rows = filas.map(f => {
-    const tieneDiff = f.venta && Math.abs(f.diff) > 1;
-    const estado = !f.venta
-      ? `<span style="color:var(--red);font-weight:700">❌ Sin venta</span>`
-      : tieneDiff
-        ? `<span style="color:var(--amber);font-weight:700">⚠️ Dif. ₡${pmMoney(Math.abs(f.diff))}</span>`
-        : `<span style="color:var(--green);font-weight:700">✓</span>`;
-    const ventaCell = f.venta
-      ? `<span id="vc-val-${f.venta.id}" style="font-family:'DM Mono',monospace">₡${pmMoney(f.montoVen)}</span>`
-      : '—';
+    const tieneDiff = Math.abs(f.diff) > 1;
+    const estado = tieneDiff
+      ? `<span style="color:var(--amber);font-weight:700">⚠️ Dif. ₡${pmMoney(Math.abs(f.diff))}</span>`
+      : `<span style="color:var(--green);font-weight:700">✓</span>`;
+    const ventaCell = `<span id="vc-val-${f.venta.id}" style="font-family:'DM Mono',monospace">₡${pmMoney(f.montoVen)}</span>`;
     const editBtn = tieneDiff
       ? `<button class="btn btn-out btn-xs no-print" style="margin-left:6px;font-size:10px" onclick="contableEditVenta('${f.venta.id}',${f.montoVen})">✏️</button>`
       : '';
@@ -364,33 +338,33 @@ async function repContable(mes) {
       <td style="padding:8px 10px;font-weight:600">${f.cliente}</td>
       <td style="padding:8px 10px;font-size:10px;color:var(--cream2);font-family:'DM Mono',monospace">${f.ref}</td>
       <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace;font-weight:700">₡${pmMoney(f.montoPed)}</td>
-      <td style="padding:8px 10px;text-align:right" id="vc-cell-${f.venta?.id||''}">
+      <td style="padding:8px 10px;text-align:right" id="vc-cell-${f.venta.id}">
         ${ventaCell}${editBtn}
       </td>
-      <td style="padding:8px 10px;text-align:center" id="vc-estado-${f.venta?.id||''}">${estado}</td>
+      <td style="padding:8px 10px;text-align:center" id="vc-estado-${f.venta.id}">${estado}</td>
     </tr>`;
   }).join('');
 
-  const alertas = sinVenta > 0 || conDiff > 0 ? `
-    <div style="background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.2);border-radius:10px;padding:12px 16px;margin-bottom:16px;display:flex;gap:16px;flex-wrap:wrap">
-      ${sinVenta > 0 ? `<span style="color:var(--red);font-size:13px">❌ ${sinVenta} pedido(s) sin venta registrada</span>` : ''}
-      ${conDiff > 0 ? `<span style="color:var(--amber);font-size:13px">⚠️ ${conDiff} venta(s) con diferencia de monto</span>` : ''}
+  const alertas = conDiff > 0 ? `
+    <div style="background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.2);border-radius:10px;padding:12px 16px;margin-bottom:16px">
+      <span style="color:var(--amber);font-size:13px">⚠️ ${conDiff} venta(s) con diferencia de monto contra su pedido de origen</span>
     </div>` : `
     <div style="background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.2);border-radius:10px;padding:12px 16px;margin-bottom:16px">
-      <span style="color:var(--green);font-size:13px">✓ Conciliación completa — todos los pedidos tienen venta registrada</span>
+      <span style="color:var(--green);font-size:13px">✓ Conciliación completa — todas las ventas cuadran con su pedido</span>
     </div>`;
+
 
   return `<div class="card" id="rep-contable-inner">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
       <div>
         <div style="font-family:'Playfair Display',serif;font-size:20px;font-weight:900;color:var(--cream)">📊 Conciliación Contable</div>
-        <div style="font-size:12px;color:var(--cream2);margin-top:2px">${mes} · ${filas.length} pedido(s) pagado(s)</div>
+        <div style="font-size:12px;color:var(--cream2);margin-top:2px">${mes} · ${filas.length} venta(s) registrada(s)</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         ${repStatBox('Pedidos', '₡'+pmMoney(totalPeds))}
         ${repStatBox('Ventas', '₡'+pmMoney(totalVents))}
         ${repStatBox('Diferencia', '₡'+pmMoney(Math.abs(totalDiff)))}
-        ${(sinVenta>0||conDiff>0) ? `<button class="btn btn-out btn-sm no-print" onclick="contableRecalcularTodo('${mes}')">🔧 Recalcular todo</button>` : ''}
+        ${conDiff>0 ? `<button class="btn btn-out btn-sm no-print" onclick="contableRecalcularTodo('${mes}')">🔧 Recalcular todo</button>` : ''}
         <button class="btn btn-gold btn-sm no-print" onclick="repPrintSection('rep-contable-inner')">🖨 Imprimir</button>
       </div>
     </div>
@@ -446,14 +420,19 @@ async function contableGuardarVenta(ventaId) {
   }
 }
 
-// ── Recalcular todo: arregla de un solo golpe los descuadres que quedaron
-// de ANTES del fix del 3 sep 2026 (pgSyncVentaTotal/ppSyncVentaTotal).
-// Para pedidos ya pagados del mes: si la venta existe pero el monto no
-// coincide, la corrige; si no existe venta, la crea. Mismo criterio que
-// usa el Reporte Contable para armar sus filas.
+// ── Recalcular todo: corrige de un solo golpe las ventas del mes cuyo
+// monto no coincide con el de su pedido de origen. REDISEÑO (11 sep
+// 2026): antes esta función también intentaba "crear ventas faltantes"
+// buscando pedidos del mes sin venta — pero eso partía del mismo error
+// de fondo que el reporte (comparaba por fecha del PEDIDO, no de pago),
+// así que nunca encontraba nada real que crear y corría el riesgo de
+// duplicar una venta que en realidad ya existía, solo que fechada en
+// otro mes (que es correcto: la venta se contabiliza cuando se paga).
+// Ahora solo corrige montos — igual que hace el reporte para armar sus
+// filas: parte de las ventas del mes y las compara contra su pedido.
 async function contableRecalcularTodo(mes) {
   if (!pmDB.disponible()) { pmToast('Sin conexión a Supabase', 'err'); return; }
-  if (!confirm(`Esto va a corregir el monto de las ventas de ${mes} que no coincidan con su pedido, y va a crear las que falten. ¿Continuar?`)) return;
+  if (!confirm(`Esto va a corregir el monto de las ventas de ${mes} que no coincidan con su pedido de origen. ¿Continuar?`)) return;
 
   let ventas = [];
   try {
@@ -464,66 +443,35 @@ async function contableRecalcularTodo(mes) {
     });
   } catch(e) { pmToast('Error al cargar ventas: ' + e.message, 'err'); return; }
 
-  const ventaPorPedido = {};
-  const ventasPorNotas = {};
-  ventas.forEach(v => {
-    if (v.pedido_id) ventaPorPedido[v.pedido_id] = v;
-    if (v.notas) ventasPorNotas[v.notas] = v;
-  });
+  let corregidas = 0, errores = 0;
+  const _pedidoCache = {};
 
-  let pedsCom = [];
-  try {
-    const todos = await pmDB.get('pedidos', { tipo: 'comercial' });
-    pedsCom = (todos||[]).filter(p => {
-      const f = p.fecha || p.date || '';
-      const st = (p.status||'').toLowerCase();
-      return f.startsWith(mes) && (st.includes('pagado') || st.includes('recepción'));
-    });
-  } catch(e) { pedsCom = []; }
-
-  const pedsPan  = await _pmPedidosPagadosDelMes('pan', mes);
-  const pedsGall = await _pmPedidosPagadosDelMes('galleta', mes);
-
-  let corregidas = 0, creadas = 0, errores = 0;
-
-  const procesar = async (venta, montoPed, datosCrear) => {
-    if (venta) {
-      if (Math.abs(montoPed - (parseFloat(venta.total)||0)) > 1) {
-        try { await pmDB.update('ventas', venta.id, { total: montoPed }); corregidas++; }
-        catch(e) { errores++; console.warn('[pmDB] recalcularTodo update:', e.message); }
+  for (const v of ventas) {
+    if (!v.pedido_id) continue; // sin pedido de origen no hay con qué comparar
+    try {
+      let ped = _pedidoCache[v.pedido_id];
+      if (ped === undefined) {
+        ped = await pmDB.getById('pedidos', v.pedido_id);
+        _pedidoCache[v.pedido_id] = ped;
       }
-    } else {
-      try { await pmDB.ventas.crear(datosCrear); creadas++; }
-      catch(e) { errores++; console.warn('[pmDB] recalcularTodo crear:', e.message); }
-    }
-  };
+      if (!ped) continue;
 
-  for (const p of pedsCom) {
-    const montoPed = parseFloat(p.total) || 0;
-    await procesar(ventaPorPedido[p.id], montoPed, {
-      pedido_id: p.id, fecha_pago: p.fecha || p.date, total: montoPed,
-      metodo_pago: 'efectivo', cliente_nom: p.cliente_nom || '—',
-      tipo: 'comercial', notas: 'COM-' + p.id
-    });
-  }
-  for (const p of pedsPan) {
-    const venta = (p._sbId && ventaPorPedido[p._sbId]) || (p.refId && ventasPorNotas[p.refId]);
-    await procesar(venta, p.total, {
-      pedido_id: p._sbId || null, fecha_pago: p.date, total: p.total,
-      metodo_pago: 'efectivo', cliente_nom: p.cli,
-      tipo: 'pan', notas: p.refId || ('PAN-sb-' + (p._sbId||''))
-    });
-  }
-  for (const p of pedsGall) {
-    const venta = (p._sbId && ventaPorPedido[p._sbId]) || (p.refId && ventasPorNotas[p.refId]);
-    await procesar(venta, p.total, {
-      pedido_id: p._sbId || null, fecha_pago: p.date, total: p.total,
-      metodo_pago: 'efectivo', cliente_nom: p.cli,
-      tipo: 'galleta', notas: p.refId || ('GALL-sb-' + (p._sbId||''))
-    });
+      let montoPed;
+      if (v.tipo === 'comercial') {
+        montoPed = parseFloat(ped.total) || 0;
+      } else {
+        const lins = await pmDB.get('pedido_lineas', { pedido_id: ped.id }, '*');
+        montoPed = (lins||[]).reduce((s,l) => s + (parseFloat(l.precio_applied)||0) * (l.cantidad||1), 0);
+      }
+
+      if (Math.abs(montoPed - (parseFloat(v.total)||0)) > 1) {
+        await pmDB.update('ventas', v.id, { total: montoPed });
+        corregidas++;
+      }
+    } catch(e) { errores++; console.warn('[pmDB] recalcularTodo:', e.message); }
   }
 
-  pmToast(`✓ ${corregidas} venta(s) corregida(s), ${creadas} creada(s)${errores?', '+errores+' con error':''}`, errores ? 'err' : 'ok');
+  pmToast(`✓ ${corregidas} venta(s) corregida(s)${errores?', '+errores+' con error':''}`, errores ? 'err' : 'ok');
   repRender();
 }
 
