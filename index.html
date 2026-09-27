@@ -1112,10 +1112,11 @@
     <div id="rec-sel-list" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px"></div>
   </div>
 
-  <!-- Toggle Escalador / Prefermentos -->
+  <!-- Toggle Escalador / Prefermentos / Amasado -->
   <div style="display:flex;gap:8px;margin-bottom:14px">
     <button class="btn btn-gold btn-sm" id="recModoEscaladorBtn" onclick="recVistaMostrar('escalador')">🧮 Escalador</button>
     <button class="btn btn-out btn-sm" id="recModoPrefermentosBtn" onclick="recVistaMostrar('prefermentos')">🫧 Prefermentos</button>
+    <button class="btn btn-out btn-sm" id="recModoAmasadoBtn" onclick="recVistaMostrar('amasado')">🥖 Amasado</button>
   </div>
 
   <!-- Vista de receta escalada -->
@@ -1126,7 +1127,7 @@
         <div style="display:flex;align-items:center;gap:6px">
           <label style="font-size:12px;color:var(--cream2)">Masa objetivo (g):</label>
           <input type="number" id="rec-masa-obj" value="1000" min="1" step="50"
-            oninput="recetarioEscalar()"
+            oninput="recetarioMasaObjInput()"
             style="width:90px;padding:6px 10px;background:var(--sf);border:1px solid var(--border);border-radius:8px;color:var(--cream);font-size:14px;font-family:'DM Mono',monospace;text-align:center">
         </div>
         <div style="display:flex;align-items:center;gap:5px;padding-left:6px;border-left:1px dashed var(--border)">
@@ -1192,6 +1193,16 @@
     </div>
 
     <div id="prem-vista-content"></div>
+  </div>
+
+  <!-- Vista de guía de amasado (solo lectura, sin Supabase) — reusa la
+       masa objetivo del Escalador, #rec-masa-obj -->
+  <div id="amas-vista" style="display:none">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <button class="btn btn-out btn-sm no-print" onclick="document.getElementById('amas-vista').style.display='none'">‹ Lista</button>
+      <div style="font-size:11.5px;color:var(--cream2)">Usa la misma masa objetivo del Escalador</div>
+    </div>
+    <div id="amas-vista-content"></div>
   </div>
 </div>
 
@@ -1430,6 +1441,7 @@
 
 <script src="recetario.js"></script>
 <script src="prefermentos.js"></script>
+<script src="amasado.js"></script>
 
 <script src="hidratacion.js"></script>
 

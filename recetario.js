@@ -44,7 +44,7 @@ function recetarioFiltrar() {
   }).join('');
 }
 
-let _recVistaModo = 'escalador'; // 'escalador' | 'prefermentos'
+let _recVistaModo = 'escalador'; // 'escalador' | 'prefermentos' | 'amasado'
 
 function recetarioSeleccionar(id) {
   _recetarioActual = id;
@@ -59,26 +59,44 @@ function recetarioSeleccionar(id) {
   recVistaMostrar(_recVistaModo);
 }
 
-// Alterna entre el escalador normal y la calculadora de prefermentos —
-// ambas vistas comparten la misma receta seleccionada (_recetarioActual).
+// #rec-masa-obj es compartido entre Escalador y Amasado (Prefermentos usa
+// su propio campo aparte) — este dispatcher decide a cuál vista repintar
+// según el modo activo, para no duplicar el input de masa objetivo.
+function recetarioMasaObjInput() {
+  if (_recVistaModo === 'amasado') {
+    if (typeof amasRender === 'function') amasRender();
+  } else {
+    recetarioEscalar();
+  }
+}
+
+// Alterna entre el escalador, la calculadora de prefermentos y la guía de
+// amasado — las tres vistas comparten la misma receta seleccionada
+// (_recetarioActual); Escalador y Amasado además comparten #rec-masa-obj.
 function recVistaMostrar(modo) {
   _recVistaModo = modo;
-  const btnEsc  = document.getElementById('recModoEscaladorBtn');
-  const btnPrem = document.getElementById('recModoPrefermentosBtn');
+  const btnEsc   = document.getElementById('recModoEscaladorBtn');
+  const btnPrem  = document.getElementById('recModoPrefermentosBtn');
+  const btnAmas  = document.getElementById('recModoAmasadoBtn');
   if (btnEsc)  btnEsc.className  = 'btn btn-sm ' + (modo==='escalador'    ? 'btn-gold' : 'btn-out');
   if (btnPrem) btnPrem.className = 'btn btn-sm ' + (modo==='prefermentos'? 'btn-gold' : 'btn-out');
+  if (btnAmas) btnAmas.className = 'btn btn-sm ' + (modo==='amasado'     ? 'btn-gold' : 'btn-out');
 
   const hayReceta = !!_recetarioActual;
-  document.getElementById('rec-vista').style.display  = (modo==='escalador'     && hayReceta) ? 'block' : 'none';
-  document.getElementById('prem-vista').style.display = (modo==='prefermentos' && hayReceta) ? 'block' : 'none';
+  document.getElementById('rec-vista').style.display   = (modo==='escalador'     && hayReceta) ? 'block' : 'none';
+  document.getElementById('prem-vista').style.display  = (modo==='prefermentos' && hayReceta) ? 'block' : 'none';
+  document.getElementById('amas-vista').style.display  = (modo==='amasado'      && hayReceta) ? 'block' : 'none';
 
   if (!hayReceta) return;
   if (modo === 'escalador') {
     recetarioEscalar();
     document.getElementById('rec-vista').scrollIntoView({behavior:'smooth', block:'start'});
-  } else {
+  } else if (modo === 'prefermentos') {
     if (typeof premRender === 'function') premRender();
     document.getElementById('prem-vista').scrollIntoView({behavior:'smooth', block:'start'});
+  } else {
+    if (typeof amasRender === 'function') amasRender();
+    document.getElementById('amas-vista').scrollIntoView({behavior:'smooth', block:'start'});
   }
 }
 
@@ -93,7 +111,7 @@ function recetarioCalcularPorUnidades() {
   if (!uds || !pesoUd) return; // esperar a que ambos campos tengan valor
   const masaObj = Math.round(uds * pesoUd);
   document.getElementById('rec-masa-obj').value = masaObj;
-  recetarioEscalar();
+  recetarioMasaObjInput();
 }
 
 async function recetarioEscalar() {
