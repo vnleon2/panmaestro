@@ -37,19 +37,64 @@ function amasNivelHidratacion(pct) {
   return { key: 'normal', label: 'normal', maxVel2Min: null };
 }
 
+// Detección de masa madre — dos señales, en orden de confianza:
+//  1) la receta MISMA ya está categorizada como "🌾 Pan masa madre"
+//     (r.cat === 'pan_mm') en el agrupador — la señal más confiable,
+//     es la que Victor usa siempre para clasificar sus panes de MM.
+//  2) si no, el criterio de Prefermentos: alguna subreceta enlazada
+//     apunta a un cultivo (cat 'pan_mm' o 'masa' — igual que el filtro
+//     de cultivos en premPoblarCultivos()).
+function amasadoTieneMM(r) {
+  if (r.cat === 'pan_mm') return true;
+  return (r.subrecs || []).some(s => {
+    const ref = (_sbRecLista() || []).find(x => x.code === s.recId);
+    return ref && (ref.cat === 'pan_mm' || ref.cat === 'masa');
+  });
+}
+
+// Cuando el cultivo de masa madre está armado como SUBRECETA propia
+// (el caso típico de Victor: "generalmente es su propia fórmula"), su
+// harina y agua internas no aparecen en c.flourW/c.lines de la receta
+// padre — pmCostoReceta trata la subreceta como un ingrediente de bulto.
+// Este desglose es el MISMO cálculo que ya usa premRender() en
+// prefermentos.js (mismo subMass = flourW · pct/100) para poder sumar
+// la harina y el agua reales del cultivo a los totales de la receta.
+function amasadoSumarCultivos(r, c) {
+  let flourTotal = c.flourW;
+  let aguaTotal = c.lines
+    .filter(l => !l.isAddon && !l.isSub && !l.flour && (l.name || '').toLowerCase().includes('agua'))
+    .reduce((s, l) => s + l.g, 0);
+
+  (r.subrecs || []).forEach(s => {
+    const ref = (_sbRecLista() || []).find(x => x.code === s.recId);
+    if (!ref || !(ref.cat === 'pan_mm' || ref.cat === 'masa')) return;
+    let subMass = 0;
+    if (s.gFijos > 0) subMass = s.gFijos;
+    else if (s.pct > 0) subMass = c.flourW * s.pct / 100;
+    if (subMass <= 0) return;
+    const cCultivo = pmCostoReceta(ref, subMass);
+    flourTotal += cCultivo.flourW;
+    aguaTotal += cCultivo.lines
+      .filter(l => !l.isSub && !l.flour && (l.name || '').toLowerCase().includes('agua'))
+      .reduce((s2, l) => s2 + l.g, 0);
+  });
+
+  return { flourTotal, aguaTotal };
+}
+
 // Repuebla el badge "kg de harina" cuando cambia la masa objetivo — mismo
 // campo que usa el Escalador (#rec-masa-obj), sin duplicar el input.
 function amasadoParams(r, c) {
-  const lineasMasa = c.lines.filter(l => !l.isAddon);
-  const aguaPct = lineasMasa
-    .filter(l => !l.flour && (l.name || '').toLowerCase().includes('agua'))
-    .reduce((s, l) => s + (l.pct || 0), 0);
+  const { flourTotal, aguaTotal } = amasadoSumarCultivos(r, c);
+  const hidratacionPct = flourTotal > 0 ? (aguaTotal / flourTotal * 100) : 0;
+
+  const lineasMasa = c.lines.filter(l => !l.isAddon && !l.isSub);
   const grasaKw = ['mantequilla', 'margarina', 'manteca'];
   const grasaPct = lineasMasa
     .filter(l => !l.flour && grasaKw.some(k => (l.name || '').toLowerCase().includes(k)))
     .reduce((s, l) => s + (l.pct || 0), 0);
-  const tieneMM = typeof _premRecetaTieneMmNativa === 'function' ? _premRecetaTieneMmNativa(r) : false;
-  return { hidratacionPct: aguaPct, grasaPct, tieneMM };
+  const tieneMM = amasadoTieneMM(r);
+  return { hidratacionPct, grasaPct, tieneMM, flourTotal };
 }
 
 function amasadoCalcularBatches(harinaG) {
@@ -160,7 +205,7 @@ async function amasRender() {
   const c         = pmCostoReceta(r, masaTotal);
 
   const params  = amasadoParams(r, c);
-  const batches = amasadoCalcularBatches(c.flourW);
+  const batches = amasadoCalcularBatches(params.flourTotal);
   const pasos   = amasadoGenerarPasos(params);
 
   _amasBatchActual = 1;
@@ -190,7 +235,7 @@ async function amasRender() {
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
         <span style="font-size:12.5px;color:var(--cream2)">Harina en este lote</span>
-        ${pill(Math.round(c.flourW) + ' g', 'var(--bg3)', 'var(--cream)')}
+        ${pill(Math.round(params.flourTotal) + ' g' + (params.tieneMM ? ' (incl. cultivo)' : ''), 'var(--bg3)', 'var(--cream)')}
       </div>
     </div>`;
 
@@ -198,7 +243,7 @@ async function amasRender() {
     <div style="display:flex;gap:10px;align-items:flex-start;padding:13px 15px;background:rgba(220,38,38,.06);border:1px solid rgba(220,38,38,.25);border-radius:var(--rs);margin-bottom:14px">
       <span style="flex-shrink:0">⚠️</span>
       <div style="font-size:13px;line-height:1.55;color:var(--red)">
-        <strong>${Math.round(c.flourW)} g de harina</strong> supera el máximo de ${AMAS_HARINA_MAX_G / 1000} kg por batch de tu batidora (20 qt · 1.1 HP).
+        <strong>${Math.round(params.flourTotal)} g de harina</strong> supera el máximo de ${AMAS_HARINA_MAX_G / 1000} kg por batch de tu batidora (20 qt · 1.1 HP).
         Se recomienda dividir en <strong>${batches.n} batches de ${(batches.porBatch / 1000).toFixed(2)} kg</strong> cada uno — misma secuencia para cada uno.
       </div>
     </div>
@@ -216,7 +261,7 @@ async function amasRender() {
     <div style="display:flex;gap:10px;align-items:flex-start;padding:13px 15px;background:rgba(22,163,74,.06);border:1px solid rgba(22,163,74,.25);border-radius:var(--rs);margin-bottom:14px">
       <span style="flex-shrink:0">✅</span>
       <div style="font-size:13px;line-height:1.5;color:var(--green)">
-        <strong>${Math.round(c.flourW)} g de harina</strong> — dentro del límite recomendado (máx. ${AMAS_HARINA_MAX_G / 1000} kg) para esta batidora, en un solo batch.
+        <strong>${Math.round(params.flourTotal)} g de harina</strong> — dentro del límite recomendado (máx. ${AMAS_HARINA_MAX_G / 1000} kg) para esta batidora, en un solo batch.
       </div>
     </div>`;
 
