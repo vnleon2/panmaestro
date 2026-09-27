@@ -505,6 +505,7 @@ async function repRender() {
     else if (repCurrentTab === 'documentos')  html = await repDocumentosRender();
     else if (repCurrentTab === 'contable')    html = await repContable(mes);
     else if (repCurrentTab === 'facxcli')     html = await repFacturasCliente(mes);
+    else if (repCurrentTab === 'nopagados')   html = await repNoPagados();
     else html = '<div style="padding:20px;color:var(--cream)">Tab: ' + repCurrentTab + ' — no reconocido</div>';
     out.innerHTML = html;
   } catch(e) {
@@ -1588,5 +1589,113 @@ async function repMensual(mes) {
         <td style="text-align:right;font-family:'DM Mono',monospace">${pmMoney(totRev-totGast)}</td>
       </tr></tfoot>
     </table>
+  </div>`;
+}
+
+// ─── PEDIDOS NO PAGADOS (independiente de fecha) ─────────────────────────────
+// Reporte pedido por Victor (27 sep 2026): ver TODOS los pedidos en estatus
+// "no pagado" sin importar de qué fecha son — hoy los demás reportes de
+// Pan/Galletas/Comercial siempre filtran por un día o mes puntual. Reutiliza
+// el mismo criterio de "abierto" (no pagado) ya establecido en Documentos
+// (_docEstaAbierto/_DOC_ESTADOS_CERRADOS) para que el concepto de "pagado"
+// sea consistente en toda la app.
+// Igual que _pmPedidosPagadosDelMes (Reporte Contable), trae los pedidos
+// DIRECTO de Supabase (no de G.pedidosPan/G.pedidosGalletas, que solo tienen
+// cacheado el día seleccionado en cada pestaña) y completa con lo que solo
+// viva local sin sincronizar todavía.
+async function _pmPedidosNoPagadosGlobal(tipo) {
+  const out = [];
+  const vistos = new Set();
+
+  if (pmDB.disponible()) {
+    let todos = [];
+    try { todos = await pmDB.get('pedidos', { tipo }, '*'); }
+    catch(e) { console.warn('[pmDB] _pmPedidosNoPagadosGlobal:', e.message); todos = []; }
+    const filtrados = (todos||[]).filter(p => _docEstaAbierto(p));
+    for (const sb of filtrados) {
+      let total = 0;
+      try {
+        const lins = await pmDB.get('pedido_lineas', { pedido_id: sb.id }, '*');
+        total = (lins||[]).reduce((s,l) => s + (parseFloat(l.precio_applied)||0) * (l.cantidad||1), 0);
+      } catch(e) { console.warn('[pmDB] lineas de pedido', sb.id, e.message); }
+      out.push({ _sbId: sb.id, date: sb.fecha, cli: sb.cliente_nom, status: sb.status, total, numPed: sb.numero_pedido||null });
+      vistos.add(sb.id);
+    }
+  }
+
+  // Pedidos que solo viven en el caché local (offline puro, aún sin
+  // sincronizar) — se completan aparte con el total calculado localmente.
+  const arrLocal = tipo === 'pan' ? G.pedidosPan : tipo === 'galleta' ? G.pedidosGalletas : G.pedidosCom;
+  const totalFn  = tipo === 'pan' ? pmTotalPan   : tipo === 'galleta' ? pmTotalGall   : pmTotalCom;
+  (arrLocal||[]).filter(p => _docEstaAbierto(p) && (!p._sbId || !vistos.has(p._sbId)))
+    .forEach(p => {
+      out.push({ _sbId: p._sbId||null, date: p.date, cli: p.cliNom||p.cli, status: p.status, total: totalFn(p), numPed: p.numPed||null });
+    });
+
+  return out.sort((a,b) => (a.date||'').localeCompare(b.date||''));
+}
+
+async function repNoPagados() {
+  if (!pmDB.disponible()) return '<div class="ph"><span class="ph-icon">⚠️</span>Sin conexión a Supabase — este reporte necesita traer todos los pedidos, no solo lo cacheado localmente</div>';
+
+  const [pan, gall, com] = await Promise.all([
+    _pmPedidosNoPagadosGlobal('pan'),
+    _pmPedidosNoPagadosGlobal('galleta'),
+    _pmPedidosNoPagadosGlobal('comercial')
+  ]);
+
+  const grupos = [
+    { label: '🍞 Pan',       peds: pan  },
+    { label: '🍪 Galletas',  peds: gall },
+    { label: '🏪 Comercial', peds: com  },
+  ];
+
+  let totalGeneral = 0, cantGeneral = 0;
+  const secciones = grupos.map(g => {
+    const subtotal = g.peds.reduce((s,p) => s + p.total, 0);
+    totalGeneral += subtotal;
+    cantGeneral  += g.peds.length;
+
+    if (!g.peds.length) {
+      return `<div style="margin-bottom:18px">
+        <div class="rep-ph">${g.label} <span style="font-size:11px;color:var(--cream2);font-weight:400">— 0 pedidos</span></div>
+        <div class="ph" style="padding:14px"><span class="ph-icon">✅</span>Sin pedidos pendientes de pago</div>
+      </div>`;
+    }
+
+    const filas = g.peds.map(p => `<tr>
+      <td>${pmFmtDate(p.date)}</td>
+      <td>${pmEsc(p.cli||'')}</td>
+      <td>${pmBadge(p.status)}</td>
+      <td style="text-align:right;font-family:'DM Mono',monospace;font-weight:700;color:var(--gold)">${pmMoney(p.total)}</td>
+    </tr>`).join('');
+
+    return `<div style="margin-bottom:18px">
+      <div class="rep-ph" style="display:flex;justify-content:space-between;align-items:baseline">
+        <span>${g.label}</span>
+        <span style="font-size:11px;color:var(--cream2);font-weight:400">${g.peds.length} pedido${g.peds.length!==1?'s':''} · ${pmMoney(subtotal)}</span>
+      </div>
+      <table class="rep-tbl">
+        <thead><tr>
+          <th>Fecha</th><th>Cliente</th><th>Estatus</th><th style="text-align:right">Monto</th>
+        </tr></thead>
+        <tbody>${filas}</tbody>
+      </table>
+    </div>`;
+  }).join('');
+
+  return `<div class="card" id="rep-nopagados-inner">
+    <div class="rep-header" style="margin-bottom:14px">
+      <div>
+        <div class="rep-ph">🔴 Pedidos No Pagados</div>
+        <div style="font-size:11px;color:var(--cream2);margin-top:2px">Agrupado por Pan / Galletas / Comercial · todas las fechas, según estatus</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        ${repStatBox('Pedidos', cantGeneral)}
+        ${repStatBox('Total pendiente', pmMoney(totalGeneral), 'var(--red)')}
+        <button class="btn btn-out btn-sm no-print" onclick="repPrintSection('rep-nopagados-inner')">🖨 Imprimir</button>
+      </div>
+    </div>
+    ${secciones}
   </div>`;
 }
