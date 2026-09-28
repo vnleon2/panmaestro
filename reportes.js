@@ -1595,10 +1595,22 @@ async function repMensual(mes) {
 // ─── PEDIDOS NO PAGADOS (independiente de fecha) ─────────────────────────────
 // Reporte pedido por Victor (27 sep 2026): ver TODOS los pedidos en estatus
 // "no pagado" sin importar de qué fecha son — hoy los demás reportes de
-// Pan/Galletas/Comercial siempre filtran por un día o mes puntual. Reutiliza
-// el mismo criterio de "abierto" (no pagado) ya establecido en Documentos
-// (_docEstaAbierto/_DOC_ESTADOS_CERRADOS) para que el concepto de "pagado"
-// sea consistente en toda la app.
+// Pan/Galletas/Comercial siempre filtran por un día o mes puntual.
+//
+// OJO: NO se reutiliza _docEstaAbierto/_DOC_ESTADOS_CERRADOS acá — ese
+// criterio fue pensado para "Documentos" (¿todavía hace falta imprimir nota/
+// factura?) y considera cerrado cualquier estado que contenga "entregado",
+// lo cual da falso positivo con "Entregado por pagar" (bug real encontrado
+// por Victor: un pedido comercial en ese estado no aparecía en este reporte
+// aunque claramente no está pagado). Para PAGO usamos una regla propia y
+// más precisa: un pedido está pagado solo si su estado contiene la palabra
+// "pagado" — cubre "Pagado", "En recepción pagado" y "Por entregar
+// prepagado" (pagado por adelantado), y deja correctamente como NO pagado
+// a "Entregado por pagar", "Colocado en recepción", "Pedido", etc.
+function _pmEstaPagado(status) {
+  return (status || '').toLowerCase().includes('pagado');
+}
+
 // Igual que _pmPedidosPagadosDelMes (Reporte Contable), trae los pedidos
 // DIRECTO de Supabase (no de G.pedidosPan/G.pedidosGalletas, que solo tienen
 // cacheado el día seleccionado en cada pestaña) y completa con lo que solo
@@ -1611,7 +1623,7 @@ async function _pmPedidosNoPagadosGlobal(tipo) {
     let todos = [];
     try { todos = await pmDB.get('pedidos', { tipo }, '*'); }
     catch(e) { console.warn('[pmDB] _pmPedidosNoPagadosGlobal:', e.message); todos = []; }
-    const filtrados = (todos||[]).filter(p => _docEstaAbierto(p));
+    const filtrados = (todos||[]).filter(p => !_pmEstaPagado(p.status));
     for (const sb of filtrados) {
       let total = 0;
       try {
@@ -1627,7 +1639,7 @@ async function _pmPedidosNoPagadosGlobal(tipo) {
   // sincronizar) — se completan aparte con el total calculado localmente.
   const arrLocal = tipo === 'pan' ? G.pedidosPan : tipo === 'galleta' ? G.pedidosGalletas : G.pedidosCom;
   const totalFn  = tipo === 'pan' ? pmTotalPan   : tipo === 'galleta' ? pmTotalGall   : pmTotalCom;
-  (arrLocal||[]).filter(p => _docEstaAbierto(p) && (!p._sbId || !vistos.has(p._sbId)))
+  (arrLocal||[]).filter(p => !_pmEstaPagado(p.status) && (!p._sbId || !vistos.has(p._sbId)))
     .forEach(p => {
       out.push({ _sbId: p._sbId||null, date: p.date, cli: p.cliNom||p.cli, status: p.status, total: totalFn(p), numPed: p.numPed||null });
     });
