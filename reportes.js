@@ -1618,11 +1618,16 @@ function _pmEstaPagado(status) {
 async function _pmPedidosNoPagadosGlobal(tipo) {
   const out = [];
   const vistos = new Set();
+  let error = null;
 
   if (pmDB.disponible()) {
     let todos = [];
     try { todos = await pmDB.get('pedidos', { tipo }, '*'); }
-    catch(e) { console.warn('[pmDB] _pmPedidosNoPagadosGlobal:', e.message); todos = []; }
+    catch(e) {
+      console.warn('[pmDB] _pmPedidosNoPagadosGlobal:', e.message);
+      error = e.message;
+      todos = [];
+    }
     const filtrados = (todos||[]).filter(p => !_pmEstaPagado(p.status));
     for (const sb of filtrados) {
       let total = 0;
@@ -1644,7 +1649,7 @@ async function _pmPedidosNoPagadosGlobal(tipo) {
       out.push({ _sbId: p._sbId||null, date: p.date, cli: p.cliNom||p.cli, status: p.status, total: totalFn(p), numPed: p.numPed||null });
     });
 
-  return out.sort((a,b) => (a.date||'').localeCompare(b.date||''));
+  return { peds: out.sort((a,b) => (a.date||'').localeCompare(b.date||'')), error };
 }
 
 async function repNoPagados() {
@@ -1657,9 +1662,9 @@ async function repNoPagados() {
   ]);
 
   const grupos = [
-    { label: '🍞 Pan',       peds: pan  },
-    { label: '🍪 Galletas',  peds: gall },
-    { label: '🏪 Comercial', peds: com  },
+    { label: '🍞 Pan',       ...pan  },
+    { label: '🍪 Galletas',  ...gall },
+    { label: '🏪 Comercial', ...com  },
   ];
 
   let totalGeneral = 0, cantGeneral = 0;
@@ -1667,6 +1672,13 @@ async function repNoPagados() {
     const subtotal = g.peds.reduce((s,p) => s + p.total, 0);
     totalGeneral += subtotal;
     cantGeneral  += g.peds.length;
+
+    if (g.error) {
+      return `<div style="margin-bottom:18px">
+        <div class="rep-ph">${g.label} <span style="font-size:11px;color:var(--red);font-weight:400">— error al consultar</span></div>
+        <div class="ph" style="padding:14px;color:var(--red)"><span class="ph-icon">⚠️</span>${pmEsc(g.error)}</div>
+      </div>`;
+    }
 
     if (!g.peds.length) {
       return `<div style="margin-bottom:18px">
