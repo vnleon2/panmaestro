@@ -1429,10 +1429,8 @@ function pmPrecioSugerido(r, _cache) {
 // REPORTE — Recetas × Producto terminado
 // Solo reporte (no persiste nada) — se genera al vuelo y se
 // imprime en ventana aparte, igual patrón que recetarioImprimir().
-// Por ahora solo cubre "Tipos de pan" (G.tiposPan), que es el
-// único catálogo con receta_cod vinculada desde la UI. Los tipos
-// de galleta (G.tiposGalleta) todavía no tienen ese campo expuesto
-// — ver nota en el pie del reporte.
+// Cubre "Tipos de pan" (G.tiposPan) y "Tipos de galleta" (G.tiposGalleta),
+// ambos con receta_cod vinculada desde Maestros.
 // ══════════════════════════════════════════════════════════
 function _repCostoProducto(r, p) {
   if (!p || !p.peso) return null;
@@ -1451,7 +1449,7 @@ function repRecProductoImprimir() {
   const recetas = (_sbRecLista() || []).slice().sort((a,b) => (a.code||'').localeCompare(b.code||''));
   const filas = [];
   recetas.forEach(r => {
-    const vinculados = (G.tiposPan||[]).filter(p => p.recetaCod === r.code);
+    const vinculados = [...(G.tiposPan||[]), ...(G.tiposGalleta||[])].filter(p => p.recetaCod === r.code);
     if (!vinculados.length) filas.push({ r, prod: null });
     else vinculados.forEach(p => filas.push({ r, prod: p }));
   });
@@ -1479,7 +1477,7 @@ function repRecProductoImprimir() {
       <td colspan="6" style="color:#9a8560;font-style:italic">${f.r.name||''} — sin producto terminado vinculado</td>
     </tr>`;
 
-  const bodyCon = conProducto.map(rowCon).join('') || '<tr><td colspan="7" style="text-align:center;color:#9a8560;padding:16px">Ningún tipo de pan tiene receta vinculada todavía</td></tr>';
+  const bodyCon = conProducto.map(rowCon).join('') || '<tr><td colspan="7" style="text-align:center;color:#9a8560;padding:16px">Ningún tipo de pan ni de galleta tiene receta vinculada todavía</td></tr>';
   const bodySin = sinProducto.map(rowSin).join('');
   const fecha = new Date().toLocaleDateString('es-CR', { year:'numeric', month:'long', day:'numeric' });
 
@@ -1514,7 +1512,7 @@ function repRecProductoImprimir() {
       <thead><tr><th>Código</th><th colspan="6">Receta</th></tr></thead>
       <tbody>${bodySin}</tbody>
     </table>` : ''}
-    <div class="foot">Costo/ud incluye mano de obra y gastos generales de cada receta (ver % en el editor). Los tipos de galleta todavía no tienen receta vinculada en este reporte.</div>
+    <div class="foot">Costo/ud incluye mano de obra y gastos generales de cada receta (ver % en el editor).</div>
   </body></html>`);
   w.document.close();
   w.focus();

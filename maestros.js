@@ -311,89 +311,200 @@ function gallAdd() {
   const nom = document.getElementById('gall-nom').value.trim();
   const pr  = parseFloat(document.getElementById('gall-pr').value)||0;
   const peso= parseFloat(document.getElementById('gall-peso').value)||0;
+  const rec = (document.getElementById('gall-rec')?.value || '').trim();
   if (!nom) { pmToast('Ingresá el nombre','err'); return; }
   const existing = G.tiposGalleta.map(p => parseInt(p.id.replace('G',''))||0);
   const next = String(Math.max(0,...existing)+1).padStart(3,'0');
   const newId = 'G'+next;
-  G.tiposGalleta.push({ id:newId, nombre:nom, precio:pr, peso });
+  G.tiposGalleta.push({ id:newId, nombre:nom, precio:pr, peso, recetaCod: rec });
   pmSave('sistema');
   document.getElementById('gall-nom').value='';
   document.getElementById('gall-pr').value='';
   document.getElementById('gall-peso').value='';
+  const recSel = document.getElementById('gall-rec'); if (recSel) recSel.value='';
   gallRender(); pmToast('Tipo de galleta agregado ✓');
   // Supabase — dual write
   if (pmDB.disponible()) {
-    pmDB.productos.crear({ codigo:newId, nombre:nom, tipo:'galleta', presentacion:'unidad', peso_g:peso||null, precio_full:pr, activo:true })
+    pmDB.productos.crear({ codigo:newId, nombre:nom, tipo:'galleta', presentacion:'unidad', peso_g:peso||null, precio_full:pr, receta_cod:rec||null, activo:true })
       .then(rows => { if (rows?.[0]) { if(!_sbProdMap)_sbProdMap={}; _sbProdMap[newId]=rows[0].id; } })
       .catch(e => console.warn('[pmDB] gallAdd sync error:', e.message));
   }
 }
 
+// Costo por galleta desde la receta vinculada. Misma fórmula que Tipos de pan:
+// costo total (con MOD y GG) ÷ masa total de la receta = costo por gramo,
+// y × peso de la pieza = costo por unidad. Las sub-recetas (ej. pasta base)
+// ya las resuelve pmCostoReceta().
+function _gallCostoDesdeReceta(p) {
+  if (!p.recetaCod || !p.peso) return null;
+  const rec = _sbRecLista().find(r => r.code === p.recetaCod);
+  if (!rec) return null;
+  const c = pmCostoReceta(rec);
+  if (!c.totalMerma || !rec.totalMass) return null;
+  const modPct = rec.modPct !== undefined ? rec.modPct : 80;
+  const ggPct  = rec.ggPct  !== undefined ? rec.ggPct  : 45;
+  const costTotal = c.totalMerma * (1 + (modPct + ggPct) / 100);
+  const cpg = costTotal / rec.totalMass;
+  const costoUd = cpg * p.peso;
+  const margen = p.precio > 0 ? (p.precio - costoUd) / p.precio * 100 : null;
+  // Piezas por tanda = masa vendible de la receta ÷ peso de la pieza
+  const piezas = Math.floor(rec.totalMass / p.peso);
+  return { cpg, costoUd, margen, piezas };
+}
+
 function gallRender() {
+  gallRecetaPopulate();
+  const dim = '<div style="font-size:10px;color:var(--cream2);opacity:.4">—</div>';
   document.getElementById('gall-count').textContent = `Tipos galleta (${G.tiposGalleta.length})`;
-  document.getElementById('gall-list').innerHTML = G.tiposGalleta.map(p => `
-    <div class="item-row">
+  document.getElementById('gall-list').innerHTML = G.tiposGalleta.map(p => {
+    const k = _gallCostoDesdeReceta(p);
+    const recBadge = p.recetaCod
+      ? `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--blue);background:rgba(74,128,192,.12);padding:2px 7px;border-radius:10px;border:1px solid rgba(74,128,192,.3)">${p.recetaCod}</div>`
+      : dim;
+    const piezasCell = k
+      ? `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--cream2)">${k.piezas} pzs</div>`
+      : dim;
+    const cpgCell = k
+      ? `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--cream2)">₡${k.cpg.toFixed(2)}/g</div>`
+      : dim;
+    // Galletas son baratas: debajo de ₡100 se muestra un decimal para no perder precisión
+    const costoTxt = k ? (k.costoUd < 100 ? '₡' + k.costoUd.toFixed(1) : pmMoney(Math.round(k.costoUd))) : '';
+    const costoCell = k
+      ? `<div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--gold2);font-weight:600">${costoTxt}</div>`
+      : dim;
+    const margenColor = !k || k.margen === null ? 'var(--cream2)' : k.margen >= 40 ? 'var(--green)' : k.margen >= 20 ? 'var(--amber)' : 'var(--red)';
+    const margenCell = k && k.margen !== null
+      ? `<div style="font-family:'DM Mono',monospace;font-size:11px;color:${margenColor};font-weight:600">${k.margen.toFixed(1)}%</div>`
+      : dim;
+    return `
+    <div class="item-row" id="gall-row-${p.id}">
       <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--gold3);min-width:44px">${p.id}</div>
       <div class="item-name">${p.nombre}</div>
       <div class="item-meta">${pmMoney(p.precio)} · ${p.peso}g</div>
+      ${recBadge}
+      ${piezasCell}
+      ${cpgCell}
+      ${costoCell}
+      ${margenCell}
       <div style="display:flex;gap:4px">
         <button class="btn btn-out btn-xs" onclick="gallEdit('${p.id}')">✏️</button>
         <button class="btn btn-red btn-xs" onclick="gallDel('${p.id}')">✕</button>
       </div>
-    </div>`).join('') || '<div class="ph"><span class="ph-icon">🍪</span>Sin tipos de galleta</div>';
+    </div>`;
+  }).join('') || '<div class="ph"><span class="ph-icon">🍪</span>Sin tipos de galleta</div>';
+}
+
+// ── Poblar dropdown de recetas en formulario de tipos de galleta ──
+function gallRecetaPopulate() {
+  const sel = document.getElementById('gall-rec');
+  if (!sel) return;
+  const recetas = _sbRecLista().filter(r => r.code && r.code.startsWith('R-'));
+  const current = sel.value;
+  sel.innerHTML = '<option value="">— Sin receta —</option>' +
+    recetas.map(r => `<option value="${r.code}"${r.code===current?' selected':''}>${r.code} · ${r.name}</option>`).join('');
 }
 
 async function gallEdit(id) {
-  const p = G.tiposGalleta.find(x=>x.id===id);
+  const p = G.tiposGalleta.find(x => x.id===id);
   if (!p) return;
-
+  document.querySelectorAll('.gall-edit-form').forEach(el => el.remove());
+  const row = document.getElementById('gall-row-' + id);
+  if (!row) { gallRender(); return; }
   // Punto 5 del plan de auditoría — optimistic locking: leemos el updated_at
-  // REAL de Supabase ANTES de mostrar los prompts, para poder comparar
-  // después de que Victor confirme los valores.
-  let storedUpdatedAt = null, uuidChk = null;
+  // REAL de Supabase (no el de la copia local) con el que se abre este formulario.
+  if (!window._geEditUpdatedAt) window._geEditUpdatedAt = {};
+  window._geEditUpdatedAt[id] = null;
   if (pmDB.disponible()) {
     await _sbProdEnsureMap();
-    uuidChk = _sbProdMap?.[id];
+    const uuidChk = _sbProdMap?.[id];
     if (uuidChk) {
       try {
         const actual = await pmDB.productos.obtener(uuidChk);
-        storedUpdatedAt = actual?.updated_at || null;
+        window._geEditUpdatedAt[id] = actual?.updated_at || null;
       } catch (e) { console.warn('[pmDB] gallEdit — no se pudo leer updated_at:', e.message); }
     }
   }
+  const recetas = _sbRecLista().filter(r => r.code && r.code.startsWith('R-'));
+  const recOpts = '<option value="">— Sin receta —</option>' +
+    recetas.map(r => `<option value="${r.code}"${r.code===(p.recetaCod||'')?' selected':''}>${r.code} · ${r.name}</option>`).join('');
+  const form = document.createElement('div');
+  form.className = 'gall-edit-form';
+  form.style.cssText = 'padding:10px 12px;background:rgba(200,146,42,.06);border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end';
+  form.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:2px;flex:2;min-width:140px">
+      <label style="font-size:11px;color:var(--cream2)">Nombre</label>
+      <input id="ge-nom-${id}" type="text" value="${p.nombre.replace(/"/g,'&quot;')}" style="font-size:12px;padding:4px 7px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream)">
+    </div>
+    <div style="display:flex;flex-direction:column;gap:2px;min-width:80px">
+      <label style="font-size:11px;color:var(--cream2)">Precio ₡</label>
+      <input id="ge-pr-${id}" type="number" value="${p.precio||0}" style="font-size:12px;padding:4px 7px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream);width:80px">
+    </div>
+    <div style="display:flex;flex-direction:column;gap:2px;min-width:70px">
+      <label style="font-size:11px;color:var(--cream2)">Peso g</label>
+      <input id="ge-peso-${id}" type="number" value="${p.peso||0}" style="font-size:12px;padding:4px 7px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream);width:70px">
+    </div>
+    <div style="display:flex;flex-direction:column;gap:2px;flex:2;min-width:160px">
+      <label style="font-size:11px;color:var(--cream2)">Receta</label>
+      <select id="ge-rec-${id}" style="font-size:12px;padding:4px 7px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream)">${recOpts}</select>
+    </div>
+    <div style="display:flex;gap:4px;padding-bottom:1px">
+      <button class="btn btn-gold btn-sm" onclick="gallEditSave('${id}')">💾 Guardar</button>
+      <button class="btn btn-out btn-sm" onclick="gallEditCancelar()">✕</button>
+    </div>`;
+  row.after(form);
+  document.getElementById('ge-nom-' + id)?.focus();
+}
 
-  const nom=prompt('Nombre:',p.nombre); if(!nom) return;
-  const pr=prompt('Precio:',p.precio); if(pr===null) return;
-  const peso=prompt('Peso:',p.peso); if(peso===null) return;
+function gallEditCancelar() {
+  document.querySelectorAll('.gall-edit-form').forEach(el => el.remove());
+}
 
-  const aplicarYGuardar = () => {
-    p.nombre=nom; p.precio=parseFloat(pr)||p.precio; p.peso=parseFloat(peso)||p.peso;
-    pmSave('sistema'); gallRender(); pmToast('Actualizado ✓');
-    if (uuidChk) {
-      pmDB.productos.editar(uuidChk, { nombre:p.nombre, precio_full:p.precio, peso_g:p.peso||null })
-        .catch(e => console.warn('[pmDB] gallEdit sync error:', e.message));
-    }
-  };
+async function gallEditSave(id) {
+  const p = G.tiposGalleta.find(x => x.id===id);
+  if (!p) return;
+  const nom  = document.getElementById('ge-nom-'  + id)?.value.trim();
+  const pr   = parseFloat(document.getElementById('ge-pr-'   + id)?.value)||0;
+  const peso = parseFloat(document.getElementById('ge-peso-' + id)?.value)||0;
+  const rec  = document.getElementById('ge-rec-'  + id)?.value || '';
+  if (!nom) { pmToast('El nombre no puede estar vacío','err'); return; }
 
-  // Verificar conflicto justo antes de guardar (entre que se abrieron los
-  // prompts y ahora pudo pasar tiempo — otro dispositivo pudo cambiarlo).
-  if (uuidChk && storedUpdatedAt) {
-    try {
-      const actual = await pmDB.productos.obtener(uuidChk);
-      if (actual && actual.updated_at && actual.updated_at !== storedUpdatedAt) {
-        pmMostrarConflicto(
-          `El tipo de galleta "${p.nombre}" fue modificado en otro dispositivo o pestaña mientras lo editabas.`,
-          () => { gallRender(); }, // Recargar — descarta lo que escribiste acá
-          aplicarYGuardar // Sobrescribir con lo mío
-        );
-        return;
+  // Punto 5 del plan de auditoría — optimistic locking: verificamos que
+  // nadie más haya cambiado este tipo de galleta mientras lo editábamos.
+  if (pmDB.disponible()) {
+    await _sbProdEnsureMap();
+    const uuidChk = _sbProdMap?.[id];
+    const storedUpdatedAt = window._geEditUpdatedAt?.[id];
+    if (uuidChk && storedUpdatedAt) {
+      try {
+        const actual = await pmDB.productos.obtener(uuidChk);
+        if (actual && actual.updated_at && actual.updated_at !== storedUpdatedAt) {
+          pmMostrarConflicto(
+            `El tipo de galleta "${p.nombre}" fue modificado en otro dispositivo o pestaña mientras lo editabas.`,
+            () => { gallEditCancelar(); gallEdit(id); }, // Recargar — descarta lo que escribiste acá
+            () => {
+              window._geEditUpdatedAt[id] = actual.updated_at;
+              gallEditSave(id);
+            }
+          );
+          return; // pausar acá — no seguir guardando hasta que Victor elija
+        }
+      } catch (e) {
+        console.warn('[pmDB] gallEditSave — verificación de conflicto falló, se guarda igual:', e.message);
       }
-    } catch (e) {
-      console.warn('[pmDB] gallEdit — verificación de conflicto falló, se guarda igual:', e.message);
     }
   }
 
-  aplicarYGuardar();
+  p.nombre = nom; p.precio = pr; p.peso = peso; p.recetaCod = rec;
+  pmSave('sistema');
+  gallRender();
+  pmToast('Actualizado ✓');
+  if (pmDB.disponible()) {
+    _sbProdEnsureMap().then(() => {
+      const uuid = _sbProdMap?.[id];
+      if (uuid) pmDB.productos.editar(uuid, { nombre:p.nombre, precio_full:p.precio, peso_g:p.peso||null, receta_cod:p.recetaCod||null })
+        .catch(e => console.warn('[pmDB] gallEditSave sync error:', e.message));
+    });
+  }
 }
 
 function gallDel(id) {
