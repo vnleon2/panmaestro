@@ -271,6 +271,7 @@ function recCard(r, _sharedCache) {
       ${r.notes?`<div style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:11px;color:var(--cream2);white-space:pre-wrap;margin-top:8px">${r.notes}</div>`:''}
       <div style="margin-top:10px;display:flex;gap:6px">
         <button class="btn btn-out btn-sm" onclick="recEditar('${r.id}')">✏️ Editar</button>
+        <button class="btn btn-out btn-sm" onclick="recClonar('${r.id}')">📋 Clonar</button>
         <button class="btn btn-red btn-sm" onclick="recEliminar('${r.id}')">🗑 Eliminar</button>
       </div>
     </div>
@@ -378,6 +379,29 @@ async function recEditar(id) {
   (r.addons||[]).forEach(a=>mrAddAddon(a));
   mrRefreshEmpty();
   document.getElementById('pg-costeo').scrollTo({top:0, behavior:'smooth'});
+}
+
+// ── CLONAR RECETA ──
+// Abre el editor con todos los datos de la receta original (ingredientes,
+// sub-recetas, agregados, merma, MOD/GG, notas) pero SIN su id: al Guardar
+// se crea una receta NUEVA con código automático (ver recSave, rama "New
+// recipe"). La original no se toca. Sirve para variantes, ej. galleta de
+// chispas de chocolate → otra receta cambiando solo el tipo de chispas.
+// Si se cancela sin guardar, no queda nada creado.
+async function recClonar(id) {
+  await recEditar(id);
+  const r = _sbGetRec(id) || (G.recetas||[]).find(x=>x.id===id);
+  // Si recEditar no llegó a abrir el formulario con esta receta, no seguimos
+  if (!r || document.getElementById('mr-id').value !== r.id) return;
+  window._mrEditUpdatedAt = null; // es una receta nueva: no hay versión que comparar
+  document.getElementById('mr-id').value = '';
+  document.getElementById('mr-code').value = _pmNextRecCode();
+  document.getElementById('mr-code').disabled = true;
+  const nameEl = document.getElementById('mr-name');
+  nameEl.value = 'Copia de ' + r.name;
+  document.getElementById('cv-nueva-titulo').textContent = 'Clonar: ' + r.name;
+  nameEl.focus(); nameEl.select();
+  pmToast('Copia lista — cambiá el nombre y lo que haga falta, luego Guardar');
 }
 
 function mrRefreshEmpty() {
