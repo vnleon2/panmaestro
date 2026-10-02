@@ -387,26 +387,38 @@ async function recEditar(id) {
 }
 
 // ── CLONAR RECETA ──
-// Abre el editor con todos los datos de la receta original (ingredientes,
-// sub-recetas, agregados, merma, MOD/GG, notas) pero SIN su id: al Guardar
-// se crea una receta NUEVA con código automático (ver recSave, rama "New
-// recipe"). La original no se toca. Sirve para variantes, ej. galleta de
+// Convierte lo que está en el editor en una receta NUEVA: le quita el id,
+// le asigna el siguiente código libre (automático) y le pone "Copia de …"
+// al nombre. Al Guardar se crea una receta nueva (ver recSave, rama "New
+// recipe"); la original no se toca y, si se cancela, no queda nada creado.
+// Como parte del formulario ya cargado, conserva cualquier cambio que se
+// haya hecho antes de pulsar Clonar. Sirve para variantes, ej. galleta de
 // chispas de chocolate → otra receta cambiando solo el tipo de chispas.
-// Si se cancela sin guardar, no queda nada creado.
+function recClonarDesdeForm() {
+  const idEl = document.getElementById('mr-id');
+  if (!idEl || !idEl.value) return; // ya es una receta nueva: nada que clonar
+  const nameEl = document.getElementById('mr-name');
+  const nombreOrig = nameEl.value;
+  window._mrEditUpdatedAt = null; // receta nueva: no hay versión que comparar
+  idEl.value = '';
+  document.getElementById('mr-code').value = _pmNextRecCode();
+  document.getElementById('mr-code').disabled = true;
+  nameEl.value = 'Copia de ' + nombreOrig;
+  document.getElementById('cv-nueva-titulo').textContent = 'Clonar: ' + nombreOrig;
+  const clonarBtn = document.getElementById('mr-clonar-btn');
+  if (clonarBtn) clonarBtn.style.display = 'none';
+  nameEl.focus(); nameEl.select();
+  pmToast('Copia lista — cambiá el nombre y lo que haga falta, luego Guardar');
+}
+
+// Desde la tarjeta de la lista de recetas: abre el editor con la receta y
+// la convierte en copia en un solo paso.
 async function recClonar(id) {
   await recEditar(id);
   const r = _sbGetRec(id) || (G.recetas||[]).find(x=>x.id===id);
   // Si recEditar no llegó a abrir el formulario con esta receta, no seguimos
   if (!r || document.getElementById('mr-id').value !== r.id) return;
-  window._mrEditUpdatedAt = null; // es una receta nueva: no hay versión que comparar
-  document.getElementById('mr-id').value = '';
-  document.getElementById('mr-code').value = _pmNextRecCode();
-  document.getElementById('mr-code').disabled = true;
-  const nameEl = document.getElementById('mr-name');
-  nameEl.value = 'Copia de ' + r.name;
-  document.getElementById('cv-nueva-titulo').textContent = 'Clonar: ' + r.name;
-  nameEl.focus(); nameEl.select();
-  pmToast('Copia lista — cambiá el nombre y lo que haga falta, luego Guardar');
+  recClonarDesdeForm();
 }
 
 function mrRefreshEmpty() {
@@ -1106,6 +1118,10 @@ async function recSave() {
   if (!G.recetas) G.recetas = [];
   // Parse id — may carry gmsource or personalsource marker
   let realId = id, gmSource = null, personalSourceName = null;
+  // Reúne el guardado en Supabase (datos maestros + ingredientes). Al final de
+  // la función se espera a que termine ANTES de releer la receta; si no, la
+  // relectura cae a mitad del guardado y muestra ingredientes duplicados.
+  let sbGuardado = null;
   if (id && id.includes('|gmsource|')) {
     const parts = id.split('|gmsource|');
     realId  = parts[0];
@@ -1131,7 +1147,7 @@ async function recSave() {
       // NOTA: no se manda personal_source a Supabase (columna que
       // probablemente no existe todavía) — mismo criterio que la
       // columna receta_cod que faltó hoy.
-      pmDB.recetas.crear({
+      sbGuardado = pmDB.recetas.crear({
         codigo: target.code, nombre: obj.name, categoria: obj.cat,
         masa_total_g: obj.totalMass, unidades: obj.units,
         merma_pct: obj.merma, margen_pct: obj.margen || null,
@@ -1140,7 +1156,7 @@ async function recSave() {
       }).then(rows => {
         if (rows?.[0]) {
           target.sbId = rows[0].id;
-          _sbSaveRecetaItems(rows[0].id, obj.flour, obj.other).catch(e => console.warn('[pmDB] items personalSource error:', e.message));
+          return _sbSaveRecetaItems(rows[0].id, obj.flour, obj.other).catch(e => console.warn('[pmDB] items personalSource error:', e.message));
         }
       }).catch(e => console.warn('[pmDB] recSave personalSource create error:', e.message));
       _sbRecCache = null;
@@ -1164,7 +1180,7 @@ async function recSave() {
       const target = G.recetas.find(x => x.gmSource === gmSource);
       const cached = _sbGetRec(target.id);
       if (cached?.sbId) {
-        pmDB.recetas.editar(cached.sbId, {
+        sbGuardado = pmDB.recetas.editar(cached.sbId, {
           nombre: obj.name, categoria: obj.cat, masa_total_g: obj.totalMass,
           unidades: obj.units, merma_pct: obj.merma, margen_pct: obj.margen, notas: obj.notes,
           gm_source: gmSource || null,
@@ -1172,7 +1188,7 @@ async function recSave() {
         }).then(() => _sbSaveRecetaItems(cached.sbId, obj.flour, obj.other))
           .catch(e => console.warn('[pmDB] recSave gmSource update error:', e.message));
       } else {
-        pmDB.recetas.crear({
+        sbGuardado = pmDB.recetas.crear({
           codigo: target.code, nombre: obj.name, categoria: obj.cat,
           masa_total_g: obj.totalMass, unidades: obj.units,
           merma_pct: obj.merma, margen_pct: obj.margen || null,
@@ -1182,7 +1198,7 @@ async function recSave() {
         }).then(rows => {
           if (rows?.[0]) {
             target.sbId = rows[0].id;
-            _sbSaveRecetaItems(rows[0].id, obj.flour, obj.other).catch(e => console.warn('[pmDB] items gmSource error:', e.message));
+            return _sbSaveRecetaItems(rows[0].id, obj.flour, obj.other).catch(e => console.warn('[pmDB] items gmSource error:', e.message));
           }
         }).catch(e => console.warn('[pmDB] recSave gmSource create error:', e.message));
       }
@@ -1236,7 +1252,7 @@ async function recSave() {
       // Supabase dual write — actualizar datos maestros
       if (pmDB.disponible()) {
         if (cached?.sbId) {
-          pmDB.recetas.editar(cached.sbId, {
+          sbGuardado = pmDB.recetas.editar(cached.sbId, {
             nombre: obj.name, categoria: obj.cat, masa_total_g: obj.totalMass,
             unidades: obj.units, merma_pct: obj.merma, margen_pct: obj.margen, notas: obj.notes,
             subrecs: obj.subrecs || [], addons: obj.addons || []
@@ -1258,7 +1274,7 @@ async function recSave() {
     pmToast(newCode + ' · "' + obj.name + '" creada ✓');
     // Supabase dual write — insertar registro maestro
     if (pmDB.disponible()) {
-      pmDB.recetas.crear({
+      sbGuardado = pmDB.recetas.crear({
         codigo: newCode, nombre: obj.name, categoria: obj.cat,
         masa_total_g: obj.totalMass, unidades: obj.units,
         merma_pct: obj.merma, margen_pct: obj.margen || null,
@@ -1267,7 +1283,7 @@ async function recSave() {
       }).then(rows => {
         if (rows?.[0]) {
           newRec.sbId = rows[0].id;
-          _sbSaveRecetaItems(rows[0].id, obj.flour, obj.other).catch(e => console.warn('[pmDB] items create error:', e.message));
+          return _sbSaveRecetaItems(rows[0].id, obj.flour, obj.other).catch(e => console.warn('[pmDB] items create error:', e.message));
         }
       }).catch(e => console.warn('[pmDB] recSave create error:', e.message));
       _sbRecCache = null; // invalidar cache
@@ -1287,6 +1303,13 @@ async function recSave() {
   pmSave('costeo');
   cvMostrar('cv-lista');
   if (pmDB.disponible()) {
+    // FIX ingredientes duplicados tras grabar: _sbSaveRecetaItems inserta los
+    // ingredientes NUEVOS primero y borra los VIEJOS al final (a propósito,
+    // para no perder datos si se corta la red). Si se relee la receta en ese
+    // intervalo, se ven los dos juegos a la vez. Antes el guardado se lanzaba
+    // sin esperarlo y la relectura caía justo en medio; ahora se espera a que
+    // termine (los errores ya se capturan dentro de cada rama).
+    if (sbGuardado) await sbGuardado;
     await _sbCosteoCargar(); // repuebla _sbRecCache y ya repinta la vista activa
   } else {
     fillRscSel();
