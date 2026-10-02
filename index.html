@@ -531,7 +531,8 @@
       <div id="mr-ing-empty" style="font-size:12px;color:var(--cream2);padding:8px 0">Sin ingredientes — agregá uno arriba</div>
     </div>
     <!-- Guardar -->
-    <div style="display:flex;gap:8px;justify-content:flex-end">
+    <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+      <button class="btn btn-out" id="mr-clonar-btn" style="display:none" onclick="recClonarDesdeForm()">📋 Clonar</button>
       <button class="btn btn-out" onclick="cvMostrar('cv-lista');recRender()">Cancelar</button>
       <button class="btn btn-gold" onclick="recSave()">💾 Guardar receta</button>
     </div>

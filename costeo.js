@@ -331,6 +331,8 @@ function recNuevo() {
   document.getElementById('mr-addon-list').innerHTML = '';
   document.getElementById('mr-ing-empty').style.display = 'block';
   mrIngCount = 0; mrSubCount = 0; window._mrAddonCount = 0;
+  const clonarBtn = document.getElementById('mr-clonar-btn');
+  if (clonarBtn) clonarBtn.style.display = 'none'; // receta nueva: aún no hay nada que clonar
 }
 
 async function recEditar(id) {
@@ -378,6 +380,9 @@ async function recEditar(id) {
   (r.subrecs||[]).forEach(s=>mrAddSub(s));
   (r.addons||[]).forEach(a=>mrAddAddon(a));
   mrRefreshEmpty();
+  // El botón Clonar solo tiene sentido al editar una receta que ya existe
+  const clonarBtn = document.getElementById('mr-clonar-btn');
+  if (clonarBtn) clonarBtn.style.display = '';
   document.getElementById('pg-costeo').scrollTo({top:0, behavior:'smooth'});
 }
 
