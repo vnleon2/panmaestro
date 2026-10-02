@@ -506,6 +506,7 @@ async function repRender() {
     else if (repCurrentTab === 'contable')    html = await repContable(mes);
     else if (repCurrentTab === 'facxcli')     html = await repFacturasCliente(mes);
     else if (repCurrentTab === 'nopagados')   html = await repNoPagados();
+    else if (repCurrentTab === 'precioventa') html = await pvReporteHTML();
     else html = '<div style="padding:20px;color:var(--cream)">Tab: ' + repCurrentTab + ' — no reconocido</div>';
     out.innerHTML = html;
   } catch(e) {
