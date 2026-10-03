@@ -279,11 +279,19 @@ function recCard(r, _sharedCache) {
 }
 
 // ── Actualizar MOD% y GG% directamente desde el costeo ──
+// Persiste el % en Supabase (antes solo se guardaba en el navegador, por eso
+// al recargar o abrir desde otro dispositivo volvía el valor por defecto).
+function _cvGuardarPctSb(r, campos) {
+  if (!r || !r.sbId || !pmDB.disponible()) return;
+  pmDB.recetas.editar(r.sbId, campos)
+    .catch(e => { console.warn('[pmDB] guardar % costeo error:', e.message); pmToast('⚠️ % guardado solo en este dispositivo', 'err'); });
+}
 function cvActualizarMOD(recId, val) {
   const r = _sbGetRec(recId) || G.recetas.find(x => x.id===recId);
   if (!r) return;
   r.modPct = parseFloat(val) || 0;
   pmSave('costeo');
+  _cvGuardarPctSb(r, { mod_pct: r.modPct });
   cvMaestroRender();
 }
 function cvActualizarGG(recId, val) {
@@ -291,6 +299,7 @@ function cvActualizarGG(recId, val) {
   if (!r) return;
   r.ggPct = parseFloat(val) || 0;
   pmSave('costeo');
+  _cvGuardarPctSb(r, { gg_pct: r.ggPct });
   cvMaestroRender();
 }
 
@@ -924,6 +933,7 @@ async function _backfillRecetasFaltantes() {
         codigo: rec.code, nombre: rec.name, categoria: rec.cat,
         masa_total_g: rec.totalMass, unidades: rec.units,
         merma_pct: rec.merma || 0, margen_pct: (rec.margen ?? null),
+        mod_pct: rec.modPct ?? null, gg_pct: rec.ggPct ?? null,
         notas: rec.notes || '', origen: 'propia', activo: true,
         subrecs: rec.subrecs || [], addons: rec.addons || []
       });
@@ -1220,6 +1230,7 @@ async function recSave() {
         codigo: target.code, nombre: obj.name, categoria: obj.cat,
         masa_total_g: obj.totalMass, unidades: obj.units,
         merma_pct: obj.merma, margen_pct: obj.margen || null,
+        mod_pct: obj.modPct ?? null, gg_pct: obj.ggPct ?? null,
         notas: obj.notes, origen: 'propia', activo: true,
         subrecs: obj.subrecs || [], addons: obj.addons || []
       }).then(rows => {
@@ -1252,6 +1263,7 @@ async function recSave() {
         sbGuardado = pmDB.recetas.editar(cached.sbId, {
           nombre: obj.name, categoria: obj.cat, masa_total_g: obj.totalMass,
           unidades: obj.units, merma_pct: obj.merma, margen_pct: obj.margen, notas: obj.notes,
+          mod_pct: obj.modPct ?? null, gg_pct: obj.ggPct ?? null,
           gm_source: gmSource || null,
           subrecs: obj.subrecs || [], addons: obj.addons || []
         }).then(() => _sbSaveRecetaItems(cached.sbId, obj.flour, obj.other))
@@ -1261,6 +1273,7 @@ async function recSave() {
           codigo: target.code, nombre: obj.name, categoria: obj.cat,
           masa_total_g: obj.totalMass, unidades: obj.units,
           merma_pct: obj.merma, margen_pct: obj.margen || null,
+        mod_pct: obj.modPct ?? null, gg_pct: obj.ggPct ?? null,
           notas: obj.notes, origen: 'propia', activo: true,
           gm_source: gmSource || null,
           subrecs: obj.subrecs || [], addons: obj.addons || []
@@ -1324,6 +1337,7 @@ async function recSave() {
           sbGuardado = pmDB.recetas.editar(cached.sbId, {
             nombre: obj.name, categoria: obj.cat, masa_total_g: obj.totalMass,
             unidades: obj.units, merma_pct: obj.merma, margen_pct: obj.margen, notas: obj.notes,
+          mod_pct: obj.modPct ?? null, gg_pct: obj.ggPct ?? null,
             subrecs: obj.subrecs || [], addons: obj.addons || []
           }).then(() => _sbSaveRecetaItems(cached.sbId, obj.flour, obj.other))
             .catch(e => console.warn('[pmDB] recSave edit error:', e.message));
@@ -1347,6 +1361,7 @@ async function recSave() {
         codigo: newCode, nombre: obj.name, categoria: obj.cat,
         masa_total_g: obj.totalMass, unidades: obj.units,
         merma_pct: obj.merma, margen_pct: obj.margen || null,
+        mod_pct: obj.modPct ?? null, gg_pct: obj.ggPct ?? null,
         notas: obj.notes, origen: 'propia', activo: true,
         subrecs: obj.subrecs || [], addons: obj.addons || []
       }).then(rows => {
@@ -1773,6 +1788,10 @@ async function _sbCosteoCargar() {
         units:     row.unidades   != null ? row.unidades   : (local.units  || 1),
         merma:     row.merma_pct  != null ? row.merma_pct  : (local.merma  || 0),
         margen:    row.margen_pct != null ? row.margen_pct : local.margen,
+        // FIX: % de mano de obra y gastos generales. Antes se descartaban
+        // al reconstruir la receta desde Supabase, y volvía el default (80/45).
+        modPct:    row.mod_pct != null ? row.mod_pct : local.modPct,
+        ggPct:     row.gg_pct  != null ? row.gg_pct  : local.ggPct,
         notes:     row.notas         || local.notes     || '',
         flour,
         other,
