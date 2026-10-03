@@ -8,7 +8,7 @@
 // para no chocar con el CSS de impresión de la app principal.
 
 function etMostrar(id) {
-  ['et-producto-wrap','et-marca-wrap'].forEach(v => {
+  ['et-producto-wrap','et-hoja-wrap','et-marca-wrap'].forEach(v => {
     const el = document.getElementById(v);
     if (el) el.style.display = v===id ? 'block' : 'none';
   });
