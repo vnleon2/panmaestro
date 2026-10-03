@@ -36,7 +36,7 @@ function showTab(id) {
   if (modEl) modEl.textContent = labels[id] || 'PANMAESTRO';
   const inits = {
     'pg-dash':    () => { document.getElementById('dash-date').value = pmHoy(); dashRender(); },
-    'pg-etiquetas': () => { etCargarCatalogo(); },
+    'pg-etiquetas': () => { etCargarCatalogo(); ethInit(); },
     'pg-mercadeo': () => { mktInit(); },
     'pg-pedidos': () => { document.getElementById('pp-fecha').value = pmHoy(); ppCargarSb(); },
     'pg-galletas':() => { document.getElementById('pg-fecha').value = pmHoy(); pgCargarSb(); },

@@ -1267,11 +1267,42 @@
      propio login: usa la sesión de PanMaestro directo. -->
 <div class="page" id="pg-etiquetas">
   <div class="pg-title">🏷️ Etiquetas</div>
-  <div class="pg-sub">Etiquetas 7×4cm — de producto o de marca</div>
+  <div class="pg-sub">Etiquetas de producto (7×4cm), de marca, o una hoja carta con etiquetas de 6 cm</div>
 
-  <div style="margin-bottom:16px;display:flex;gap:8px">
+  <div style="margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap">
     <button class="btn btn-out btn-sm" onclick="etMostrar('et-producto-wrap')">📦 Producto</button>
+    <button class="btn btn-out btn-sm" onclick="etMostrar('et-hoja-wrap')">📄 Hoja carta</button>
     <button class="btn btn-out btn-sm" onclick="etMostrar('et-marca-wrap')">🎨 Marca</button>
+  </div>
+
+  <div id="et-hoja-wrap" style="display:none">
+    <div class="card" style="max-width:480px">
+      <div class="col" style="margin-bottom:10px">
+        <label>Pan o galleta</label>
+        <select id="eth-producto" onchange="ethSeleccionar(this.value)">
+          <option value="">Cargando…</option>
+        </select>
+      </div>
+      <div class="row" style="margin-bottom:10px">
+        <div class="col">
+          <label>Peso (g)</label>
+          <input type="number" id="eth-peso" step="1">
+        </div>
+        <div class="col">
+          <label>Etiquetas (vacío = llenar la hoja)</label>
+          <input type="number" id="eth-cantidad" min="1" step="1" placeholder="Llenar la hoja">
+        </div>
+      </div>
+      <div class="col" style="margin-bottom:10px">
+        <label>Contiene (sale de la receta, podés editarlo)</label>
+        <textarea id="eth-contenido" rows="3"></textarea>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <input type="checkbox" id="eth-gluten" style="width:auto"> Contiene gluten
+      </label>
+      <div id="eth-aviso" style="font-size:12px;margin-top:8px"></div>
+      <button class="btn btn-gold" id="eth-btn" disabled onclick="ethGenerar()" style="width:100%;margin-top:16px">📄 Generar hoja en PDF</button>
+    </div>
   </div>
 
   <div id="et-producto-wrap">
@@ -1456,6 +1487,8 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="etiquetas.js?v=20261001c"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="etiquetas_hoja.js?v=20261003a"></script>
 
 <script src="mercadeo.js?v=20261001c"></script>
 
