@@ -326,7 +326,7 @@ function recNuevo() {
   document.getElementById('mr-gg')  && (document.getElementById('mr-gg').value  = '');
   document.getElementById('mr-notes').value = '';
   document.getElementById('mr-cat').value = 'pan';
-  document.getElementById('mr-ing-list').innerHTML = '';
+  document.getElementById('mr-ing-list').innerHTML = ''; mrRecalcQty();
   document.getElementById('mr-sub-list').innerHTML = '';
   document.getElementById('mr-addon-list').innerHTML = '';
   document.getElementById('mr-ing-empty').style.display = 'block';
@@ -371,7 +371,7 @@ async function recEditar(id) {
   document.getElementById('mr-gg')  && (document.getElementById('mr-gg').value  = r.ggPct!==undefined  ? r.ggPct  : '');
   document.getElementById('mr-notes').value = r.notes||'';
   document.getElementById('mr-cat').value = r.cat||'pan';
-  document.getElementById('mr-ing-list').innerHTML = '';
+  document.getElementById('mr-ing-list').innerHTML = ''; mrRecalcQty();
   document.getElementById('mr-sub-list').innerHTML = '';
   document.getElementById('mr-addon-list').innerHTML = '';
   mrIngCount = 0; mrSubCount = 0; window._mrAddonCount = 0;
@@ -458,12 +458,63 @@ function mrAddIng(name='', pct='', isFlour=false, ingredientId='') {
           onclick="ingPickerOpen('${uid}')">
         <span id="hint-${uid}" style="font-size:10px;margin-left:2px">${costoHint}</span>
       </div>
-      <input type="number" placeholder="%" value="${pct}" min="0" step="0.1"
+      <input type="number" placeholder="%" value="${pct}" min="0" step="0.1" title="Porcentaje de panadero"
+        oninput="mrPctInput('${uid}')"
         style="flex:0 0 72px;font-size:12px;padding:6px 8px;background:var(--sf);border:1px solid var(--border);border-radius:8px;color:var(--cream);text-align:center">
-      <button class="btn btn-red btn-xs" onclick="document.getElementById('${uid}').remove();mrRefreshEmpty()">✕</button>
+      <input type="number" class="mr-qty" placeholder="g" min="0" step="any" title="Cantidad en gramos (opcional): calcula el % automáticamente. No se guarda."
+        oninput="mrRecalcQty()"
+        style="flex:0 0 72px;font-size:12px;padding:6px 8px;background:var(--sf);border:1px dashed var(--border);border-radius:8px;color:var(--cream);text-align:center">
+      <button class="btn btn-red btn-xs" onclick="document.getElementById('${uid}').remove();mrRefreshEmpty();mrRecalcQty()">✕</button>
     </div>`;
+  // Cambiar Harina/Otro cambia la base de cálculo → recalcular
+  div.querySelector('select').addEventListener('change', mrRecalcQty);
   document.getElementById('mr-ing-list').appendChild(div);
   mrRefreshEmpty();
+}
+
+// ── CAPTURA POR CANTIDAD (solo ayuda de captura) ──
+// Cada línea tiene % y g. Si se escribe la cantidad (g), el % se calcula como
+// cantidad ÷ suma de las harinas × 100 (las harinas son el 100%). Si se escribe
+// el %, la cantidad de esa línea se borra. La cantidad NO se guarda: la receta
+// siempre queda en % de panadero (recSave y el resto leen solo el campo %).
+function mrRecalcQty() {
+  const hint = document.getElementById('mr-qty-hint');
+  const setHint = t => { if (hint) hint.textContent = t; };
+  const val = el => parseFloat(el.value) || 0;
+  const rows = [...document.querySelectorAll('#mr-ing-list > div')].map(row => ({
+    flour: row.querySelector('select')?.value === 'flour',
+    pct:   row.querySelector('input[type=number]'),
+    qty:   row.querySelector('.mr-qty')
+  })).filter(r => r.pct && r.qty);
+
+  setHint('');
+  rows.forEach(r => { if (!(val(r.qty) > 0)) r.pct.style.color = ''; });
+  const conQty = rows.filter(r => val(r.qty) > 0);
+  if (!conQty.length) return;
+
+  const base = conQty.filter(r => r.flour).reduce((a, r) => a + val(r.qty), 0);
+  if (base <= 0) {
+    setHint('Capturá la cantidad de al menos una harina para calcular los %');
+    return;
+  }
+  if (rows.some(r => r.flour && !(val(r.qty) > 0) && val(r.pct) > 0)) {
+    setHint('Hay harinas con % pero sin cantidad — capturá la cantidad de todas las harinas para calcular los %');
+    return;
+  }
+  conQty.forEach(r => {
+    r.pct.value = String(Math.round(val(r.qty) / base * 100 * 1000) / 1000);
+    r.pct.style.color = 'var(--gold2)'; // % calculado desde la cantidad
+  });
+}
+
+function mrPctInput(uid) {
+  const row = document.getElementById(uid);
+  if (!row) return;
+  const qty = row.querySelector('.mr-qty');
+  if (qty) qty.value = '';
+  const pct = row.querySelector('input[type=number]');
+  if (pct) pct.style.color = '';
+  mrRecalcQty();
 }
 
 function mrCheckCosto(input, uid) {
