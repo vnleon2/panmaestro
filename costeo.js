@@ -488,7 +488,7 @@ function mrRecalcQty() {
   })).filter(r => r.pct && r.qty);
 
   setHint('');
-  rows.forEach(r => { if (!(val(r.qty) > 0)) r.pct.style.color = ''; });
+  rows.forEach(r => { r.qty.style.borderColor = ''; if (!(val(r.qty) > 0)) r.pct.style.color = ''; });
   const conQty = rows.filter(r => val(r.qty) > 0);
   if (!conQty.length) return;
 
@@ -1104,6 +1104,24 @@ async function recSave() {
   }
 
   const flour=[], other=[];
+  // Captura por cantidad: recalcular una vez más y NO perder en silencio
+  // ninguna línea con g que se haya quedado sin % o sin ingrediente.
+  mrRecalcQty();
+  const lineasSinGuardar = [];
+  document.querySelectorAll('#mr-ing-list > div').forEach(row => {
+    const qtyInp = row.querySelector('.mr-qty');
+    const pctI   = row.querySelector('input[type=number]');
+    const nomI   = document.getElementById('inp-' + row.id) || row.querySelector('input[type=text]');
+    const conQty = qtyInp && (parseFloat(qtyInp.value) || 0) > 0;
+    const falla  = conQty && (!(parseFloat(pctI?.value) > 0) || !(nomI?.value || '').trim());
+    if (qtyInp) qtyInp.style.borderColor = falla ? 'var(--red, #c0392b)' : '';
+    if (falla) lineasSinGuardar.push((nomI?.value || '').trim() || '(sin ingrediente)');
+  });
+  if (lineasSinGuardar.length) {
+    pmToast('No se guardó: ' + lineasSinGuardar.join(', ') +
+      ' tiene g pero no se pudo calcular el % (capturá también los g de la harina) o falta elegir el ingrediente', 'err');
+    return;
+  }
   document.querySelectorAll('#mr-ing-list > div').forEach(row => {
     const tipoSel = row.querySelector('select');
     const nameInp = document.getElementById('inp-' + row.id) || row.querySelector('input[type=text]');
