@@ -750,6 +750,21 @@
         <div class="col xs"><label>&nbsp;</label><button class="btn btn-gold" onclick="ingAdd()">+ Agregar</button></div>
       </div>
     </div>
+    <div class="card">
+      <div class="ctitle">📥 Importar lista de precios</div>
+      <div style="font-size:11px;color:var(--cream2);margin-bottom:8px">
+        Pegá la lista (una línea por ingrediente), por ejemplo
+        «Almendra Tostada (1 kg): ₡7.700,00» o «Harina ; 25 kg ; 18500».
+        Primero se muestra una vista previa; no se guarda nada hasta que confirmés.
+      </div>
+      <textarea id="ingimp-txt" rows="8" placeholder="Pegá aquí la lista de precios..."
+        style="width:100%;box-sizing:border-box;padding:8px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream);font-size:12px;font-family:'DM Mono',monospace"></textarea>
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <button class="btn btn-gold btn-sm" onclick="ingImpAnalizar()">🔍 Analizar lista</button>
+        <button class="btn btn-out btn-sm" onclick="ingImpLimpiar()">Limpiar</button>
+      </div>
+      <div id="ingimp-prev"></div>
+    </div>
     <div class="sec"><h2 id="ing-count">Ingredientes</h2>
       <div class="srch" style="width:160px"><input type="text" id="ing-search" placeholder="Buscar..." oninput="ingRender()"></div>
     </div>
@@ -1483,6 +1498,7 @@
 <script src="hidratacion.js?v=20261001c"></script>
 
 <script src="maestros.js?v=20261001c"></script>
+<script src="ing_import.js?v=20261005a"></script>
 
 <script src="catalogo.js?v=20261001c"></script>
 
