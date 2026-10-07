@@ -202,15 +202,19 @@ async function prodGuardar() {
   const plan  = prodGetPlan(fecha);
   document.querySelectorAll('[id^="prod-val-"]').forEach(el => {
     const pid = el.id.replace('prod-val-','');
-    if (plan[pid] !== undefined) {  // solo actualizar si NO fue borrado
-      plan[pid].prod = parseInt(el.value)||0;
-    }
+    // FIX: antes solo se guardaban los productos que ya tenían entrada en
+    // el plan (los que el usuario había tocado). Los panes "sugeridos" por
+    // los pedidos — que se muestran con la cantidad pedida pero sin entrada
+    // en el plan — se ignoraban, y solo se grababa el primero editado.
+    // Ahora todo producto visible en la tabla se guarda. (Un producto
+    // borrado con ✕ ya no está en pantalla: prodQuitarExtra re-renderiza.)
+    if (!plan[pid]) plan[pid] = {};
+    plan[pid].prod = parseInt(el.value)||0;
   });
   document.querySelectorAll('[id^="prod-nota-"]').forEach(el => {
     const pid = el.id.replace('prod-nota-','');
-    if (plan[pid] !== undefined) {  // solo actualizar si NO fue borrado
-      plan[pid].nota = el.value;
-    }
+    if (!plan[pid]) plan[pid] = {};
+    plan[pid].nota = el.value;
   });
   pmSave('produccion');
   pmToast('Plan guardado ✓');
