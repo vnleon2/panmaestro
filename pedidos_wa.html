@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pedidos WhatsApp — PanMaestro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --bg:#F4F6F9;--bg2:#FFFFFF;--bg3:#EEF1F5;--sf:#E2E7EF;--sf2:#D5DCE8;
+  --gold:#2563EB;--gold2:#1D4ED8;--gold3:#93C5FD;
+  --cream:#1E293B;--cream2:#64748B;
+  --red:#DC2626;--green:#16A34A;--amber:#D97706;
+  --border:rgba(37,99,235,.15);--border2:rgba(37,99,235,.3);
+  --r:12px;--rs:8px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(--cream);font-size:14px;line-height:1.5;display:flex;flex-direction:column;height:100vh;height:100dvh;overflow:hidden}
+button{font-family:inherit;cursor:pointer}
+input,select,textarea{font-family:inherit;font-size:14px;color:var(--cream)}
+/* topbar */
+#topbar{background:#fff;border-bottom:1px solid #DDE3EE;box-shadow:0 1px 4px rgba(0,0,0,.06);display:flex;align-items:center;min-height:52px;flex-shrink:0;gap:6px;padding-right:10px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:8px;padding:0 14px;border-right:1px solid #DDE3EE;min-height:52px}
+.brand-name{font-family:'Playfair Display',serif;font-size:15px;font-weight:700;color:var(--gold);line-height:1.1}
+.brand-mod{font-size:9px;color:var(--cream2);letter-spacing:2px;text-transform:uppercase}
+.tabs{display:flex;flex:1;overflow-x:auto}
+.ntab{border:none;background:transparent;color:#94A3B8;font-size:12px;font-weight:600;padding:0 14px;min-height:52px;border-bottom:3px solid transparent;white-space:nowrap;display:flex;align-items:center;gap:5px}
+.ntab:hover{color:#475569}
+.ntab.on{color:var(--gold);border-bottom-color:var(--gold);background:rgba(37,99,235,.07)}
+.ntab .bd{background:var(--amber);color:#fff;border-radius:10px;font-size:10px;padding:0 6px;line-height:16px}
+.chips{display:flex;gap:6px;align-items:center;font-size:11px;color:var(--cream2)}
+.chip{padding:3px 9px;border-radius:12px;background:var(--bg3);border:1px solid var(--border);white-space:nowrap}
+.chip.ok{color:var(--green);border-color:rgba(22,163,74,.35);background:rgba(22,163,74,.08)}
+.chip.warn{color:var(--amber);border-color:rgba(217,119,6,.4);background:rgba(217,119,6,.08)}
+.chip.off{color:var(--cream2)}
+#demo-banner{display:none;background:#FEF3C7;color:#92400E;font-size:12px;padding:6px 14px;border-bottom:1px solid #FCD34D;text-align:center;flex-shrink:0}
+#main{flex:1;overflow:hidden;position:relative}
+.view{display:none;height:100%;overflow:auto;padding:14px}
+.view.on{display:block}
+/* botones */
+.btn{border:1px solid var(--border2);background:#fff;color:var(--gold);padding:7px 13px;border-radius:var(--rs);font-size:13px;font-weight:600;transition:all .12s}
+.btn:hover{background:rgba(37,99,235,.07)}
+.btn.pri{background:var(--gold);color:#fff;border-color:var(--gold)}
+.btn.pri:hover{background:var(--gold2)}
+.btn.ok{background:var(--green);border-color:var(--green);color:#fff}
+.btn.danger{color:var(--red);border-color:rgba(220,38,38,.35)}
+.btn.sm{padding:4px 9px;font-size:12px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px}
+h2{font-size:15px;font-weight:700;margin-bottom:8px}
+.muted{color:var(--cream2);font-size:12px}
+.badge{display:inline-block;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:600;white-space:nowrap}
+.b-en_conversacion{background:var(--bg3);color:var(--cream2)}
+.b-por_revisar{background:rgba(217,119,6,.14);color:var(--amber)}
+.b-confirmado{background:rgba(22,163,74,.14);color:var(--green)}
+.b-enviado{background:rgba(37,99,235,.14);color:var(--gold)}
+.b-cancelado{background:rgba(220,38,38,.12);color:var(--red)}
+input[type=text],input[type=tel],input[type=email],input[type=password],input[type=number],input[type=date],select,textarea{border:1px solid var(--border2);border-radius:var(--rs);padding:7px 10px;background:#fff;width:100%}
+textarea{resize:vertical;min-height:70px}
+label.lb{display:block;font-size:11px;font-weight:600;color:var(--cream2);margin-bottom:3px;text-transform:uppercase;letter-spacing:.4px}
+/* bandeja */
+.inbox{display:grid;grid-template-columns:290px 1fr;gap:14px;height:100%}
+.inbox>div{min-height:0;overflow:auto}
+.convitem{padding:10px 12px;border:1px solid var(--border);border-radius:var(--rs);background:#fff;margin-bottom:8px;cursor:pointer}
+.convitem:hover{border-color:var(--gold)}
+.convitem.on{border-color:var(--gold);background:rgba(37,99,235,.06)}
+.convitem .nm{font-weight:700;font-size:13px;display:flex;justify-content:space-between;gap:6px;align-items:center}
+.convitem .sn{font-size:12px;color:var(--cream2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chat{display:flex;flex-direction:column;gap:8px;max-height:340px;overflow:auto;padding:10px;background:var(--bg3);border-radius:var(--rs);margin-bottom:10px}
+.msg{max-width:85%;padding:8px 11px;border-radius:12px;font-size:13px;white-space:pre-wrap;word-break:break-word}
+.msg.cli{background:#fff;border:1px solid var(--border);align-self:flex-start}
+.msg.sis{background:#DCFCE7;border:1px solid #BBF7D0;align-self:flex-end}
+.msg .meta{font-size:10px;color:var(--cream2);margin-top:3px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.suggest{background:rgba(37,99,235,.06);border:1px dashed var(--border2);border-radius:var(--rs);padding:10px;margin-bottom:10px}
+table{width:100%;border-collapse:collapse}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--cream2);text-align:left;padding:6px 8px;border-bottom:2px solid var(--sf)}
+td{padding:7px 8px;border-bottom:1px solid var(--sf);vertical-align:middle;font-size:13px}
+td input[type=number]{width:70px}
+.row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.row>*{flex:1;min-width:120px}
+.row>.fix{flex:none;min-width:0}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
+.stat{background:#fff;border:1px solid var(--border);border-radius:var(--rs);padding:10px 12px}
+.stat b{display:block;font-size:20px;color:var(--gold)}
+.warnbox{background:rgba(217,119,6,.1);border:1px solid rgba(217,119,6,.35);color:#92400E;border-radius:var(--rs);padding:8px 10px;font-size:12px;margin-bottom:8px}
+.pill{display:inline-block;background:var(--bg3);border-radius:8px;padding:1px 8px;font-size:12px;margin:1px 3px 1px 0}
+/* login */
+#login{position:fixed;inset:0;background:var(--bg);z-index:999;display:flex;align-items:center;justify-content:center;padding:16px}
+#login .box{background:#fff;border:1px solid var(--border);border-radius:16px;padding:26px;width:100%;max-width:380px;box-shadow:0 10px 40px rgba(0,0,0,.08)}
+#login h1{font-family:'Playfair Display',serif;color:var(--gold);font-size:22px;margin-bottom:2px}
+#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#1E293B;color:#fff;padding:9px 16px;border-radius:10px;font-size:13px;z-index:1000;display:none;max-width:90vw}
+#toast.err{background:var(--red)}
+#toast.ok{background:var(--green)}
+@media(max-width:860px){
+  .inbox{grid-template-columns:1fr;height:auto}
+  body{overflow:auto;height:auto}
+  #main{overflow:visible}
+  .view{height:auto;overflow:visible}
+  .brand-mod{display:none}
+}
+@media print{
+  body{overflow:visible;height:auto;display:block;background:#fff}
+  #topbar,#demo-banner,.noprint,#toast{display:none!important}
+  .view{display:none!important}
+  #v-pedidos{display:block!important;padding:0}
+  .card{border:none;padding:0}
+}
+</style>
+</head>
+<body>
+
+<div id="login">
+  <div class="box">
+    <h1>🍞 Pedidos WhatsApp</h1>
+    <div class="muted" style="margin-bottom:16px">PanMaestro · Victor's Bakery &amp; Sweets</div>
+    <label class="lb">Correo</label><input type="email" id="lg-email" autocomplete="username" style="margin-bottom:10px">
+    <label class="lb">Contraseña</label><input type="password" id="lg-pass" autocomplete="current-password" style="margin-bottom:12px">
+    <button class="btn pri" style="width:100%" id="lg-btn" onclick="doLogin()">Entrar</button>
+    <div id="lg-err" class="muted" style="color:var(--red);margin-top:8px;min-height:16px"></div>
+    <hr style="border:none;border-top:1px solid var(--sf);margin:12px 0">
+    <button class="btn" style="width:100%;margin-bottom:8px" onclick="demoMode()">🧪 Probar en modo demostración</button>
+    <button class="btn" style="width:100%;display:none" id="lg-offline" onclick="offlineMode()">📴 Continuar sin conexión (último catálogo guardado)</button>
+    <div class="muted" style="margin-top:6px">Usa la misma cuenta que PanMaestro. En modo demostración se usa un catálogo de ejemplo y no se envía nada a PanMaestro.</div>
+  </div>
+</div>
+
+<div id="topbar">
+  <div class="brand"><span style="font-size:22px">🍞</span><div><div class="brand-name">Pedidos WhatsApp</div><div class="brand-mod">PanMaestro</div></div></div>
+  <div class="tabs">
+    <button class="ntab on" data-tab="bandeja" onclick="setTab('bandeja')">💬 Bandeja</button>
+    <button class="ntab" data-tab="pedidos" onclick="setTab('pedidos')">📋 Pedidos <span class="bd" id="bd-rev" style="display:none"></span></button>
+    <button class="ntab" data-tab="ajustes" onclick="setTab('ajustes')">⚙️ Ajustes</button>
+  </div>
+  <div class="chips">
+    <span class="chip off" id="chip-nube">☁️ …</span>
+    <span class="chip" id="chip-user" style="display:none"></span>
+    <button class="btn sm" id="btn-salir" onclick="doLogout()" style="display:none">Salir</button>
+  </div>
+</div>
+<div id="demo-banner">🧪 MODO DEMOSTRACIÓN — catálogo de ejemplo. Nada se envía a PanMaestro.</div>
+
+<div id="main">
+
+<!-- ═════════════ BANDEJA ═════════════ -->
+<div class="view on" id="v-bandeja">
+  <div class="inbox">
+    <div>
+      <div class="card" style="margin-bottom:10px">
+        <h2>Nueva conversación</h2>
+        <label class="lb">Teléfono del cliente</label><input type="tel" id="nc-tel" placeholder="+506 8888 7777" style="margin-bottom:8px">
+        <label class="lb">Nombre (opcional)</label><input type="text" id="nc-nom" placeholder="Doña Marta" style="margin-bottom:8px">
+        <button class="btn pri" style="width:100%" onclick="nuevaConversacion()">+ Abrir conversación</button>
+      </div>
+      <div id="conv-list"></div>
+    </div>
+    <div id="chat-panel"><div class="card muted">Abra o seleccione una conversación. Copie el mensaje del cliente desde WhatsApp, péguelo aquí y el sistema le propondrá la respuesta.</div></div>
+  </div>
+</div>
+
+<!-- ═════════════ PEDIDOS ═════════════ -->
+<div class="view" id="v-pedidos">
+  <div class="card" id="print-area">
+    <div class="row noprint" style="margin-bottom:12px">
+      <div class="fix"><button class="btn" onclick="moverFecha(-1)">◀</button></div>
+      <div style="max-width:180px"><label class="lb">Fecha de entrega</label><input type="date" id="pd-fecha" onchange="renderPedidos()"></div>
+      <div class="fix"><button class="btn" onclick="moverFecha(1)">▶</button></div>
+      <div class="fix"><button class="btn" onclick="irProxima()">Próxima entrega</button></div>
+      <div class="fix"><button class="btn" onclick="irHoy()">Hoy</button></div>
+      <div class="fix"><button class="btn" onclick="window.print()">🖨 Imprimir</button></div>
+      <div class="fix"><button class="btn pri" id="btn-enviar-todos" onclick="enviarTodos()">📤 Enviar confirmados a PanMaestro</button></div>
+    </div>
+    <h2 id="pd-titulo"></h2>
+    <div class="stats" id="pd-stats"></div>
+    <div id="pd-tabla"></div>
+    <h2 style="margin-top:18px">📦 Consolidado para producción</h2>
+    <div class="muted" style="margin-bottom:6px">Suma de todos los pedidos del día (sin cancelados).</div>
+    <div id="pd-consol"></div>
+  </div>
+</div>
+
+<!-- ═════════════ AJUSTES ═════════════ -->
+<div class="view" id="v-ajustes">
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;align-items:start">
+    <div class="card">
+      <h2>Reglas de entrega</h2>
+      <label class="lb">Días de entrega</label>
+      <div id="aj-dias" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px"></div>
+      <label class="lb">Anticipación mínima (días)</label>
+      <input type="number" id="aj-antic" min="0" max="14" style="max-width:100px;margin-bottom:12px" onchange="guardarAjustes()">
+      <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="aj-precios" onchange="guardarAjustes()"> Mostrar precios y total en las respuestas al cliente</label>
+    </div>
+    <div class="card">
+      <h2>Apodos de productos</h2>
+      <div class="muted" style="margin-bottom:8px">Si sus clientes llaman a un pan de otra forma («la barra», «el de caja»), enséñeselo aquí y el sistema lo reconocerá siempre.</div>
+      <div class="row" style="margin-bottom:8px">
+        <div><label class="lb">El cliente dice…</label><input type="text" id="al-txt" placeholder="la barra"></div>
+        <div><label class="lb">Es el producto…</label><select id="al-prod"></select></div>
+        <div class="fix"><button class="btn pri" onclick="addAlias()">+ Agregar</button></div>
+      </div>
+      <div id="al-lista"></div>
+    </div>
+    <div class="card">
+      <h2>Catálogo cargado</h2>
+      <div class="muted" id="cat-info" style="margin-bottom:8px"></div>
+      <button class="btn" onclick="recargarMaestros()">🔄 Recargar desde PanMaestro</button>
+      <div id="cat-lista" style="margin-top:10px;max-height:240px;overflow:auto"></div>
+    </div>
+    <div class="card">
+      <h2>Respaldo</h2>
+      <div class="muted" style="margin-bottom:8px">Los datos se guardan en este navegador (y en la nube si la tabla está creada).</div>
+      <button class="btn" onclick="exportar()">⬇ Exportar respaldo</button>
+      <label class="btn" style="display:inline-block">⬆ Importar respaldo<input type="file" accept=".json" style="display:none" onchange="importar(this)"></label>
+    </div>
+  </div>
+</div>
+
+</div>
+<div id="toast"></div>
+
+<script>
+// ============================================================================
+// PMW — Motor de interpretación de pedidos por WhatsApp (PanMaestro)
+// Reglas deterministas, sin IA externa: lee texto libre, lo contrasta contra el
+// catálogo y genera la siguiente pregunta de aclaración para el cliente.
+// Principio: el motor PROPONE; nunca inventa un producto que no esté en el
+// catálogo, y todo lo dudoso queda marcado para que Víctor lo revise.
+// ============================================================================
+const PMW = (() => {
+  'use strict';
+
+  const NUMW = { un:1, uno:1, una:1, dos:2, tres:3, cuatro:4, cinco:5, seis:6, siete:7, ocho:8,
+    nueve:9, diez:10, once:11, doce:12, trece:13, catorce:14, quince:15, veinte:20,
+    veinticinco:25, treinta:30 };
+  const NUMW_SPLIT = Object.keys(NUMW).filter(k => !['un','uno','una'].includes(k));
+  const DIAS = ['domingo','lunes','martes','miercoles','jueves','viernes','sabado'];
+  const DIAS_LARGO = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+  const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+
+  const STOP = new Set(('de del la el los las y e con para me mi mis por favor porfa porfis pf quiero quisiera ' +
+    'quisieramos queremos necesito necesitamos ocupo ocupamos mandame mandeme manda mande regalame regaleme ' +
+    'regala dame deme das daria podria puede pueden hola buenas buenos dias tardes noches dia tarde noche ' +
+    'gracias muchas muchisimas pedido pedir hacer un una unos unas uno al le les lo que es si no tambien mas ' +
+    'otro otra serian seria son ser van vamos pan panes unidad unidades uds ud unid a en semana entrega ' +
+    'entregar entregarme agregue agrega agregar sume suma sumar adicional adicionales quedo quedaria necesitaria ' +
+    'ocuparia pasar pasarme enviar enviarme tiene tienen hay estos esos ese esa eso esto esta').split(' '));
+
+  const SI = /^(si+|sii+|dale|ok|okay|oki|listo|confirmo|confirmado|correcto|perfecto|de acuerdo|claro|va|vale|asi es|exacto|todo bien|si confirmo|si correcto|si gracias|dale gracias|ok gracias)\b/;
+  const NO = /^(no|nel|cambiar|cambio|corregir|corrijo|modificar|espere|esperese|falta)\b/;
+
+  // ── utilidades ───────────────────────────────────────────────────────────
+  function norm(s) {
+    return String(s == null ? '' : s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[¿¡!?"“”'’`´()\[\]{}*_]/g, ' ').replace(/[ \t]+/g, ' ').trim();
+  }
+  function esc(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+  function pad(n) { return String(n).padStart(2, '0'); }
+  function isoDate(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function fromIso(iso) { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d); }
+  function addDays(d, n) { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() + n); return x; }
+  function fmtFecha(iso) {
+    if (!iso) return '';
+    const d = fromIso(iso);
+    return DIAS_LARGO[d.getDay()] + ' ' + d.getDate() + '/' + (d.getMonth() + 1);
+  }
+  function money(n) {
+    const v = Math.round(Number(n) || 0);
+    return '₡' + String(v).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  }
+  function lev(a, b) {
+    const m = a.length, n = b.length;
+    if (!m) return n; if (!n) return m;
+    let prev = Array.from({ length: n + 1 }, (_, j) => j);
+    for (let i = 1; i <= m; i++) {
+      const cur = [i];
+      for (let j = 1; j <= n; j++) {
+        cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      }
+      prev = cur;
+    }
+    return prev[n];
+  }
+  function tokEq(a, b) {
+    return a === b || a + 's' === b || b + 's' === a || a + 'es' === b || b + 'es' === a;
+  }
+  function fuzzyEq(a, b) {
+    if (a.length < 5 || b.length < 5) return false;
+    return lev(a, b) <= (Math.max(a.length, b.length) >= 8 ? 2 : 1);
+  }
+  function sigTokens(s) {
+    return norm(s).split(/[^a-z0-9]+/).filter(t => t && t.length >= 2 && !STOP.has(t) && !/^\d+$/.test(t));
+  }
+  function toNum(w) { return /^\d+$/.test(w) ? parseInt(w, 10) : (NUMW[w] || 0); }
+
+  // ── catálogo ─────────────────────────────────────────────────────────────
+  function etiquetaProducto(p) {
+    let e = p.nombre;
+    const extra = [];
+    if (p.peso_g) extra.push(p.peso_g + ' g');
+    if (p.presentacion && norm(p.presentacion) !== 'unidad') extra.push(p.presentacion);
+    return extra.length ? e + ' (' + extra.join(' · ') + ')' : e;
+  }
+  function prepararCatalogo(rows) {
+    return (rows || []).filter(r => r && r.activo !== false).map(r => {
+      const nombreN = norm(r.nombre);
+      let tokens = sigTokens(r.nombre);
+      if (!tokens.length) tokens = nombreN.split(/\s+/).filter(Boolean);
+      return {
+        id: r.id, codigo: r.codigo, nombre: r.nombre, nombreN, tipo: r.tipo || 'pan',
+        presentacion: r.presentacion || 'unidad', peso_g: r.peso_g || null,
+        precio: Number(r.precio_full != null ? r.precio_full : (r.precio || 0)) || 0, tokens
+      };
+    }).sort((a, b) => (a.tipo === b.tipo ? a.nombre.localeCompare(b.nombre, 'es') : (a.tipo === 'pan' ? -1 : 1)));
+  }
+
+  // ── fechas ───────────────────────────────────────────────────────────────
+  function parseFecha(t, hoy) {
+    let m, d = null;
+    if ((m = /\b(?:para\s+)?pasado\s+manana\b/.exec(t))) d = addDays(hoy, 2);
+    else if ((m = /\b(?:para\s+)?manana\b/.exec(t))) d = addDays(hoy, 1);
+    else if ((m = /\b(?:para\s+)?hoy\b/.exec(t))) d = addDays(hoy, 0);
+    else if ((m = new RegExp('\\b(?:para\\s+)?(?:el\\s+|este\\s+|del\\s+)?(?:proximo\\s+)?(' + DIAS.join('|') + ')\\b').exec(t))) {
+      const target = DIAS.indexOf(m[1]);
+      let diff = (target - hoy.getDay() + 7) % 7;
+      if (diff === 0) diff = 7;
+      d = addDays(hoy, diff);
+    } else if ((m = /\b(\d{1,2})\s*[\/\-]\s*(\d{1,2})(?:\s*[\/\-]\s*(\d{2,4}))?\b/.exec(t))) {
+      const dd = +m[1], mm = +m[2];
+      if (dd >= 1 && dd <= 31 && mm >= 1 && mm <= 12) {
+        let yy = m[3] ? +m[3] : hoy.getFullYear();
+        if (yy < 100) yy += 2000;
+        d = new Date(yy, mm - 1, dd);
+        if (!m[3] && d < addDays(hoy, 0)) d = new Date(yy + 1, mm - 1, dd);
+      } else m = null;
+    } else if ((m = new RegExp('\\b(?:para\\s+)?(?:el\\s+)?(\\d{1,2})\\s+de\\s+(' + MESES.join('|') + ')\\b').exec(t))) {
+      d = new Date(hoy.getFullYear(), MESES.indexOf(m[2]), +m[1]);
+      if (d < addDays(hoy, 0)) d = new Date(hoy.getFullYear() + 1, MESES.indexOf(m[2]), +m[1]);
+    }
+    if (!m || !d) return { iso: null, rest: t };
+    return { iso: isoDate(d), rest: t.replace(m[0], ' ').replace(/\s+/g, ' ').trim() };
+  }
+  function proximosDias(hoy, n, dias, antic) {
+    const out = [];
+    const desde = antic == null ? 1 : antic;
+    for (let i = desde; i <= 28 + desde && out.length < n; i++) {
+      const d = addDays(hoy, i);
+      if (dias.includes(d.getDay())) out.push(isoDate(d));
+    }
+    return out;
+  }
+  // Un día es válido si es día de entrega Y respeta la anticipación mínima (días)
+  function fechaValida(iso, ctx) {
+    const d = fromIso(iso);
+    return ctx.diasEntrega.includes(d.getDay()) && d >= addDays(ctx.hoy, ctx.anticipacion == null ? 1 : ctx.anticipacion);
+  }
+  function nombresDias(dias) {
+    const l = [...dias].sort().map(i => DIAS_LARGO[i]);
+    return l.length > 1 ? l.slice(0, -1).join(', ') + ' y ' + l[l.length - 1] : (l[0] || '');
+  }
+
+  // ── cantidad / peso ──────────────────────────────────────────────────────
+  function parseCantidad(seg) {
+    let s = seg, peso = null, qty = null, m;
+    if ((m = /\b(\d+)\s*(?:g|gr|grs|gramos)\b/.exec(s))) { peso = +m[1]; s = s.replace(m[0], ' '); }
+    const numAlt = '\\d+|' + Object.keys(NUMW).join('|');
+    if ((m = /\bmedia\s+docena\b/.exec(s))) { qty = 6; s = s.replace(m[0], ' '); }
+    else if ((m = new RegExp('\\b(' + numAlt + ')\\s+docenas?\\b').exec(s))) { qty = toNum(m[1]) * 12; s = s.replace(m[0], ' '); }
+    else if ((m = /\bdocenas?\b/.exec(s))) { qty = 12; s = s.replace(m[0], ' '); }
+    else if ((m = /\b(\d+)\s*x\b/.exec(s)) || (m = /\bx\s*(\d+)\b/.exec(s))) { qty = +m[1]; s = s.replace(m[0], ' '); }
+    else if ((m = /\b(\d+)\b/.exec(s))) { qty = +m[1]; s = s.replace(m[0], ' '); }
+    else {
+      const toks = s.split(/\s+/);
+      for (let i = 0; i < toks.length; i++) {
+        if (NUMW[toks[i]]) { qty = NUMW[toks[i]]; toks.splice(i, 1); break; }
+      }
+      s = toks.join(' ');
+    }
+    if (qty === 0 || qty > 500) qty = null;
+    return { qty, peso, rest: s };
+  }
+
+  // ── coincidencia contra catálogo ─────────────────────────────────────────
+  function sugerir(texto, pool) {
+    const S = sigTokens(texto);
+    if (!S.length) return [];
+    const sc = pool.map(p => {
+      let best = 0;
+      for (const t of S) for (const pt of p.tokens) {
+        const sim = 1 - lev(t, pt) / Math.max(t.length, pt.length);
+        if (sim > best) best = sim;
+      }
+      return { p, best };
+    }).filter(x => x.best >= 0.4).sort((a, b) => b.best - a.best);
+    return sc.slice(0, 3).map(x => x.p);
+  }
+  function matchProductos(tokens, pool, opts) {
+    opts = opts || {};
+    const S = [...new Set(tokens)];
+    if (!S.length) return { estado: 'sin_producto' };
+    const score = eq => pool.map(p => ({ p, o: S.filter(t => p.tokens.some(pt => eq(t, pt))).length }));
+    let eqFn = tokEq, sc = score(eqFn), m = Math.max(0, ...sc.map(x => x.o)), fuzzy = false;
+    if (m === 0) {
+      eqFn = (a, b) => tokEq(a, b) || fuzzyEq(a, b); fuzzy = true;
+      sc = score(eqFn); m = Math.max(0, ...sc.map(x => x.o));
+    }
+    if (m === 0) return { estado: 'desconocido', sugerencias: sugerir(S.join(' '), pool) };
+    let top = sc.filter(x => x.o === m).map(x => x.p);
+    if (opts.peso) { const f = top.filter(p => +p.peso_g === +opts.peso); if (f.length) top = f; }
+    if (top.length > 1) {
+      const exact = top.filter(p => p.tokens.length === S.length && p.tokens.every(pt => S.some(t => eqFn(t, pt))));
+      if (exact.length === 1) top = exact;
+    }
+    const avisos = [];
+    if (top.length === 1) {
+      const sobran = S.filter(t => !top[0].tokens.some(pt => eqFn(t, pt)));
+      if (sobran.length) avisos.push('Palabras sin reconocer: ' + sobran.join(', '));
+      if (fuzzy) avisos.push('Interpretado con corrección ortográfica');
+      return { estado: 'ok', producto: top[0], avisos };
+    }
+    const sobran = S.filter(t => !top.some(p => p.tokens.some(pt => eqFn(t, pt))));
+    if (sobran.length) avisos.push('Palabras sin reconocer: ' + sobran.join(', '));
+    return { estado: 'ambiguo', opciones: top, avisos };
+  }
+
+  // ── líneas ───────────────────────────────────────────────────────────────
+  let _lid = 0;
+  function nuevoLid() { _lid++; return 'l' + Date.now().toString(36) + _lid; }
+
+  function aplicarProducto(l, p, avisos) {
+    l.producto_id = p.id; l.codigo = p.codigo; l.nombre = p.nombre; l.tipo = p.tipo;
+    l.etiqueta = etiquetaProducto(p); l.precio = p.precio;
+    l.opciones = []; l.sugerencias = [];
+    if (avisos && avisos.length) l.avisos = (l.avisos || []).concat(avisos);
+    recalcEstado(l);
+  }
+  function recalcEstado(l) {
+    if (!l.producto_id) return;
+    l.estado = l.cantidad ? 'ok' : 'sin_cantidad';
+  }
+  function lineaDeSegmento(seg, ctx) {
+    let s = seg, instruccion = '';
+    for (const ins of (ctx.instrucciones || [])) {
+      if (ins.n && new RegExp('\\b' + esc(ins.n) + '\\b').test(s)) { instruccion = ins.texto; s = s.replace(new RegExp('\\b' + esc(ins.n) + '\\b'), ' '); break; }
+    }
+    let aliasProd = null;
+    const alias = Object.entries(ctx.alias || {}).map(([k, v]) => [norm(k), v]).sort((a, b) => b[0].length - a[0].length);
+    for (const [k, cod] of alias) {
+      const re = new RegExp('\\b' + esc(k) + '\\b');
+      if (k && re.test(s)) { aliasProd = ctx.cat.find(p => p.codigo === cod) || null; s = s.replace(re, ' '); if (aliasProd) break; }
+    }
+    const { qty, peso, rest } = parseCantidad(s);
+    const tokens = sigTokens(rest);
+    if (!aliasProd && !tokens.length && !qty) return null;
+    const l = { id: nuevoLid(), texto: seg.trim(), cantidad: qty, producto_id: null, codigo: '', nombre: '', tipo: '',
+      etiqueta: '', precio: 0, instruccion, estado: 'sin_producto', opciones: [], sugerencias: [], avisos: [] };
+    if (aliasProd) { aplicarProducto(l, aliasProd, []); return l; }
+    const r = matchProductos(tokens, ctx.cat, { peso });
+    if (r.estado === 'ok') aplicarProducto(l, r.producto, r.avisos);
+    else if (r.estado === 'ambiguo') { l.estado = 'ambiguo'; l.opciones = r.opciones.map(p => p.id); l.avisos = r.avisos || []; }
+    else if (r.estado === 'desconocido') { l.estado = 'desconocido'; l.sugerencias = (r.sugerencias || []).map(p => p.id); l.textoDesconocido = tokens.join(' '); }
+    else l.estado = 'sin_producto';
+    return l;
+  }
+  function segmentar(t, ctx) {
+    let s = t.replace(/(\d+)\s*(g|gr|grs|gramos)\b/g, '$1g');
+    ctx.cat.forEach(p => { if (p.nombreN.includes(' y ')) s = s.split(p.nombreN).join(p.nombreN.replace(/ /g, '_')); });
+    s = s.replace(/(?<=[a-z_])\s+(?=\d+\s+[a-z])/g, ' | ');
+    s = s.replace(new RegExp('(?<=[a-z_])\\s+(?=(?:(?:' + NUMW_SPLIT.join('|') + ')\\s+[a-z]|media\\s+docena\\b))', 'g'), ' | ');
+    return s.split(/\n|,|;|\||\+|\s+y\s+|\s+tambien\s+|\s+ademas\s+|\s+mas\s+(?=\d)/)
+      .map(x => x.replace(/_/g, ' ').trim()).filter(Boolean);
+  }
+
+  // ── conversación ─────────────────────────────────────────────────────────
+  function nuevaConv(tel, nombre) {
+    return { tel: tel || '', nombre: nombre || '', mensajes: [], draft: { lineas: [], fecha: null, fechaRechazada: null },
+      confirmada: false, cancelada: false, mostrada: null, creada: Date.now() };
+  }
+  function pendientes(conv) {
+    const out = [], d = conv.draft;
+    for (const l of d.lineas) {
+      if (['ambiguo', 'desconocido', 'sin_producto'].includes(l.estado)) out.push({ tipo: 'producto', lid: l.id });
+      else if (l.estado === 'sin_cantidad') out.push({ tipo: 'cantidad', lid: l.id });
+    }
+    if (!d.lineas.length) { out.push({ tipo: 'pedido' }); return out; }
+    if (!out.length && !d.fecha) out.push({ tipo: 'fecha' });
+    else if (!out.length) out.push({ tipo: 'confirmacion' });
+    return out;
+  }
+  function consolidar(lineas) {
+    const mapa = new Map();
+    for (const l of lineas) {
+      if (l.estado !== 'ok') continue;
+      const k = l.producto_id + '|' + (l.instruccion || '');
+      if (mapa.has(k)) mapa.get(k).cantidad += l.cantidad;
+      else mapa.set(k, { ...l, cantidad: l.cantidad });
+    }
+    return [...mapa.values()];
+  }
+  function total(lineas) { return consolidar(lineas).reduce((a, l) => a + l.cantidad * (l.precio || 0), 0); }
+  function listaMenu(ctx, max) {
+    max = max || 14;
+    const cat = ctx.cat.slice(0, max);
+    let txt = cat.map((p, i) => (i + 1) + ') ' + etiquetaProducto(p) + (ctx.mostrarPrecios ? ' — ' + money(p.precio) : '')).join('\n');
+    if (ctx.cat.length > max) txt += '\n… y ' + (ctx.cat.length - max) + ' más';
+    return { txt, ids: cat.map(p => p.id) };
+  }
+  function resumenLineas(lineas, ctx) {
+    return consolidar(lineas).map(l => '• ' + l.cantidad + ' × ' + l.etiqueta + (l.instruccion ? ' (' + l.instruccion + ')' : '') +
+      (ctx.mostrarPrecios ? ' — ' + money(l.cantidad * l.precio) : '')).join('\n');
+  }
+  const byId = (ctx, id) => ctx.cat.find(p => p.id === id);
+
+  function resolverPendiente(conv, t, ctx, p) {
+    const d = conv.draft;
+    const linea = p.lid ? d.lineas.find(l => l.id === p.lid) : null;
+    const ordinal = { primero: 1, primera: 1, '1ro': 1, '1ra': 1, segundo: 2, segunda: 2, '2do': 2, '2da': 2, tercero: 3, tercera: 3, cuarto: 4, cuarta: 4, quinto: 5, quinta: 5 };
+    if (p.tipo === 'producto' && linea) {
+      let pick = null;
+      const lista = conv.mostrada && conv.mostrada.tipo === 'producto' ? conv.mostrada.ids : [];
+      let m;
+      if ((m = /^(?:el |la |opcion |numero |#|n )?(\d{1,2})\s*[).]?$/.exec(t)) && lista[+m[1] - 1]) pick = byId(ctx, lista[+m[1] - 1]);
+      else if ((m = /\b(primero|primera|1ro|1ra|segundo|segunda|2do|2da|tercero|tercera|cuarto|cuarta|quinto|quinta)\b/.exec(t)) && lista[ordinal[m[1]] - 1]) pick = byId(ctx, lista[ordinal[m[1]] - 1]);
+      else if (/\b(ultimo|ultima)\b/.test(t) && lista.length) pick = byId(ctx, lista[lista.length - 1]);
+      if (!pick) {
+        const { qty, peso, rest } = parseCantidad(t);
+        // Una cantidad distinta a la ya anotada indica un ítem nuevo, no una respuesta
+        if (qty && linea.cantidad && qty !== linea.cantidad) return false;
+        const toks = sigTokens(rest);
+        const pool = linea.estado === 'ambiguo' ? linea.opciones.map(i => byId(ctx, i)).filter(Boolean) : ctx.cat;
+        let r = matchProductos(toks, pool, { peso });
+        // Si nada coincide dentro de las opciones mostradas, puede que el cliente cambió de idea: buscar en todo el catálogo
+        if (r.estado === 'desconocido' && pool !== ctx.cat) r = matchProductos(toks, ctx.cat, { peso });
+        if (r.estado === 'ok') {
+          pick = r.producto;
+          if (qty && !linea.cantidad) linea.cantidad = qty;
+          if (r.avisos && r.avisos.length) linea.avisos = (linea.avisos || []).concat(r.avisos);
+        } else if (r.estado === 'ambiguo') {
+          // El cliente acotó la familia («baguette») pero aún quedan varias: re-preguntar solo entre esas
+          linea.estado = 'ambiguo'; linea.opciones = r.opciones.map(p => p.id); linea.sugerencias = [];
+          if (qty && !linea.cantidad) linea.cantidad = qty;
+          return true;
+        } else if (r.estado === 'desconocido' && toks.length) {
+          linea.estado = 'desconocido'; linea.textoDesconocido = toks.join(' ');
+          linea.sugerencias = (r.sugerencias || []).map(p => p.id);
+          return true;
+        }
+      }
+      if (!pick) return false;
+      aplicarProducto(linea, pick, []);
+      return true;
+    }
+    if (p.tipo === 'cantidad' && linea) {
+      const { qty } = parseCantidad(t);
+      if (!qty) return false;
+      linea.cantidad = qty; recalcEstado(linea);
+      return true;
+    }
+    if (p.tipo === 'fecha') {
+      const lista = conv.mostrada && conv.mostrada.tipo === 'fecha' ? conv.mostrada.ids : [];
+      const m = /^(?:el |la |opcion |numero |#)?(\d)\s*[).]?$/.exec(t);
+      if (m && lista[+m[1] - 1]) { d.fecha = lista[+m[1] - 1]; d.fechaRechazada = null; return true; }
+      const mo = /\b(primero|primera|segundo|segunda|tercero|tercera)\b/.exec(t);
+      if (mo && lista[ordinal[mo[1]] - 1]) { d.fecha = lista[ordinal[mo[1]] - 1]; d.fechaRechazada = null; return true; }
+    }
+    return false;
+  }
+
+  function construirRespuesta(conv, ctx, extra) {
+    const d = conv.draft, partes = [];
+    if (extra && extra.length) partes.push(extra.join('\n'));
+    const pend = pendientes(conv)[0];
+    const okLines = d.lineas.filter(l => l.estado === 'ok');
+    conv.mostrada = null;
+    if (pend.tipo !== 'confirmacion' && pend.tipo !== 'pedido' && okLines.length) {
+      partes.push('Hasta ahora anoté:\n' + resumenLineas(okLines, ctx));
+    }
+    if (pend.tipo === 'pedido') {
+      const m = listaMenu(ctx); conv.mostrada = { tipo: 'producto', ids: m.ids };
+      partes.push('¡Hola! Con gusto le atiendo. ¿Qué le gustaría pedir? Esto es lo que tenemos:\n' + m.txt);
+    } else if (pend.tipo === 'producto') {
+      const l = d.lineas.find(x => x.id === pend.lid);
+      const cant = l.cantidad ? '*' + l.cantidad + '*' : '';
+      if (l.estado === 'ambiguo') {
+        const ops = l.opciones.map(i => byId(ctx, i)).filter(Boolean);
+        conv.mostrada = { tipo: 'producto', ids: ops.map(p => p.id) };
+        partes.push('Para ' + (cant ? 'los ' + cant : 'lo que pidió') + ', ¿cuál de estos desea?\n' +
+          ops.map((p, i) => (i + 1) + ') ' + etiquetaProducto(p) + (ctx.mostrarPrecios ? ' — ' + money(p.precio) : '')).join('\n') +
+          '\n(Responda con el número o el nombre)');
+      } else if (l.estado === 'desconocido') {
+        const sug = (l.sugerencias || []).map(i => byId(ctx, i)).filter(Boolean);
+        if (sug.length) {
+          conv.mostrada = { tipo: 'producto', ids: sug.map(p => p.id) };
+          partes.push('No encontré «' + l.textoDesconocido + '» en nuestro catálogo. ¿Quiso decir alguno de estos?\n' +
+            sug.map((p, i) => (i + 1) + ') ' + etiquetaProducto(p)).join('\n') + '\n(Responda con el número, o escriba *menú* para ver todo lo disponible)');
+        } else {
+          const m = listaMenu(ctx); conv.mostrada = { tipo: 'producto', ids: m.ids };
+          partes.push('No encontré «' + l.textoDesconocido + '» en nuestro catálogo. Esto es lo que tenemos:\n' + m.txt);
+        }
+      } else {
+        const m = listaMenu(ctx); conv.mostrada = { tipo: 'producto', ids: m.ids };
+        partes.push('¿' + (cant ? 'Los ' + cant + ' serían' : 'Cuál sería el producto') + ' de cuál? Esto es lo que tenemos:\n' + m.txt);
+      }
+    } else if (pend.tipo === 'cantidad') {
+      const l = d.lineas.find(x => x.id === pend.lid);
+      partes.push('¿Cuántos *' + l.etiqueta + '* desea?');
+    } else if (pend.tipo === 'fecha') {
+      const dias = proximosDias(ctx.hoy, 3, ctx.diasEntrega, ctx.anticipacion);
+      conv.mostrada = { tipo: 'fecha', ids: dias };
+      let intro = '';
+      if (d.fechaRechazada) {
+        const antic = ctx.anticipacion == null ? 1 : ctx.anticipacion;
+        intro = ctx.diasEntrega.includes(fromIso(d.fechaRechazada).getDay())
+          ? 'Para ese día necesitamos al menos ' + antic + (antic === 1 ? ' día' : ' días') + ' de anticipación. '
+          : 'Ese día no tenemos entregas (entregamos ' + nombresDias(ctx.diasEntrega) + '). ';
+      }
+      partes.push(intro + '¿Para qué día desea la entrega?\n' + dias.map((f, i) => (i + 1) + ') ' + fmtFecha(f)).join('\n'));
+    } else if (pend.tipo === 'confirmacion') {
+      partes.push('Su pedido:\n' + resumenLineas(d.lineas, ctx) +
+        (ctx.mostrarPrecios ? '\n*Total: ' + money(total(d.lineas)) + '*' : '') +
+        '\nEntrega: *' + fmtFecha(d.fecha) + '*\n¿Lo confirmamos? Responda *sí* o dígame qué desea cambiar.');
+    }
+    return partes.join('\n\n');
+  }
+
+  // Punto de entrada: procesa UN mensaje del cliente y devuelve la respuesta propuesta.
+  // ctx = { cat, alias, instrucciones, hoy:Date, diasEntrega:[2,4,6], mostrarPrecios }
+  function recibir(conv, texto, ctx) {
+    conv.mensajes.push({ de: 'cliente', texto, ts: Date.now() });
+    const extra = [];
+    const d = conv.draft;
+
+    // Pedido ya confirmado: un mensaje nuevo abre un pedido nuevo (salvo cortesías)
+    let t = norm(texto);
+    if (conv.confirmada || conv.cancelada) {
+      const soloCortesia = !sigTokens(t).length && !/\d/.test(t);
+      if (soloCortesia) {
+        const r = conv.cancelada ? 'Con gusto. Cuando desee hacer un pedido, me avisa.' : '¡Con gusto! Cualquier cambio, avíseme.';
+        conv.mensajes.push({ de: 'sistema', texto: r, ts: Date.now() });
+        return { respuesta: r, pendiente: null, cambio: false };
+      }
+      conv.draft = { lineas: [], fecha: null, fechaRechazada: null };
+      conv.confirmada = false; conv.cancelada = false; conv.pedidoId = null;
+      return recibir2(conv, texto, t, ctx, []);
+    }
+    return recibir2(conv, texto, t, ctx, extra);
+  }
+
+  function recibir2(conv, texto, t, ctx, extra) {
+    const d = conv.draft;
+    const finalizar = () => {
+      const r = construirRespuesta(conv, ctx, extra);
+      conv.mensajes.push({ de: 'sistema', texto: r, ts: Date.now() });
+      return { respuesta: r, pendiente: pendientes(conv)[0], cambio: true };
+    };
+
+    // menú / catálogo
+    if (/\b(menu|catalogo|que tienen|que hay|que venden|lista de precios|precios)\b/.test(t) && !/\d/.test(t)) {
+      const m = listaMenu(ctx, 30); conv.mostrada = { tipo: 'producto', ids: m.ids };
+      const r = 'Esto es lo que tenemos disponible:\n' + m.txt + '\n\n¿Qué le gustaría pedir?';
+      conv.mensajes.push({ de: 'sistema', texto: r, ts: Date.now() });
+      return { respuesta: r, pendiente: pendientes(conv)[0], cambio: false };
+    }
+
+    // confirmación
+    const pend0 = pendientes(conv)[0];
+    if (pend0.tipo === 'confirmacion') {
+      if (SI.test(t) && sigTokens(t.replace(SI, '')).length === 0 && !/\d/.test(t)) {
+        conv.confirmada = true;
+        const r = '¡Listo! Su pedido queda confirmado para el *' + fmtFecha(d.fecha) + '*. ¡Muchas gracias!';
+        conv.mensajes.push({ de: 'sistema', texto: r, ts: Date.now() });
+        return { respuesta: r, pendiente: null, cambio: true, confirmada: true };
+      }
+      if (NO.test(t) && sigTokens(t.replace(NO, '')).length === 0) {
+        const r = 'Claro, ¿qué desea cambiar? Puede decirme, por ejemplo: «mejor 3 de X», «quite X» o «cambie la fecha al jueves».';
+        conv.mensajes.push({ de: 'sistema', texto: r, ts: Date.now() });
+        return { respuesta: r, pendiente: pend0, cambio: false };
+      }
+    }
+
+    // fecha (siempre se extrae, esté o no pendiente)
+    const f = parseFecha(t, ctx.hoy);
+    t = f.rest;
+    if (f.iso) {
+      if (fechaValida(f.iso, ctx)) { d.fecha = f.iso; d.fechaRechazada = null; }
+      else { d.fecha = null; d.fechaRechazada = f.iso; }
+    }
+    if (!t || (!sigTokens(t).length && !/\d/.test(t))) {
+      if (f.iso) return finalizar();
+      if (!d.lineas.length) return finalizar();       // saludo → pregunta qué desea
+      const r = 'No logré entender su mensaje. ' + construirRespuesta(conv, ctx, []);
+      conv.mensajes.push({ de: 'sistema', texto: r, ts: Date.now() });
+      return { respuesta: r, pendiente: pendientes(conv)[0], cambio: false };
+    }
+
+    // quitar
+    if (/\b(quita|quite|quitar|quitame|elimina|elimine|eliminar|cancela|cancele|cancelar)\b/.test(t)) {
+      const rest = t.replace(/\b(quita|quite|quitar|quitame|elimina|elimine|eliminar|cancela|cancele|cancelar)\b/g, ' ');
+      const toks = sigTokens(rest);
+      if (!toks.length || /\bpedido\b/.test(t)) {
+        conv.cancelada = true;
+        const r = 'Listo, cancelé el pedido. Cuando desee hacer otro, me avisa.';
+        conv.mensajes.push({ de: 'sistema', texto: r, ts: Date.now() });
+        return { respuesta: r, pendiente: null, cambio: true, cancelada: true };
+      }
+      const pool = d.lineas.filter(l => l.producto_id).map(l => byId(ctx, l.producto_id)).filter(Boolean);
+      const r = matchProductos(toks, pool);
+      if (r.estado === 'ok') {
+        d.lineas = d.lineas.filter(l => l.producto_id !== r.producto.id);
+        extra.push('Quité *' + r.producto.nombre + '* del pedido.');
+      } else extra.push('No encontré eso en su pedido, ¿cuál desea quitar?');
+      return finalizar();
+    }
+
+    // respuesta corta a una pregunta pendiente
+    const pend = pendientes(conv)[0];
+    if (['producto', 'cantidad', 'fecha'].includes(pend.tipo) && sigTokens(t).length <= 4 && segmentar(t, ctx).length === 1) {
+      if (resolverPendiente(conv, t, ctx, pend)) return finalizar();
+    }
+
+    // contenido nuevo
+    const modoSet = /\b(mejor|cambia|cambie|cambiar|cambialo|en vez|en lugar|solo|solamente|corrijo|corrige)\b/.test(t);
+    const segs = segmentar(t.replace(/\b(mejor|cambia|cambie|cambiar|cambialo|en vez de|en vez|en lugar de|en lugar|solo|solamente|corrijo|corrige)\b/g, ' '), ctx);
+    let agregadas = 0;
+    for (const s of segs) {
+      const l = lineaDeSegmento(s, ctx);
+      if (!l) continue;
+      if (modoSet && l.estado !== 'ambiguo' && l.producto_id && l.cantidad) {
+        const ex = d.lineas.find(x => x.producto_id === l.producto_id);
+        if (ex) { ex.cantidad = l.cantidad; recalcEstado(ex); extra.push('Actualicé *' + ex.nombre + '* a ' + l.cantidad + '.'); agregadas++; continue; }
+      }
+      d.lineas.push(l); agregadas++;
+    }
+    if (!agregadas && !f.iso) {
+      const r = 'No logré entender su mensaje. ' + construirRespuesta(conv, ctx, []);
+      conv.mensajes.push({ de: 'sistema', texto: r, ts: Date.now() });
+      return { respuesta: r, pendiente: pendientes(conv)[0], cambio: false };
+    }
+    return finalizar();
+  }
+
+  return { norm, recibir, nuevaConv, pendientes, prepararCatalogo, consolidar, total, parseFecha, proximosDias, fechaValida,
+    fmtFecha, money, etiquetaProducto, nombresDias, isoDate, fromIso, addDays, resumenLineas, DIAS_LARGO,
+    aplicarProducto, recalcEstado, nuevoLid };
+})();
+
+</script>
+<script>
+// ════════════════════════════════════════════════════════════════════════════
+// App — Pedidos WhatsApp para PanMaestro
+// ════════════════════════════════════════════════════════════════════════════
+const SB_URL = 'https://xmhokxmuxfkfypttvkjz.supabase.co';
+const SB_KEY = 'sb_publishable_pmKVIGa_lNxtzRos-iY_0Q_LXEcj77v';
+const sb = (window.supabase ? window.supabase.createClient(SB_URL, SB_KEY) : null);
+const LS_KEY = 'pmw_v1';
+let sess = null, CAT = null, convSel = null, nube = 'off';
+
+function defaults() {
+  return { convs: {}, pedidos: [], alias: {}, cfg: { diasEntrega: [2, 4, 6], anticipacion: 1, mostrarPrecios: true },
+    catRows: [], cliRows: [], instRows: [], demo: false };
+}
+const S = (() => { try { return Object.assign(defaults(), JSON.parse(localStorage.getItem(LS_KEY)) || {}); } catch (e) { return defaults(); } })();
+S.cfg = Object.assign(defaults().cfg, S.cfg || {});
+function save() { try { localStorage.setItem(LS_KEY, JSON.stringify(S)); } catch (e) { toast('⚠️ No se pudo guardar en este navegador', 'err'); } }
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const uid = () => (window.crypto && crypto.randomUUID ? crypto.randomUUID() : 'id-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10));
+const nowIso = () => new Date().toISOString();
+function hoy() { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()); }
+function toast(msg, tipo) {
+  const t = $('toast'); t.textContent = msg; t.className = tipo || ''; t.style.display = 'block';
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.style.display = 'none', tipo === 'err' ? 5500 : 2600);
+}
+function ctx() {
+  if (!CAT) CAT = PMW.prepararCatalogo(S.catRows);
+  return { cat: CAT, alias: S.alias, instrucciones: (S.instRows || []).map(i => ({ texto: i.texto, n: PMW.norm(i.texto) })),
+    hoy: hoy(), diasEntrega: S.cfg.diasEntrega, anticipacion: S.cfg.anticipacion, mostrarPrecios: S.cfg.mostrarPrecios };
+}
+const digits = s => String(s || '').replace(/\D/g, '');
+function buscarCliente(tel) {
+  const d = digits(tel).slice(-8);
+  if (d.length < 8) return null;
+  return (S.cliRows || []).find(c => digits(c.telefono).slice(-8) === d) || null;
+}
+
+// ── sesión / maestros ───────────────────────────────────────────────────────
+async function init() {
+  $('lg-offline').style.display = S.catRows.length && !S.demo ? 'block' : 'none';
+  if (S.demo) { enterApp(); return; }
+  if (sb) {
+    try {
+      const { data } = await sb.auth.getSession();
+      if (data && data.session) { sess = data.session; await afterLogin(); return; }
+    } catch (e) { /* sin red: se muestra login */ }
+  }
+  $('login').style.display = 'flex';
+}
+async function doLogin() {
+  const email = $('lg-email').value.trim(), pass = $('lg-pass').value;
+  if (!sb) { $('lg-err').textContent = 'No se pudo cargar el servicio de acceso (¿sin internet?).'; return; }
+  $('lg-btn').disabled = true; $('lg-err').textContent = '';
+  try {
+    const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+    if (error) throw error;
+    sess = data.session; S.demo = false; save();
+    await afterLogin();
+  } catch (e) { $('lg-err').textContent = 'No se pudo entrar: ' + (e.message || e); }
+  $('lg-btn').disabled = false;
+}
+async function doLogout() { try { if (sb) await sb.auth.signOut(); } catch (e) { /* nada */ } sess = null; location.reload(); }
+async function afterLogin() {
+  enterApp();
+  $('chip-user').style.display = ''; $('chip-user').textContent = '👤 ' + ((sess && sess.user && sess.user.email) || '');
+  $('btn-salir').style.display = '';
+  await recargarMaestros(true);
+  await pullPedidosWA();
+  renderAll();
+}
+function enterApp() {
+  $('login').style.display = 'none';
+  $('demo-banner').style.display = S.demo ? 'block' : 'none';
+  if (!S.demo && !sess) setNube('off');
+  if (S.demo) setNube('demo');
+  inicializarVistas(); renderAll();
+}
+function offlineMode() { S.demo = false; enterApp(); toast('Sin conexión: se usa el último catálogo guardado', 'ok'); }
+function demoMode() {
+  S.demo = true;
+  const mk = (i, codigo, nombre, tipo, peso, precio) => ({ id: 'demo-' + i, codigo, nombre, tipo, peso_g: peso, presentacion: 'unidad', precio_full: precio, activo: true });
+  S.catRows = [
+    mk(1, 'P001', 'Baguette Tradicional', 'pan', 300, 1500), mk(2, 'P002', 'Baguette Integral', 'pan', 300, 1700),
+    mk(3, 'P003', 'Ciabatta', 'pan', 200, 1200), mk(4, 'P004', 'Pan de Molde', 'pan', 600, 2800),
+    mk(5, 'P005', 'Pan de Molde Integral', 'pan', 600, 3200), mk(6, 'P006', 'Pan de Masa Madre', 'pan', 800, 3500),
+    mk(7, 'P007', 'Croissant', 'pan', 80, 1100), mk(8, 'G001', 'Galleta de Avena', 'galleta', 60, 900),
+    mk(9, 'G002', 'Galleta Chip Chocolate', 'galleta', 60, 950)];
+  S.cliRows = [{ id: 'dc1', codigo: 'C001', nombre: 'Marta Rodríguez (demo)', telefono: '8888 7777' }];
+  S.instRows = [{ texto: 'Rebanado' }];
+  CAT = null; save(); enterApp();
+}
+async function recargarMaestros(silencioso) {
+  if (!sb || S.demo || !sess) { if (!silencioso) toast('Necesita iniciar sesión para recargar', 'err'); return; }
+  try {
+    const [p, c, i] = await Promise.all([
+      sb.from('productos_terminados').select('*').eq('activo', true),
+      sb.from('clientes').select('id,codigo,nombre,telefono').eq('activo', true),
+      sb.from('instrucciones_especiales').select('texto').eq('activo', true)]);
+    if (p.error) throw p.error;
+    S.catRows = p.data || []; S.cliRows = (c.data || []); S.instRows = (i.data || []);
+    CAT = null; save();
+    if (!silencioso) toast('Catálogo recargado: ' + S.catRows.length + ' productos', 'ok');
+  } catch (e) { toast('No se pudo cargar el catálogo: ' + (e.message || e) + '. Se usa el último guardado.', 'err'); }
+  renderAjustes();
+}
+
+// ── nube (tabla pedidos_wa) ─────────────────────────────────────────────────
+function setNube(estado) {
+  nube = estado; const c = $('chip-nube');
+  const m = { ok: ['ok', '☁️ Sincronizado'], tabla: ['warn', '🟡 Falta crear la tabla pedidos_wa'], error: ['warn', '🟡 Error de sincronización'], off: ['off', '📴 Solo en este navegador'], demo: ['off', '🧪 Demostración'] };
+  c.className = 'chip ' + m[estado][0]; c.textContent = m[estado][1];
+}
+const tablaFaltante = e => e && (e.code === 'PGRST205' || e.code === '42P01' || /schema cache|does not exist|not find the table/i.test(e.message || ''));
+async function pullPedidosWA() {
+  if (!sb || S.demo || !sess) return;
+  const desde = PMW.isoDate(PMW.addDays(hoy(), -14));
+  const { data, error } = await sb.from('pedidos_wa').select('*').or('fecha_entrega.gte.' + desde + ',fecha_entrega.is.null');
+  if (error) { setNube(tablaFaltante(error) ? 'tabla' : 'error'); return; }
+  setNube('ok');
+  (data || []).forEach(r => {
+    const i = S.pedidos.findIndex(p => p.id === r.id);
+    const loc = i >= 0 ? S.pedidos[i] : null;
+    if (!loc || new Date(r.updated_at) > new Date(loc.updated_at || 0)) {
+      const p = Object.assign({}, loc || {}, r, { lineas: r.lineas || [], mensajes: r.mensajes || [], avisos: r.avisos || [], pedidos_pm_ids: r.pedidos_pm_ids || [] });
+      if (i >= 0) S.pedidos[i] = p; else S.pedidos.push(p);
+    }
+  });
+  save();
+}
+async function syncPedido(p) {
+  if (!sb || S.demo || !sess || nube === 'tabla') return;
+  const { error } = await sb.from('pedidos_wa').upsert({ id: p.id, fecha_entrega: p.fecha_entrega, telefono: p.telefono, cliente_nom: p.cliente_nom,
+    estado: p.estado, lineas: p.lineas, mensajes: p.mensajes || [], avisos: p.avisos || [], notas: p.notas || null, pedidos_pm_ids: p.pedidos_pm_ids || [] });
+  if (error) { setNube(tablaFaltante(error) ? 'tabla' : 'error'); if (!tablaFaltante(error)) toast('No se pudo sincronizar con la nube: ' + error.message, 'err'); }
+  else setNube('ok');
+}
+
+// ── navegación ──────────────────────────────────────────────────────────────
+function setTab(t) {
+  document.querySelectorAll('.ntab').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+  document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + t));
+  if (t === 'pedidos') renderPedidos();
+  if (t === 'ajustes') renderAjustes();
+}
+let _vistasListas = false;
+function inicializarVistas() {
+  if (_vistasListas) return; _vistasListas = true;
+  $('pd-fecha').value = PMW.proximosDias(hoy(), 1, S.cfg.diasEntrega, 0)[0] || PMW.isoDate(hoy());
+  $('lg-pass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+}
+function renderAll() { renderConvList(); renderChat(); renderPedidos(); renderAjustes(); badgeRevisar(); }
+function badgeRevisar() {
+  const n = S.pedidos.filter(p => p.estado === 'por_revisar').length, b = $('bd-rev');
+  b.style.display = n ? '' : 'none'; b.textContent = n;
+}
+
+// ── bandeja ─────────────────────────────────────────────────────────────────
+function nuevaConversacion() {
+  const tel = $('nc-tel').value.trim(), nom = $('nc-nom').value.trim();
+  if (digits(tel).length < 8) { toast('Escriba un teléfono válido (mínimo 8 dígitos)', 'err'); return; }
+  const ex = Object.values(S.convs).find(c => digits(c.tel).slice(-8) === digits(tel).slice(-8) && !c.confirmada && !c.cancelada);
+  if (ex) { convSel = ex.id; renderAll(); toast('Ya había una conversación abierta con ese número', 'ok'); return; }
+  const cli = buscarCliente(tel);
+  const c = PMW.nuevaConv(tel, nom || (cli && cli.nombre) || '');
+  c.id = uid(); c.clienteCod = cli ? cli.codigo : null; c.clienteReg = !!cli;
+  S.convs[c.id] = c; convSel = c.id; save();
+  $('nc-tel').value = ''; $('nc-nom').value = '';
+  renderAll();
+}
+function convEstado(c) {
+  if (c.cancelada) return ['cancelado', 'Cancelada'];
+  if (c.confirmada) return ['confirmado', 'Confirmada'];
+  const p = PMW.pendientes(c)[0];
+  const t = { pedido: 'Esperando pedido', producto: 'Falta producto', cantidad: 'Falta cantidad', fecha: 'Falta fecha', confirmacion: 'Por confirmar' }[p.tipo];
+  return ['en_conversacion', t];
+}
+function renderConvList() {
+  const cs = Object.values(S.convs).sort((a, b) => (b.mensajes.length ? b.mensajes[b.mensajes.length - 1].ts : b.creada) - (a.mensajes.length ? a.mensajes[a.mensajes.length - 1].ts : a.creada));
+  $('conv-list').innerHTML = cs.length ? cs.map(c => {
+    const [cls, txt] = convEstado(c), last = c.mensajes[c.mensajes.length - 1];
+    return '<div class="convitem' + (c.id === convSel ? ' on' : '') + '" onclick="selConv(\'' + c.id + '\')">' +
+      '<div class="nm"><span>' + esc(c.nombre || c.tel) + '</span><span class="badge b-' + cls + '">' + txt + '</span></div>' +
+      '<div class="sn">' + esc(c.nombre ? c.tel + ' · ' : '') + esc(last ? last.texto.replace(/\n/g, ' ') : 'Sin mensajes') + '</div></div>';
+  }).join('') : '<div class="muted">Aún no hay conversaciones.</div>';
+}
+function selConv(id) { convSel = id; renderConvList(); renderChat(); }
+function renderChat() {
+  const c = S.convs[convSel], el = $('chat-panel');
+  if (!c) { el.innerHTML = '<div class="card muted">Abra o seleccione una conversación. Copie el mensaje del cliente desde WhatsApp, péguelo aquí y el sistema le propondrá la respuesta.</div>'; return; }
+  const x = ctx(), msgs = c.mensajes;
+  const lastSis = (() => { for (let i = msgs.length - 1; i >= 0; i--) if (msgs[i].de === 'sistema') return i; return -1; })();
+  const [cls, txt] = convEstado(c);
+  let h = '<div class="card"><div class="row" style="align-items:center;margin-bottom:8px"><div><h2 style="margin:0">' + esc(c.nombre || 'Cliente sin nombre') + ' <span class="badge b-' + cls + '">' + txt + '</span></h2>' +
+    '<div class="muted">' + esc(c.tel) + (c.clienteReg ? ' · ✅ cliente registrado en PanMaestro' : ' · ⚪ no está en sus clientes (se enviará con el nombre/teléfono)') + '</div></div>' +
+    '<div class="fix"><button class="btn sm danger" onclick="borrarConv(\'' + c.id + '\')">🗑</button></div></div>';
+  h += '<div class="chat" id="chat-box">' + (msgs.length ? msgs.map((m, i) =>
+    '<div class="msg ' + (m.de === 'cliente' ? 'cli' : 'sis') + '">' + esc(m.texto).replace(/\*([^*\n]+)\*/g, '<b>$1</b>') + '<div class="meta">' + (m.de === 'cliente' ? '👤 Cliente' : '🤖 Respuesta propuesta') +
+    ' · ' + new Date(m.ts).toLocaleTimeString('es-CR', { hour: '2-digit', minute: '2-digit' }) +
+    (m.de === 'sistema' ? ' · <a href="#" onclick="copiarMsg(\'' + c.id + '\',' + i + ');return false">📋 Copiar</a> · <a href="https://wa.me/' + digits(c.tel) + '?text=' + encodeURIComponent(m.texto) + '" target="_blank" rel="noopener">💬 Abrir en WhatsApp</a>' : '') +
+    '</div></div>').join('') : '<div class="muted">Pegue abajo el primer mensaje del cliente.</div>') + '</div>';
+  if (lastSis >= 0 && lastSis === msgs.length - 1 && !c.confirmada && !c.cancelada) {
+    h += '<div class="suggest"><b>👆 Esta es la respuesta propuesta.</b> Cópiela y envíela por WhatsApp (o ábrala directo con «Abrir en WhatsApp»). Si algo está mal, corrija el borrador más abajo.</div>';
+  }
+  h += '<label class="lb">Mensaje del cliente (péguelo desde WhatsApp)</label><textarea id="msg-in" placeholder="quiero 2 baguette para el martes"></textarea>' +
+    '<div style="margin-top:8px;display:flex;gap:8px"><button class="btn pri" onclick="procesarMensaje()">▶ Procesar mensaje</button><span class="muted" style="align-self:center">Ctrl + Enter</span></div></div>';
+  h += renderBorrador(c, x);
+  el.innerHTML = h;
+  const box = $('chat-box'); if (box) box.scrollTop = box.scrollHeight;
+  const ta = $('msg-in'); if (ta) ta.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) procesarMensaje(); });
+}
+function renderBorrador(c, x) {
+  const d = c.draft, opts = '<option value="">— elegir producto —</option>' + x.cat.map(p => '<option value="' + esc(p.id) + '">' + esc(PMW.etiquetaProducto(p)) + '</option>').join('');
+  const nOk = d.lineas.filter(l => l.estado === 'ok').length;
+  const pend = PMW.pendientes(c).filter(p => p.tipo === 'producto' || p.tipo === 'cantidad');
+  const listo = nOk > 0 && !pend.length && d.fecha;
+  let h = '<div class="card" style="margin-top:12px"><h2>Borrador del pedido</h2>';
+  const avisos = []; d.lineas.forEach(l => (l.avisos || []).forEach(a => { const t = (l.nombre || l.texto) + ': ' + a; if (!avisos.includes(t)) avisos.push(t); }));
+  if (avisos.length) h += '<div class="warnbox">⚠️ Revisar: ' + avisos.map(esc).join(' · ') + '</div>';
+  if (d.lineas.length) {
+    h += '<table><tr><th>Texto del cliente</th><th>Producto</th><th>Cant.</th><th>Subtotal</th><th></th></tr>' + d.lineas.map(l =>
+      '<tr><td class="muted">«' + esc(l.texto) + '»</td><td><select onchange="editLinea(\'' + c.id + '\',\'' + l.id + '\',\'producto\',this.value)">' +
+      opts.replace('value="' + esc(l.producto_id) + '"', 'value="' + esc(l.producto_id) + '" selected') + '</select>' +
+      (l.estado === 'ambiguo' ? '<div class="muted" style="color:var(--amber)">¿' + l.opciones.length + ' opciones posibles?</div>' : '') + '</td>' +
+      '<td><input type="number" min="1" value="' + (l.cantidad || '') + '" onchange="editLinea(\'' + c.id + '\',\'' + l.id + '\',\'cantidad\',this.value)"></td>' +
+      '<td>' + (l.estado === 'ok' ? PMW.money(l.cantidad * l.precio) : '—') + '</td>' +
+      '<td><button class="btn sm danger" onclick="delLinea(\'' + c.id + '\',\'' + l.id + '\')">✖</button></td></tr>').join('') + '</table>';
+  } else h += '<div class="muted">Todavía no hay productos en el borrador.</div>';
+  h += '<div class="row" style="margin-top:10px"><div style="flex:2"><label class="lb">Agregar producto a mano</label><select id="add-prod">' + opts + '</select></div>' +
+    '<div style="max-width:90px"><label class="lb">Cant.</label><input type="number" id="add-cant" min="1" value="1"></div>' +
+    '<div class="fix"><button class="btn" onclick="addLinea(\'' + c.id + '\')">+ Agregar</button></div></div>';
+  h += '<div class="row" style="margin-top:10px"><div style="max-width:200px"><label class="lb">Fecha de entrega</label><input type="date" value="' + esc(d.fecha || '') + '" onchange="setFechaDraft(\'' + c.id + '\',this.value)"></div>' +
+    '<div><div class="muted">Total: <b>' + PMW.money(PMW.total(d.lineas)) + '</b> · Entregas: ' + esc(PMW.nombresDias(S.cfg.diasEntrega)) + '</div></div></div>';
+  h += '<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn ok" ' + (listo ? '' : 'disabled') + ' onclick="pasarALista(\'' + c.id + '\')">' +
+    (c.pedidoId ? '💾 Actualizar pedido en la lista' : '✅ Pasar a la lista de pedidos') + '</button>' +
+    (listo ? '' : '<span class="muted" style="align-self:center">Faltan: ' + [pend.length ? 'resolver producto/cantidad' : '', d.fecha ? '' : 'fecha', nOk ? '' : 'al menos 1 producto'].filter(Boolean).join(', ') + '</span>') + '</div></div>';
+  return h;
+}
+function procesarMensaje() {
+  const c = S.convs[convSel], ta = $('msg-in'); if (!c || !ta) return;
+  const texto = ta.value.trim(); if (!texto) { toast('Pegue primero el mensaje del cliente', 'err'); return; }
+  let res;
+  try { res = PMW.recibir(c, texto, ctx()); } catch (e) { console.error(e); toast('No se pudo interpretar el mensaje: ' + e.message, 'err'); return; }
+  if (!S.catRows.length) toast('⚠️ El catálogo está vacío: no se puede contrastar el pedido', 'err');
+  if (res.confirmada) { pasarALista(c.id, 'cliente', true); }
+  if (res.cancelada && c.pedidoId) {
+    const p = S.pedidos.find(x => x.id === c.pedidoId);
+    if (p && p.estado !== 'enviado') { p.estado = 'cancelado'; p.updated_at = nowIso(); syncPedido(p); }
+  }
+  save(); renderAll();
+}
+function copiarMsg(cid, i) {
+  const t = S.convs[cid].mensajes[i].texto;
+  (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast('Respuesta copiada ✓', 'ok'), () => toast('No se pudo copiar; selecciónela a mano', 'err'));
+}
+function borrarConv(id) {
+  if (!confirm('¿Borrar esta conversación? El pedido ya creado en la lista no se borra.')) return;
+  delete S.convs[id]; if (convSel === id) convSel = null; save(); renderAll();
+}
+function convDe(cid) { return S.convs[cid]; }
+function editLinea(cid, lid, campo, valor) {
+  const c = convDe(cid), l = c.draft.lineas.find(x => x.id === lid); if (!l) return;
+  if (campo === 'cantidad') { const n = parseInt(valor, 10); l.cantidad = n > 0 ? n : null; PMW.recalcEstado(l); }
+  else if (campo === 'producto') {
+    const p = ctx().cat.find(x => x.id === valor);
+    if (p) { l.avisos = []; PMW.aplicarProducto(l, p, []); }
+    else { l.producto_id = null; l.estado = 'sin_producto'; }
+  }
+  save(); renderAll();
+}
+function delLinea(cid, lid) { const c = convDe(cid); c.draft.lineas = c.draft.lineas.filter(l => l.id !== lid); save(); renderAll(); }
+function addLinea(cid) {
+  const c = convDe(cid), pid = $('add-prod').value, n = parseInt($('add-cant').value, 10);
+  const p = ctx().cat.find(x => x.id === pid);
+  if (!p || !(n > 0)) { toast('Elija un producto y una cantidad', 'err'); return; }
+  const l = { id: PMW.nuevoLid(), texto: '(agregado a mano)', cantidad: n, producto_id: null, instruccion: '', estado: 'sin_producto', opciones: [], sugerencias: [], avisos: [] };
+  PMW.aplicarProducto(l, p, []); c.draft.lineas.push(l); save(); renderAll();
+}
+function setFechaDraft(cid, v) {
+  const c = convDe(cid); c.draft.fecha = v || null; c.draft.fechaRechazada = null;
+  if (v && !PMW.fechaValida(v, ctx())) toast('Ojo: esa fecha no cumple los días de entrega / anticipación configurados', 'err');
+  save(); renderAll();
+}
+function pasarALista(cid, origen, silencioso) {
+  const c = convDe(cid), d = c.draft;
+  if (!d.fecha) { toast('Falta la fecha de entrega', 'err'); return; }
+  const lineas = PMW.consolidar(d.lineas).map(l => ({ producto_id: l.producto_id, codigo: l.codigo, nombre: l.nombre, tipo: l.tipo,
+    cantidad: l.cantidad, precio: l.precio, instruccion: l.instruccion || '' }));
+  if (!lineas.length) { toast('No hay productos resueltos para pasar a la lista', 'err'); return; }
+  const avisos = [];
+  d.lineas.forEach(l => (l.avisos || []).forEach(a => { const t = (l.nombre || l.texto) + ': ' + a; if (!avisos.includes(t)) avisos.push(t); }));
+  if (!c.clienteReg) avisos.push('Cliente no registrado en PanMaestro: se enviará como «' + (c.nombre || c.tel) + '»');
+  let p = c.pedidoId ? S.pedidos.find(x => x.id === c.pedidoId) : null;
+  if (p && p.estado === 'enviado') { toast('Ese pedido ya se envió a PanMaestro; no se puede modificar desde aquí', 'err'); return; }
+  const estado = (origen === 'cliente' && avisos.some(a => !/^Cliente no registrado/.test(a))) ? 'por_revisar' : 'confirmado';
+  if (!p) { p = { id: uid(), pedidos_pm_ids: [], created_at: nowIso() }; S.pedidos.push(p); c.pedidoId = p.id; }
+  Object.assign(p, { fecha_entrega: d.fecha, telefono: c.tel, cliente_nom: c.nombre || c.tel, estado, lineas, avisos,
+    mensajes: c.mensajes.slice(-40), convId: c.id, updated_at: nowIso() });
+  save(); syncPedido(p); badgeRevisar();
+  if (!silencioso) toast(estado === 'por_revisar' ? 'Pedido en la lista (por revisar) ✓' : 'Pedido en la lista ✓', 'ok');
+  else if (estado === 'por_revisar') toast('El cliente confirmó. Tiene avisos por revisar en la lista de pedidos.', 'ok');
+  else toast('✅ Pedido confirmado por el cliente y agregado a la lista', 'ok');
+  renderAll();
+}
+
+// ── lista de pedidos ────────────────────────────────────────────────────────
+const ESTADO_TXT = { en_conversacion: 'En conversación', por_revisar: '⚠️ Por revisar', confirmado: '✅ Confirmado', enviado: '📤 En PanMaestro', cancelado: '✖ Cancelado' };
+function moverFecha(n) { $('pd-fecha').value = PMW.isoDate(PMW.addDays(PMW.fromIso($('pd-fecha').value || PMW.isoDate(hoy())), n)); renderPedidos(); }
+function irHoy() { $('pd-fecha').value = PMW.isoDate(hoy()); renderPedidos(); }
+function irProxima() { $('pd-fecha').value = PMW.proximosDias(hoy(), 1, S.cfg.diasEntrega, 0)[0] || PMW.isoDate(hoy()); renderPedidos(); }
+function renderPedidos() {
+  if (!$('pd-fecha')) return;
+  const f = $('pd-fecha').value || PMW.isoDate(hoy());
+  const del = S.pedidos.filter(p => p.fecha_entrega === f).sort((a, b) => (a.cliente_nom || '').localeCompare(b.cliente_nom || '', 'es'));
+  const vivos = del.filter(p => p.estado !== 'cancelado');
+  $('pd-titulo').textContent = 'Pedidos para ' + PMW.fmtFecha(f);
+  const unidades = vivos.reduce((a, p) => a + p.lineas.reduce((s, l) => s + l.cantidad, 0), 0);
+  const monto = vivos.reduce((a, p) => a + p.lineas.reduce((s, l) => s + l.cantidad * l.precio, 0), 0);
+  $('pd-stats').innerHTML = [['Pedidos', vivos.length], ['Unidades', unidades], ['Total', PMW.money(monto)],
+    ['Por revisar', del.filter(p => p.estado === 'por_revisar').length], ['Sin enviar a PanMaestro', vivos.filter(p => p.estado === 'confirmado').length]]
+    .map(s => '<div class="stat"><span class="muted">' + s[0] + '</span><b>' + s[1] + '</b></div>').join('');
+  $('btn-enviar-todos').disabled = !vivos.some(p => p.estado === 'confirmado');
+  $('pd-tabla').innerHTML = del.length ? '<table><tr><th>Cliente</th><th>Pedido</th><th>Total</th><th>Estado</th><th class="noprint"></th></tr>' + del.map(p => {
+    const tot = p.lineas.reduce((s, l) => s + l.cantidad * l.precio, 0);
+    return '<tr><td><b>' + esc(p.cliente_nom) + '</b><div class="muted">' + esc(p.telefono || '') + '</div></td>' +
+      '<td>' + p.lineas.map(l => '<span class="pill">' + l.cantidad + ' × ' + esc(l.nombre) + (l.instruccion ? ' (' + esc(l.instruccion) + ')' : '') + '</span>').join('') +
+      ((p.avisos || []).length ? '<div class="muted" style="color:var(--amber)">⚠️ ' + p.avisos.map(esc).join(' · ') + '</div>' : '') + '</td>' +
+      '<td>' + PMW.money(tot) + '</td><td><span class="badge b-' + p.estado + '">' + ESTADO_TXT[p.estado] + '</span></td><td class="noprint" style="white-space:nowrap">' +
+      (p.estado === 'por_revisar' ? '<button class="btn sm ok" onclick="aprobar(\'' + p.id + '\')">Aprobar</button> ' : '') +
+      (p.estado === 'confirmado' ? '<button class="btn sm pri" onclick="enviarUno(\'' + p.id + '\')">📤 Enviar</button> ' : '') +
+      (p.convId && S.convs[p.convId] && p.estado !== 'enviado' && p.estado !== 'cancelado' ? '<button class="btn sm" onclick="abrirConv(\'' + p.convId + '\')">✏️</button> ' : '') +
+      (p.estado !== 'enviado' && p.estado !== 'cancelado' ? '<button class="btn sm danger" onclick="cancelarPedido(\'' + p.id + '\')">✖</button>' : '') +
+      '</td></tr>';
+  }).join('') + '</table>' : '<div class="muted">No hay pedidos para esa fecha.</div>';
+  const cons = new Map();
+  vivos.forEach(p => p.lineas.forEach(l => { const k = l.producto_id + '|' + (l.instruccion || ''); const e = cons.get(k) || { nombre: l.nombre, instr: l.instruccion, tipo: l.tipo, cant: 0, pm: 0 };
+    e.cant += l.cantidad; if (p.estado === 'enviado') e.pm += l.cantidad; cons.set(k, e); }));
+  $('pd-consol').innerHTML = cons.size ? '<table><tr><th>Producto</th><th>Total a producir</th><th class="noprint">Ya en PanMaestro</th></tr>' +
+    [...cons.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')).map(e => '<tr><td>' + esc(e.nombre) + (e.instr ? ' <span class="muted">(' + esc(e.instr) + ')</span>' : '') + '</td><td><b>' + e.cant + '</b></td><td class="noprint muted">' + e.pm + '</td></tr>').join('') + '</table>' : '<div class="muted">—</div>';
+  badgeRevisar();
+}
+function abrirConv(id) { convSel = id; setTab('bandeja'); renderAll(); }
+function aprobar(id) { const p = S.pedidos.find(x => x.id === id); p.estado = 'confirmado'; p.updated_at = nowIso(); save(); syncPedido(p); renderPedidos(); }
+function cancelarPedido(id) {
+  if (!confirm('¿Cancelar este pedido?')) return;
+  const p = S.pedidos.find(x => x.id === id); p.estado = 'cancelado'; p.updated_at = nowIso(); save(); syncPedido(p); renderPedidos();
+}
+
+// ── interfaz con PanMaestro ─────────────────────────────────────────────────
+// Escribe en las MISMAS tablas que usa PanMaestro (pedidos + pedido_lineas), con los mismos campos que pan.js,
+// de modo que el pedido aparece en Pedidos → Pan / Galletas al abrir esa fecha.
+async function enviarPedidoPM(p, forzar) {
+  if (S.demo) throw new Error('En modo demostración no se envía nada a PanMaestro');
+  if (!sb || !sess) throw new Error('Inicie sesión para enviar a PanMaestro');
+  if (p.estado === 'enviado') throw new Error('Este pedido ya fue enviado');
+  const vigentes = new Set(S.catRows.map(r => r.id));
+  const fuera = p.lineas.filter(l => !vigentes.has(l.producto_id));
+  if (fuera.length) throw new Error('Productos que ya no están en el catálogo: ' + fuera.map(l => l.nombre).join(', ') + '. Recargue el catálogo en Ajustes y corrija el pedido.');
+  const grupos = {};
+  p.lineas.forEach(l => { const t = l.tipo === 'galleta' ? 'galleta' : 'pan'; (grupos[t] = grupos[t] || []).push(l); });
+  if (!forzar) {
+    for (const t of Object.keys(grupos)) {
+      const { data } = await sb.from('pedidos').select('id').eq('fecha', p.fecha_entrega).eq('cliente_nom', p.cliente_nom).eq('tipo', t);
+      if (data && data.length && !confirm('En PanMaestro ya hay un pedido de ' + t + ' para «' + p.cliente_nom + '» el ' + PMW.fmtFecha(p.fecha_entrega) + '.\n¿Enviar este de todos modos (quedarían dos)?')) {
+        throw new Error('Envío cancelado: ya existía un pedido de ese cliente para esa fecha');
+      }
+    }
+  }
+  const creados = [];
+  try {
+    for (const t of Object.keys(grupos)) {
+      const { data: ped, error } = await sb.from('pedidos').insert({ fecha: p.fecha_entrega, cliente_nom: p.cliente_nom, tipo: t, status: 'Pedido', total: 0 }).select().single();
+      if (error) throw error;
+      creados.push(ped.id);
+      const { error: e2 } = await sb.from('pedido_lineas').insert(grupos[t].map(l => ({ pedido_id: ped.id, producto_id: l.producto_id, cantidad: l.cantidad, precio_applied: l.precio, instruccion: l.instruccion || null })));
+      if (e2) throw e2;
+    }
+  } catch (e) {
+    // no dejar pedidos a medias en PanMaestro
+    for (const id of creados) { try { await sb.from('pedido_lineas').delete().eq('pedido_id', id); await sb.from('pedidos').delete().eq('id', id); } catch (x) { /* mejor esfuerzo */ } }
+    throw new Error('No se pudo enviar (no quedó nada a medias): ' + (e.message || e));
+  }
+  p.pedidos_pm_ids = creados; p.estado = 'enviado'; p.updated_at = nowIso(); save(); syncPedido(p);
+}
+async function enviarUno(id) {
+  const p = S.pedidos.find(x => x.id === id);
+  try { await enviarPedidoPM(p); toast('📤 Pedido de ' + p.cliente_nom + ' enviado a PanMaestro', 'ok'); } catch (e) { toast(e.message, 'err'); }
+  renderPedidos();
+}
+async function enviarTodos() {
+  const f = $('pd-fecha').value, lista = S.pedidos.filter(p => p.fecha_entrega === f && p.estado === 'confirmado');
+  if (!lista.length) return;
+  if (!confirm('¿Enviar ' + lista.length + ' pedido(s) confirmado(s) del ' + PMW.fmtFecha(f) + ' a PanMaestro?')) return;
+  let ok = 0, err = [];
+  for (const p of lista) { try { await enviarPedidoPM(p); ok++; } catch (e) { err.push(p.cliente_nom + ': ' + e.message); } }
+  toast('Enviados: ' + ok + (err.length ? ' · Con error: ' + err.length + ' (' + err[0] + ')' : ''), err.length ? 'err' : 'ok');
+  renderPedidos();
+}
+
+// ── ajustes ─────────────────────────────────────────────────────────────────
+function renderAjustes() {
+  if (!$('aj-dias')) return;
+  const nombres = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+  $('aj-dias').innerHTML = nombres.map((n, i) => '<label style="display:flex;gap:4px;align-items:center"><input type="checkbox" ' + (S.cfg.diasEntrega.includes(i) ? 'checked ' : '') + 'onchange="guardarAjustes()" data-dia="' + i + '"> ' + n + '</label>').join('');
+  $('aj-antic').value = S.cfg.anticipacion; $('aj-precios').checked = !!S.cfg.mostrarPrecios;
+  const cat = ctx().cat;
+  $('cat-info').textContent = cat.length + ' productos activos · ' + (S.cliRows || []).length + ' clientes · ' + (S.instRows || []).length + ' instrucciones especiales' + (S.demo ? ' (demostración)' : '');
+  $('cat-lista').innerHTML = '<table>' + cat.map(p => '<tr><td>' + esc(PMW.etiquetaProducto(p)) + '</td><td class="muted">' + esc(p.codigo) + '</td><td>' + PMW.money(p.precio) + '</td></tr>').join('') + '</table>';
+  $('al-prod').innerHTML = cat.map(p => '<option value="' + esc(p.codigo) + '">' + esc(PMW.etiquetaProducto(p)) + '</option>').join('');
+  const al = Object.entries(S.alias);
+  $('al-lista').innerHTML = al.length ? al.map(([k, cod]) => { const p = cat.find(x => x.codigo === cod);
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--sf)"><span>«' + esc(k) + '» → <b>' + esc(p ? p.nombre : cod + ' (ya no existe)') + '</b></span><button class="btn sm danger" data-k="' + esc(k) + '" onclick="delAlias(this.dataset.k)">✖</button></div>'; }).join('') : '<div class="muted">Aún no hay apodos.</div>';
+}
+function guardarAjustes() {
+  const dias = [...document.querySelectorAll('#aj-dias input:checked')].map(i => +i.dataset.dia);
+  if (!dias.length) { toast('Debe haber al menos un día de entrega', 'err'); renderAjustes(); return; }
+  S.cfg.diasEntrega = dias; S.cfg.anticipacion = Math.max(0, parseInt($('aj-antic').value, 10) || 0); S.cfg.mostrarPrecios = $('aj-precios').checked;
+  save(); toast('Ajustes guardados ✓', 'ok'); renderChat();
+}
+function addAlias() {
+  const t = $('al-txt').value.trim(), cod = $('al-prod').value;
+  if (!t || !cod) { toast('Escriba el apodo y elija el producto', 'err'); return; }
+  S.alias[PMW.norm(t)] = cod; $('al-txt').value = ''; save(); renderAjustes(); toast('Apodo guardado ✓', 'ok');
+}
+function delAlias(k) { delete S.alias[k]; save(); renderAjustes(); }
+function exportar() {
+  const blob = new Blob([JSON.stringify({ version: 1, exportado: nowIso(), convs: S.convs, pedidos: S.pedidos, alias: S.alias, cfg: S.cfg }, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'pedidos_whatsapp_respaldo_' + PMW.isoDate(hoy()) + '.json'; a.click();
+}
+function importar(inp) {
+  const f = inp.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => { try {
+    const j = JSON.parse(r.result);
+    if (!j || !Array.isArray(j.pedidos)) throw new Error('el archivo no parece un respaldo de Pedidos WhatsApp');
+    if (!confirm('Esto reemplaza los pedidos y conversaciones de este navegador por los del respaldo. ¿Continuar?')) return;
+    S.convs = j.convs || {}; S.pedidos = j.pedidos; S.alias = j.alias || {}; S.cfg = Object.assign(defaults().cfg, j.cfg || {});
+    convSel = null; save(); renderAll(); toast('Respaldo importado ✓', 'ok');
+  } catch (e) { toast('No se pudo importar: ' + e.message, 'err'); } };
+  r.readAsText(f); inp.value = '';
+}
+
+init();
+</script>
+</body>
+</html>
