@@ -1026,7 +1026,7 @@ async function _repFacXCliRefrescar(cliId) {
       frescos.push({
         id: local?.id || pmId(),
         date: sb.fecha, cliId: sb.cliente_id, cliNom: sb.cliente_nom,
-        status: sb.status, metodoPago: local?.metodoPago || 'efectivo',
+        status: sb.status, metodoPago: local?.metodoPago || 'sinpe',
         numPed: sb.numero_pedido,
         numFac: sb.numero_factura || local?.numFac || null,
         lineas, _sbId: sb.id

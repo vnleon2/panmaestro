@@ -55,7 +55,7 @@ function pcAdd() {
   if (!cliId) { pmToast('Seleccioná un cliente', 'err'); return; }
   const newPed = {
     id: pmId(), date: fecha, cliId, cliNom,
-    status: G.estados[0]||'Pedido', metodoPago: 'efectivo',
+    status: G.estados[0]||'Pedido', metodoPago: 'sinpe',
     numPed: null,      // se llena al sincronizar — mientras tanto se ve "pendiente"
     lineas: [], _sbId: null
   };
@@ -135,7 +135,7 @@ async function pcCargarSb() {
           sbPeds.push({
             id: local?.id || pmId(),
             date: sb.fecha, cliId: sb.cliente_id, cliNom: sb.cliente_nom,
-            status: sb.status, metodoPago: local?.metodoPago || 'efectivo',
+            status: sb.status, metodoPago: local?.metodoPago || 'sinpe',
             numPed: sb.numero_pedido,
             numFac: sb.numero_factura || local?.numFac || null,
             lineas, _sbId: sb.id
@@ -240,7 +240,7 @@ async function pcChgSt(pedId, st) {
             pedido_id:   p._sbId || null,
             fecha_pago:  pmHoy(),
             total:       pmTotalCom(p),
-            metodo_pago: p.metodoPago || 'efectivo',
+            metodo_pago: p.metodoPago || 'sinpe',
             cliente_nom: p.cliNom,
             tipo:        'comercial',
             notas:       refId

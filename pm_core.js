@@ -390,7 +390,7 @@ function pmEsc(str) {
 // constraint ventas_metodo_pago_check en Supabase (confirmado por SQL):
 // 'efectivo' | 'sinpe' | 'transferencia' | 'otro'. No agregar otros
 // valores acá sin antes confirmar que el constraint los acepta.
-function pmMetodoPagoOpts(selected='efectivo') {
+function pmMetodoPagoOpts(selected='sinpe') {
   const opts = [
     ['efectivo','Efectivo'], ['sinpe','SINPE'],
     ['transferencia','Transferencia'], ['otro','Otro']
