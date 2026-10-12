@@ -443,7 +443,7 @@ async function pgChgSt(id, st) {
           await pmDB.ventas.crear({
             fecha_pago:  pmHoy(),
             total,
-            metodo_pago: p.metodoPago || 'efectivo',
+            metodo_pago: p.metodoPago || 'sinpe',
             cliente_nom: p.cliNom || p.cli,
             tipo:        'galleta',
             notas:       refId,
