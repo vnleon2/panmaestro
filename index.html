@@ -101,6 +101,14 @@
       </div>
     </div>
 
+    <div class="nav-group">
+      <button class="nav-toggle" onclick="pmToggleGroup(this)">💲 Costos ▾</button>
+      <span class="nav-group-label">💲 Costos</span>
+      <div class="group-drop">
+        <button class="ntab" data-tab="pg-empaques" onclick="showTab('pg-empaques');pmCloseNav()">📦 Empaques</button>
+      </div>
+    </div>
+
     <button class="ntab" data-tab="pg-etiquetas" onclick="showTab('pg-etiquetas');pmCloseNav()">🏷️ Etiquetas</button>
     <button class="ntab" data-tab="pg-mercadeo" onclick="showTab('pg-mercadeo');pmCloseNav()">🎯 Mercadeo</button>
     <button class="ntab" onclick="pmOpenModule('utilidades.html');pmCloseNav()">🧮 Utilidades</button>
@@ -1446,6 +1454,67 @@
   </div>
 </div>
 
+<!-- ═══ 💲 Costos · Empaques ═══ -->
+<div class="page" id="pg-empaques">
+  <div class="pg-title">📦 Empaques</div>
+  <div class="pg-sub">Maestro de empaques (bolsas, cajas, envases, etiquetas, stickers…) y su asignación por tipo de pan o galleta — módulo de Costos, independiente de Costeo y Maestros</div>
+
+  <div class="pills" id="cst-pills">
+    <button class="pill on" onclick="cstEmpTab('emp',this)">📦 Empaques</button>
+    <button class="pill" onclick="cstEmpTab('cla',this)">🗂 Clases</button>
+    <button class="pill" onclick="cstEmpTab('prod',this)">🥖 Por producto</button>
+  </div>
+
+  <!-- EMPAQUES (maestro) -->
+  <div id="cstt-emp">
+    <div class="card">
+      <div class="ctitle">Nuevo empaque</div>
+      <div class="row">
+        <div class="col sm"><label>Código</label><input type="text" id="cstemp-codigo" placeholder="EMP-001" style="text-transform:uppercase"></div>
+        <div class="col" style="flex:2"><label>Nombre</label><input type="text" id="cstemp-nombre" placeholder="Bolsa kraft 20x30"></div>
+        <div class="col"><label>Clase</label><select id="cstemp-clase"></select></div>
+        <div class="col sm"><label>Costo por unidad</label><input type="number" id="cstemp-costo" placeholder="0" min="0" step="any"></div>
+        <div class="col sm"><label>&nbsp;</label><button class="btn btn-gold" onclick="cstEmpAdd()">+ Agregar</button></div>
+      </div>
+    </div>
+    <div class="sec"><h2 id="cstemp-count">Empaques</h2>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <select id="cstemp-filtro-clase" onchange="cstEmpRender()" style="width:150px"></select>
+        <div class="srch" style="width:160px"><input type="text" id="cstemp-search" placeholder="Buscar..." oninput="cstEmpRender()"></div>
+      </div>
+    </div>
+    <div id="cstemp-list"></div>
+  </div>
+
+  <!-- CLASES -->
+  <div id="cstt-cla" style="display:none">
+    <div class="card">
+      <div class="ctitle">Nueva clase de empaque</div>
+      <div class="row">
+        <div class="col sm"><label>Código</label><input type="text" id="cstcla-codigo" placeholder="SOBRE" style="text-transform:uppercase"></div>
+        <div class="col"><label>Nombre</label><input type="text" id="cstcla-nombre" placeholder="Sobre"></div>
+        <div class="col xs"><label>Orden</label><input type="number" id="cstcla-orden" placeholder="7"></div>
+        <div class="col sm"><label>&nbsp;</label><button class="btn btn-gold" onclick="cstClaAdd()">+ Agregar</button></div>
+      </div>
+    </div>
+    <div class="sec"><h2 id="cstcla-count">Clases de empaque</h2></div>
+    <div id="cstcla-list"></div>
+  </div>
+
+  <!-- ASIGNACIÓN POR PRODUCTO -->
+  <div id="cstt-prod" style="display:none">
+    <div class="sec"><h2 id="cstprod-count">Productos</h2>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <label style="display:flex;align-items:center;gap:4px;font-size:11px;text-transform:none;letter-spacing:0;font-weight:500;cursor:pointer">
+          <input type="checkbox" id="cstprod-solo" onchange="cstProdRender()" style="width:auto"> Solo sin empaque
+        </label>
+        <div class="srch" style="width:160px"><input type="text" id="cstprod-search" placeholder="Buscar..." oninput="cstProdRender()"></div>
+      </div>
+    </div>
+    <div id="cstprod-list"></div>
+  </div>
+</div>
+
 </div><!-- /#app -->
 
 <div class="pm-toast" id="pm-toast"></div>
@@ -1508,12 +1577,13 @@
 <script src="etiquetas_hoja.js?v=20261003a"></script>
 
 <script src="mercadeo.js?v=20261001c"></script>
+<script src="costos_empaques.js?v=20261012a"></script>
 
 <script src="precio_venta.js?v=20261002a"></script>
 <script src="explosion.js?v=20261003b"></script>
 <script src="plan_libre.js?v=20261001c"></script>
 
-<script src="pm_app.js?v=20261001c"></script>
+<script src="pm_app.js?v=20261012a"></script>
 
 </body>
 </html>
