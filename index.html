@@ -106,6 +106,7 @@
       <span class="nav-group-label">💲 Costos</span>
       <div class="group-drop">
         <button class="ntab" data-tab="pg-empaques" onclick="showTab('pg-empaques');pmCloseNav()">📦 Empaques</button>
+        <button class="ntab" data-tab="pg-costos-maestros" onclick="showTab('pg-costos-maestros');pmCloseNav()">🏭 Departamentos y cuentas</button>
         <button class="ntab" data-tab="pg-costos-config" onclick="showTab('pg-costos-config');pmCloseNav()">⚙️ Parámetros</button>
       </div>
     </div>
@@ -1550,6 +1551,77 @@
   </div>
 </div>
 
+<!-- ═══ 💲 Costos · Departamentos y cuentas ═══ -->
+<div class="page" id="pg-costos-maestros">
+  <div class="pg-title">🏭 Departamentos y cuentas</div>
+  <div class="pg-sub">Centros de costo, catálogo de cuentas y bases de reparto del módulo de Costos — se pueden agregar los propios</div>
+
+  <div class="pills" id="cstm-pills">
+    <button class="pill on" onclick="cstMaeTab('dep',this)">🏭 Departamentos</button>
+    <button class="pill" onclick="cstMaeTab('cue',this)">📒 Cuentas</button>
+    <button class="pill" onclick="cstMaeTab('drv',this)">📐 Bases de reparto</button>
+  </div>
+
+  <!-- DEPARTAMENTOS -->
+  <div id="cstm-dep">
+    <div class="card">
+      <div class="ctitle">Nuevo departamento</div>
+      <div class="row">
+        <div class="col sm"><label>Código</label><input type="text" id="cstdep-codigo" placeholder="DEP-80" style="text-transform:uppercase"></div>
+        <div class="col" style="flex:2"><label>Nombre</label><input type="text" id="cstdep-nombre" placeholder="Decoración"></div>
+        <div class="col"><label>Tipo</label><select id="cstdep-tipo"></select></div>
+        <div class="col sm"><label>&nbsp;</label><button class="btn btn-gold" onclick="cstDepAdd()">+ Agregar</button></div>
+      </div>
+      <div style="font-size:11px;color:var(--cream2);margin-top:8px">El tipo define el tratamiento del personal: productivo = MOD, apoyo = MOI, venta / mercadeo / administración = gasto del período.</div>
+    </div>
+    <div class="sec"><h2 id="cstdep-count">Departamentos</h2></div>
+    <div id="cstdep-list"></div>
+  </div>
+
+  <!-- CUENTAS -->
+  <div id="cstm-cue" style="display:none">
+    <div class="card">
+      <div class="ctitle">Nueva cuenta</div>
+      <div class="row">
+        <div class="col"><label>Serie</label><select id="cstcue-serie" onchange="cstCueSerieChange()"></select></div>
+        <div class="col xs"><label>Código</label><input type="text" id="cstcue-codigo" placeholder="5113" maxlength="4"></div>
+        <div class="col" style="flex:2"><label>Nombre</label><input type="text" id="cstcue-nombre" placeholder="Nombre de la cuenta"></div>
+      </div>
+      <div class="row">
+        <div class="col sm"><label>Comportamiento</label><select id="cstcue-comp" onchange="cstCuePctSync('cstcue-comp','cstcue-pct')"></select></div>
+        <div class="col xs"><label>% variable</label><input type="number" id="cstcue-pct" value="0" min="1" max="99" step="any" disabled></div>
+        <div class="col"><label>Base de reparto</label><select id="cstcue-base"></select></div>
+        <div class="col"><label>Departamento por defecto</label><select id="cstcue-depto"></select></div>
+        <div class="col sm"><label>&nbsp;</label><button class="btn btn-gold" onclick="cstCueAdd()">+ Agregar</button></div>
+      </div>
+      <div style="font-size:11px;color:var(--cream2);margin-top:8px">El código lleva 4 dígitos y empieza con la serie; se propone el siguiente libre. Fijo = 0 % variable, variable = 100 %, mixto = el porcentaje que indiques. "Compartida" significa que la cuenta se reparte entre departamentos según su base.</div>
+    </div>
+    <div class="sec"><h2 id="cstcue-count">Cuentas</h2>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <select id="cstcue-filtro-serie" onchange="cstCueRender()" style="width:200px"></select>
+        <div class="srch" style="width:160px"><input type="text" id="cstcue-search" placeholder="Buscar..." oninput="cstCueRender()"></div>
+      </div>
+    </div>
+    <div id="cstcue-list"></div>
+  </div>
+
+  <!-- BASES DE REPARTO -->
+  <div id="cstm-drv" style="display:none">
+    <div class="card">
+      <div class="ctitle">Nueva base de reparto</div>
+      <div class="row">
+        <div class="col sm"><label>Código</label><input type="text" id="cstdrv-codigo" placeholder="HORAS_BATIDORA" style="text-transform:uppercase"></div>
+        <div class="col" style="flex:2"><label>Nombre</label><input type="text" id="cstdrv-nombre" placeholder="Horas-batidora"></div>
+        <div class="col xs"><label>Unidad</label><input type="text" id="cstdrv-unidad" placeholder="h"></div>
+        <div class="col sm"><label>&nbsp;</label><button class="btn btn-gold" onclick="cstDrvAdd()">+ Agregar</button></div>
+      </div>
+      <div style="font-size:11px;color:var(--cream2);margin-top:8px">Base con que se reparte una cuenta compartida o se absorbe un costo (HH, m², kWh, horas-horno, kg de masa...).</div>
+    </div>
+    <div class="sec"><h2 id="cstdrv-count">Bases de reparto</h2></div>
+    <div id="cstdrv-list"></div>
+  </div>
+</div>
+
 </div><!-- /#app -->
 
 <div class="pm-toast" id="pm-toast"></div>
@@ -1614,12 +1686,13 @@
 <script src="mercadeo.js?v=20261001c"></script>
 <script src="costos_core.js?v=20261012b"></script>
 <script src="costos_empaques.js?v=20261012b"></script>
+<script src="costos_maestros.js?v=20261012c"></script>
 
 <script src="precio_venta.js?v=20261002a"></script>
 <script src="explosion.js?v=20261003b"></script>
 <script src="plan_libre.js?v=20261001c"></script>
 
-<script src="pm_app.js?v=20261012b"></script>
+<script src="pm_app.js?v=20261012c"></script>
 
 </body>
 </html>
