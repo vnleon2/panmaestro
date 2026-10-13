@@ -106,6 +106,7 @@
       <span class="nav-group-label">💲 Costos</span>
       <div class="group-drop">
         <button class="ntab" data-tab="pg-empaques" onclick="showTab('pg-empaques');pmCloseNav()">📦 Empaques</button>
+        <button class="ntab" data-tab="pg-costos-config" onclick="showTab('pg-costos-config');pmCloseNav()">⚙️ Parámetros</button>
       </div>
     </div>
 
@@ -1515,6 +1516,40 @@
   </div>
 </div>
 
+<!-- ═══ 💲 Costos · Parámetros y moneda ═══ -->
+<div class="page" id="pg-costos-config">
+  <div class="pg-title">⚙️ Parámetros de Costos</div>
+  <div class="pg-sub">Moneda, decimales y redondeo con que el módulo de Costos muestra y calcula los montos</div>
+
+  <div class="card">
+    <div class="ctitle">Moneda y formato</div>
+    <div class="row">
+      <div class="col" style="flex:2"><label>Moneda base</label><select id="cstcfg-moneda" onchange="cstCfgPreview()"></select></div>
+      <div class="col sm"><label>Decimales (totales)</label><select id="cstcfg-dec" onchange="cstCfgPreview()"></select></div>
+      <div class="col sm"><label>Decimales (costo unitario)</label><select id="cstcfg-decu" onchange="cstCfgPreview()"></select></div>
+      <div class="col"><label>Redondeo</label><select id="cstcfg-redo" onchange="cstCfgPreview()"></select></div>
+    </div>
+    <div style="margin-top:12px">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--cream2);margin-bottom:4px">Vista previa</div>
+      <div id="cstcfg-preview"></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:14px">
+      <button class="btn btn-gold" onclick="cstCfgSave()">💾 Guardar parámetros</button>
+      <span id="cstcfg-info" style="font-size:12px;color:var(--cream2)"></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="ctitle">Cómo funciona</div>
+    <div style="font-size:12px;color:var(--cream2);line-height:1.6">
+      Cambiar la moneda <b>no convierte</b> los montos ya cargados: solo cambia el símbolo y el formato.<br>
+      Los <b>totales</b> usan los decimales de la primera lista; los <b>costos unitarios</b> (por pieza o por kg) muestran los decimales extra solo cuando hacen falta.<br>
+      El redondeo se aplica al mostrar y, más adelante, al calcular las tarifas del costeo.<br>
+      Costeo, Maestros y Recetario siguen en ₡ hasta que se conecte el módulo (entrega 9).
+    </div>
+  </div>
+</div>
+
 </div><!-- /#app -->
 
 <div class="pm-toast" id="pm-toast"></div>
@@ -1577,13 +1612,14 @@
 <script src="etiquetas_hoja.js?v=20261003a"></script>
 
 <script src="mercadeo.js?v=20261001c"></script>
-<script src="costos_empaques.js?v=20261012a"></script>
+<script src="costos_core.js?v=20261012b"></script>
+<script src="costos_empaques.js?v=20261012b"></script>
 
 <script src="precio_venta.js?v=20261002a"></script>
 <script src="explosion.js?v=20261003b"></script>
 <script src="plan_libre.js?v=20261001c"></script>
 
-<script src="pm_app.js?v=20261012a"></script>
+<script src="pm_app.js?v=20261012b"></script>
 
 </body>
 </html>
