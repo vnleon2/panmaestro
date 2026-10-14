@@ -107,6 +107,8 @@
       <div class="group-drop">
         <button class="ntab" data-tab="pg-empaques" onclick="showTab('pg-empaques');pmCloseNav()">📦 Empaques</button>
         <button class="ntab" data-tab="pg-costos-maestros" onclick="showTab('pg-costos-maestros');pmCloseNav()">🏭 Departamentos y cuentas</button>
+        <button class="ntab" data-tab="pg-costos-personal" onclick="showTab('pg-costos-personal');pmCloseNav()">👥 Personal</button>
+        <button class="ntab" data-tab="pg-costos-laboral" onclick="showTab('pg-costos-laboral');pmCloseNav()">💵 Costo laboral</button>
         <button class="ntab" data-tab="pg-costos-config" onclick="showTab('pg-costos-config');pmCloseNav()">⚙️ Parámetros</button>
       </div>
     </div>
@@ -1622,6 +1624,112 @@
   </div>
 </div>
 
+<!-- ═══ 💲 Costos · Personal ═══ -->
+<div class="page" id="pg-costos-personal">
+  <div class="pg-title">👥 Personal</div>
+  <div class="pg-sub">Colaboradores, cargos y conceptos de nómina — el departamento define si el costo es MOD, MOI o gasto del período</div>
+
+  <div class="pills" id="cstp-pills">
+    <button class="pill on" onclick="cstPersTab('col',this)">👥 Colaboradores</button>
+    <button class="pill" onclick="cstPersTab('car',this)">🧑‍🍳 Cargos</button>
+    <button class="pill" onclick="cstPersTab('nom',this)">🧾 Conceptos de nómina</button>
+  </div>
+
+  <!-- COLABORADORES -->
+  <div id="cstp-col">
+    <div class="card">
+      <div class="ctitle">Nuevo colaborador</div>
+      <div class="row">
+        <div class="col sm"><label>Código</label><input type="text" id="cstcol-codigo" placeholder="COL-001" style="text-transform:uppercase"></div>
+        <div class="col" style="flex:2"><label>Nombre</label><input type="text" id="cstcol-nombre" placeholder="Nombre y apellido"></div>
+      </div>
+      <div class="row">
+        <div class="col" style="flex:2"><label>Cargo</label><select id="cstcol-cargo"></select></div>
+        <div class="col"><label>Sueldo base mensual</label><input type="number" id="cstcol-sueldo" placeholder="0" min="0" step="any"></div>
+        <div class="col sm"><label>Horas pagadas/mes</label><input type="number" id="cstcol-horas" value="208" min="1" max="744" step="any"></div>
+        <div class="col sm"><label>&nbsp;</label><button class="btn btn-gold" onclick="cstColAdd()">+ Agregar</button></div>
+      </div>
+      <div style="font-size:11px;color:var(--cream2);margin-top:8px">Se crea con el 100 % de su tiempo en el departamento de su cargo; podés repartirlo entre varios desde el detalle. Si trabajás en la producción vos mismo, registrate con un sueldo equivalente de mercado: es MOD.</div>
+    </div>
+    <div class="stats" id="cstcol-stats"></div>
+    <div class="sec"><h2 id="cstcol-count">Colaboradores</h2>
+      <div class="srch" style="width:160px"><input type="text" id="cstcol-search" placeholder="Buscar..." oninput="cstColRender()"></div>
+    </div>
+    <div id="cstcol-list"></div>
+  </div>
+
+  <!-- CARGOS -->
+  <div id="cstp-car" style="display:none">
+    <div class="card">
+      <div class="ctitle">Nuevo cargo</div>
+      <div class="row">
+        <div class="col sm"><label>Código</label><input type="text" id="cstcar-codigo" placeholder="CAR-01" style="text-transform:uppercase"></div>
+        <div class="col" style="flex:2"><label>Nombre</label><input type="text" id="cstcar-nombre" placeholder="Panadero"></div>
+        <div class="col"><label>Departamento</label><select id="cstcar-depto"></select></div>
+        <div class="col sm"><label>Utilización %</label><input type="number" id="cstcar-util" value="85" min="1" max="100" step="any"></div>
+        <div class="col sm"><label>&nbsp;</label><button class="btn btn-gold" onclick="cstCarAdd()">+ Agregar</button></div>
+      </div>
+      <div style="font-size:11px;color:var(--cream2);margin-top:8px">La utilización es la parte de las horas pagadas que es trabajo productivo (el resto son pausas, limpieza, espera). Convierte horas pagadas en HH productivas.</div>
+    </div>
+    <div class="sec"><h2 id="cstcar-count">Cargos</h2></div>
+    <div id="cstcar-list"></div>
+  </div>
+
+  <!-- CONCEPTOS DE NÓMINA -->
+  <div id="cstp-nom" style="display:none">
+    <div class="card">
+      <div class="ctitle">Nuevo concepto de nómina</div>
+      <div class="row">
+        <div class="col sm"><label>Código</label><input type="text" id="cstnom-codigo" placeholder="NOM-08" style="text-transform:uppercase"></div>
+        <div class="col" style="flex:2"><label>Nombre</label><input type="text" id="cstnom-nombre" placeholder="Horas extra (provisión)"></div>
+        <div class="col"><label>Tipo</label><select id="cstnom-tipo"></select></div>
+      </div>
+      <div class="row">
+        <div class="col sm"><label>Valor</label><input type="number" id="cstnom-valor" placeholder="0" min="0" step="any"></div>
+        <div class="col"><label>Cuenta</label><select id="cstnom-cuenta"></select></div>
+        <div class="col sm"><label>&nbsp;</label><button class="btn btn-gold" onclick="cstNomAdd()">+ Agregar</button></div>
+      </div>
+      <div style="font-size:11px;color:var(--cream2);margin-top:8px"><b>Puntos de partida, no cifras oficiales:</b> revisá cargas sociales con tu planilla de la CCSS y poné la tasa de tu póliza de riesgos del trabajo (INS), que depende de tu actividad. Cambiar un valor afecta los períodos nuevos; los ya generados no cambian.</div>
+    </div>
+    <div class="sec"><h2 id="cstnom-count">Conceptos de nómina</h2></div>
+    <div id="cstnom-list"></div>
+  </div>
+</div>
+
+<!-- ═══ 💲 Costos · Costo laboral ═══ -->
+<div class="page" id="pg-costos-laboral">
+  <div class="pg-title">💵 Costo laboral</div>
+  <div class="pg-sub">Nómina del período por colaborador y concepto — total de MOD, MOI y gasto por departamento, y HH productivas</div>
+
+  <div class="card">
+    <div class="ctitle">Período</div>
+    <div class="row">
+      <div class="col" style="flex:2"><label>Período</label><select id="cstlab-periodo" onchange="cstPerElegir(this.value)"></select></div>
+    </div>
+    <div id="cstlab-estado" style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      <button class="btn btn-gold btn-sm" id="cstlab-btn-gen" onclick="cstLabGenerar(false)">⚙️ Generar nómina</button>
+      <button class="btn btn-out btn-sm" id="cstlab-btn-regen" onclick="cstLabGenerar(true)">↻ Recalcular desde maestros</button>
+      <button class="btn btn-red btn-sm" id="cstlab-btn-del" onclick="cstPerEliminar()">🗑 Eliminar período</button>
+    </div>
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid #E2E8F0">
+      <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--cream2);margin-bottom:6px">Nuevo período</div>
+      <div class="row">
+        <div class="col sm"><label>Código</label><input type="text" id="cstper-codigo" placeholder="2026-11" style="text-transform:uppercase"></div>
+        <div class="col"><label>Inicio</label><input type="date" id="cstper-inicio"></div>
+        <div class="col"><label>Fin</label><input type="date" id="cstper-fin"></div>
+        <div class="col xs"><label>Meses</label><input type="number" id="cstper-meses" value="1" min="0.5" max="12" step="0.5"></div>
+        <div class="col sm"><label>&nbsp;</label><button class="btn btn-out" onclick="cstPerNuevo()">+ Crear</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="stats" id="cstlab-stats"></div>
+  <div id="cstlab-avisos"></div>
+  <div id="cstlab-deptos"></div>
+  <div id="cstlab-colabs"></div>
+</div>
+
 </div><!-- /#app -->
 
 <div class="pm-toast" id="pm-toast"></div>
@@ -1686,13 +1794,15 @@
 <script src="mercadeo.js?v=20261001c"></script>
 <script src="costos_core.js?v=20261012b"></script>
 <script src="costos_empaques.js?v=20261012b"></script>
-<script src="costos_maestros.js?v=20261012c"></script>
+<script src="costos_maestros.js?v=20261013a"></script>
+<script src="costos_personal.js?v=20261013a"></script>
+<script src="costos_laboral.js?v=20261013a"></script>
 
 <script src="precio_venta.js?v=20261002a"></script>
 <script src="explosion.js?v=20261003b"></script>
 <script src="plan_libre.js?v=20261001c"></script>
 
-<script src="pm_app.js?v=20261012c"></script>
+<script src="pm_app.js?v=20261013a"></script>
 
 </body>
 </html>

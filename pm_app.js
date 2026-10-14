@@ -30,7 +30,7 @@ function showTab(id) {
     'pg-com':'COMERCIAL','pg-prod':'PRODUCCIÓN','pg-rep':'REPORTES',
     'pg-gastos':'GASTOS','pg-costeo':'COSTEO','pg-hid':'HIDRATACIÓN',
     'app-inner':'MAESTROS','pg-rec':'RECETARIO','pg-gmrec':'GLUTEN MORGEN','pg-planlibre':'PLAN LIBRE',
-    'pg-etiquetas':'ETIQUETAS','pg-mercadeo':'MERCADEO','pg-empaques':'COSTOS','pg-costos-config':'COSTOS','pg-costos-maestros':'COSTOS'
+    'pg-etiquetas':'ETIQUETAS','pg-mercadeo':'MERCADEO','pg-empaques':'COSTOS','pg-costos-config':'COSTOS','pg-costos-maestros':'COSTOS','pg-costos-personal':'COSTOS','pg-costos-laboral':'COSTOS'
   };
   const modEl = document.querySelector('.brand-mod');
   if (modEl) modEl.textContent = labels[id] || 'PANMAESTRO';
@@ -41,6 +41,8 @@ function showTab(id) {
     'pg-empaques': () => { cstEmpInit(); },
     'pg-costos-config': () => { cstCfgInit(); },
     'pg-costos-maestros': () => { cstMaeInit(); },
+    'pg-costos-personal': () => { cstPersInit(); },
+    'pg-costos-laboral': () => { cstLabInit(); },
     'pg-pedidos': () => { document.getElementById('pp-fecha').value = pmHoy(); ppCargarSb(); },
     'pg-galletas':() => { document.getElementById('pg-fecha').value = pmHoy(); pgCargarSb(); },
     'pg-com':     () => { document.getElementById('pc-fecha').value = pmHoy(); pcCargarClientes(); pcCargarSb(); },

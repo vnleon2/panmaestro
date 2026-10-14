@@ -72,16 +72,22 @@ async function cstMaeInit() {
   await cstMaeCargar();
 }
 
+// Carga los tres maestros en memoria sin pintar nada (la usan también las pantallas
+// de Personal y Costo laboral). Lanza error si falla.
+async function cstMaeDatos() {
+  const [dep, cue, drv] = await Promise.all([
+    pmDB.get('cost_departamentos'),
+    pmDB.get('cost_cuentas'),
+    pmDB.get('cost_drivers'),
+  ]);
+  _cstDeps = dep || [];
+  _cstCuentas = (cue || []).map(c => Object.assign({}, c, { pct_variable: Number(c.pct_variable) }));
+  _cstDrivers = drv || [];
+}
+
 async function cstMaeCargar() {
   try {
-    const [dep, cue, drv] = await Promise.all([
-      pmDB.get('cost_departamentos'),
-      pmDB.get('cost_cuentas'),
-      pmDB.get('cost_drivers'),
-    ]);
-    _cstDeps = dep || [];
-    _cstCuentas = (cue || []).map(c => Object.assign({}, c, { pct_variable: Number(c.pct_variable) }));
-    _cstDrivers = drv || [];
+    await cstMaeDatos();
   } catch (e) {
     console.warn('[cstMaeCargar]', e.message);
     pmToast('⚠️ ' + _cstErr(e, 'sql_costos_maestros.sql'), 'err');
