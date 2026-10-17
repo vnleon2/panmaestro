@@ -42,8 +42,8 @@ const EX_HARINA_RE   = /harina|s[eé]mola/i;
 const EX_INOCULO_RE  = /masa madre|\bmm\b|levain|starter|cultivo/i;
 
 let _exSel = '';          // clave del producto ('P:id' | 'G:id')
-let _exModo = 'u';        // 'u' unidades | 'g' gramos
-let _exCant = 1;
+let _exPeso = null;       // g por unidad escritos a mano (null = el del maestro)
+let _exUds = 1;           // unidades a producir
 let _exEstiloOk = false;
 
 function _exLimpiar(n) {
@@ -150,26 +150,38 @@ function exHojas(nodos, via, out) {
   return out;
 }
 
-// Calcula todo el reporte para un producto y una cantidad. Devuelve null si no se puede.
-function exCalcular(item, modo, cant) {
+// Masa de pan de la receta base (sin rellenos). base.mass los incluye.
+function _exMasaBase(r) {
+  const base = pmCostoReceta(r);
+  if (!base || !base.mass) return 0;
+  const addBase = (base.lines || []).filter(l => l.isAddon).reduce((a, l) => a + (l.g || 0), 0);
+  return base.mass - addBase;
+}
+
+// Gramos por unidad "de fábrica": el del maestro, o el de la receta si no tiene.
+function _exPesoDefecto(item) {
+  if (item && item.peso > 0) return item.peso;
+  const r = item && item.recCode ? _exRecPorCodigo(item.recCode) : null;
+  const m = r ? _exMasaBase(r) : 0;
+  return m > 0 ? m / (r.units || 1) : 0;
+}
+
+// Calcula todo el reporte para un producto, unos g por unidad y unas unidades.
+// Devuelve null si no se puede.
+function exCalcular(item, pesoU, unidades) {
   const r = item && item.recCode ? _exRecPorCodigo(item.recCode) : null;
   if (!r) return null;
-  const base = pmCostoReceta(r);
-  if (!base || !base.mass) return null;
-
-  // base.mass incluye los rellenos (addons); la masa de pan es lo demás.
-  const addBase = (base.lines || []).filter(l => l.isAddon).reduce((a, l) => a + (l.g || 0), 0);
-  const masaBase = base.mass - addBase;
+  const masaBase = _exMasaBase(r);
   if (!(masaBase > 0)) return null;
+  if (!(pesoU > 0) || !(unidades > 0)) return null;
 
-  let pesoU = item.peso, pesoDeReceta = false;
-  if (!(pesoU > 0)) { pesoU = masaBase / (r.units || 1); pesoDeReceta = true; }
-  const gramos = modo === 'g' ? cant : cant * pesoU;   // gramos de MASA
-  if (!(gramos > 0)) return null;
-  const unidades = gramos / pesoU;
+  const pesoDeReceta = !(item.peso > 0) && _exPeso === null;
+  const gramos = pesoU * unidades;                        // masa que se vende
+  const merma = r.merma || 0;
+  const gMezcla = gramos * (1 + merma / 100);             // masa que se mezcla (igual que Recetario)
 
-  const k = gramos / masaBase;                 // masa y subrecetas
-  const kAdd = unidades / (r.units || 1);      // rellenos: g/ud × unidades
+  const k = gMezcla / masaBase;                // masa y subrecetas
+  const kAdd = unidades / (r.units || 1);      // rellenos: g/ud × unidades (sin merma)
   const arbol = exProcesar(exExpandir(r), k, kAdd);
   const hojas = exHojas(arbol);
   const gAddons = arbol.filter(nd => nd.tipo === 'addon').reduce((a, nd) => a + nd.g, 0);
@@ -211,7 +223,7 @@ function exCalcular(item, modo, cant) {
   (function rec(ns) { ns.forEach(nd => { if (nd.tipo === 'ino' && nd.supuesto) sinNumero.push(nd.n); if (nd.hijos) rec(nd.hijos); }); })(arbol);
 
   return {
-    r, item, gramos, gAddons, unidades, pesoU, pesoDeReceta, arbol, filas, H,
+    r, item, gramos, gMezcla, merma, gAddons, unidades, pesoU, pesoDeReceta, arbol, filas, H,
     Aagua, Aaporte, declarada, sinNumero,
     real: H > 0 ? (Aagua + Aaporte) / H * 100 : null,
     soloAgua: H > 0 ? Aagua / H * 100 : null,
@@ -245,7 +257,8 @@ function _exHojaHTML(d) {
   const hoy = new Date().toLocaleDateString('es-CR', { day: '2-digit', month: 'long', year: 'numeric' });
   const tipoTxt = item.tipo === 'galleta' ? 'Galleta' : (String(r.cat || '').toLowerCase() === 'pan_mm' ? 'Pan de masa madre' : 'Pan');
   const un = d.unidades % 1 === 0 ? String(d.unidades) : _exF(d.unidades);
-  const pesoU = Math.round(d.pesoU).toLocaleString('es-CR') + ' g' + (d.pesoDeReceta ? ' (rendimiento de receta)' : '');
+  const pesoU = d.pesoU.toLocaleString('es-CR', { maximumFractionDigits: 1 }) + ' g' +
+    (d.pesoDeReceta ? ' (rendimiento de receta)' : (d.item.peso > 0 && d.pesoU !== d.item.peso ? ' (especial; el maestro dice ' + d.item.peso + ' g)' : ''));
 
   // Sumario
   const harinas = d.filas.filter(x => x.harina).sort((a, b) => b.g - a.g);
@@ -260,8 +273,8 @@ function _exHojaHTML(d) {
     const nota = x.agua && x.agua.k === 'aporte' ? `(aporta ${_exF(x.g * x.agua.w)} g de agua)` : '';
     s += fila(x, nota);
   });
-  const totSum = d.gramos + (d.gAddons || 0);
-  s += `<tr class="tot"><td>${d.gAddons > 0 ? 'Total producto (masa + rellenos)' : 'Total masa'}</td><td class="n">${_exF(totSum)} g</td><td class="n">${_exP(totSum, d.H)}</td></tr>`;
+  const totSum = d.gMezcla + (d.gAddons || 0);
+  s += `<tr class="tot"><td>${d.gAddons > 0 ? 'Total (masa + rellenos)' : 'Total masa'}</td><td class="n">${_exF(totSum)} g</td><td class="n">${_exP(totSum, d.H)}</td></tr>`;
 
   // Tarjetas de hidratación
   const caja = (k, v, acento) => `<div class="ex-m${acento ? ' ac' : ''}"><div class="ex-k">${k}</div><div class="ex-v">${v}</div></div>`;
@@ -296,14 +309,16 @@ function _exHojaHTML(d) {
       <div><div class="ex-k">Peso unitario</div><div>${pesoU}</div></div>
       <div><div class="ex-k">Unidades</div><div>${un}</div></div>
       <div><div class="ex-k">Peso de masa total</div><div><b>${d.gramos.toLocaleString('es-CR', { maximumFractionDigits: 1 })} g</b></div></div>
+      ${d.merma > 0 ? `<div><div class="ex-k">Masa a mezclar (con merma)</div><div><b>${d.gMezcla.toLocaleString('es-CR', { maximumFractionDigits: 1 })} g</b></div></div>` : ''}
     </div>
     <h3>1. EXPLOSIÓN POR COMPONENTE</h3>
     <table class="ex-t"><thead><tr><th>Ingrediente</th><th class="n">Gramos</th><th class="n">% panadero</th></tr></thead><tbody>
       ${_exFilasArbol(d.arbol.filter(nd => nd.tipo !== 'addon'), d.H, 0)}
-      <tr class="tot"><td>Total masa</td><td class="n">${_exF(d.gramos)} g</td><td class="n"></td></tr>
+      <tr class="tot"><td>Total masa${d.merma > 0 ? ' (a mezclar)' : ''}</td><td class="n">${_exF(d.gMezcla)} g</td><td class="n"></td></tr>
+      ${d.merma > 0 ? `<tr><td colspan="3" class="ex-mu">Incluye merma ${_exF(d.merma)} % (${_exF(d.gMezcla - d.gramos)} g): se mezcla pero no se vende. Masa vendida: ${_exF(d.gramos)} g.</td></tr>` : ''}
       ${d.gAddons > 0 ? `<tr class="grp"><td colspan="3">Rellenos y coberturas</td></tr>
       ${_exFilasArbol(d.arbol.filter(nd => nd.tipo === 'addon'), d.H, 0)}
-      <tr class="tot"><td>Total producto (masa + rellenos)</td><td class="n">${_exF(d.gramos + d.gAddons)} g</td><td class="n"></td></tr>` : ''}
+      <tr class="tot"><td>Total (masa + rellenos)</td><td class="n">${_exF(d.gMezcla + d.gAddons)} g</td><td class="n"></td></tr>` : ''}
     </tbody></table>
     <h3>2. SUMARIO TOTAL DE INGREDIENTES</h3>
     <table class="ex-t"><thead><tr><th>Ingrediente</th><th class="n">Gramos</th><th class="n">% panadero</th></tr></thead><tbody>${s}</tbody></table>
@@ -372,11 +387,11 @@ async function exReporteHTML() {
       <div class="col"><label>Producto terminado (maestro de tipos de pan y galleta)</label>
         <select id="ex-sel" onchange="exElegir(this.value)">${grupo('pan', '🍞 Panes')}${grupo('galleta', '🍪 Galletas')}</select>
       </div>
-      <div class="col sm"><label>Cantidad por</label>
-        <select id="ex-modo" onchange="exCambiar()"><option value="u" ${_exModo === 'u' ? 'selected' : ''}>Unidades</option><option value="g" ${_exModo === 'g' ? 'selected' : ''}>Gramos</option></select>
+      <div class="col sm"><label>Gramos por unidad</label>
+        <input type="number" id="ex-peso" min="0" step="any" value="${_exPeso !== null ? _exPeso : (Math.round(_exPesoDefecto(items.find(i => i.key === _exSel)) * 10) / 10 || '')}" oninput="exCambiar()" style="text-align:right">
       </div>
-      <div class="col sm"><label>Cantidad</label>
-        <input type="number" id="ex-cant" min="0" step="any" value="${_exCant}" oninput="exCambiar()" style="text-align:right">
+      <div class="col sm"><label>Unidades</label>
+        <input type="number" id="ex-uds" min="0" step="any" value="${_exUds}" oninput="exCambiar()" style="text-align:right">
       </div>
       <div class="col" style="display:flex;align-items:flex-end">
         <button class="btn btn-gold btn-sm" onclick="exImprimir()">🖨 Imprimir / guardar PDF</button>
@@ -386,19 +401,28 @@ async function exReporteHTML() {
   <div id="ex-out"></div>`;
 }
 
-function exElegir(key) { _exSel = key; exPintar(); }
+// Al cambiar de producto, los gramos por unidad vuelven a los del maestro
+function exElegir(key) {
+  _exSel = key;
+  _exPeso = null;
+  const p = document.getElementById('ex-peso');
+  if (p) p.value = Math.round(_exPesoDefecto(_exItems().find(i => i.key === key)) * 10) / 10 || '';
+  exPintar();
+}
 
 function exCambiar() {
-  const m = document.getElementById('ex-modo');
-  const c = document.getElementById('ex-cant');
-  if (m) _exModo = m.value;
-  if (c) _exCant = parseFloat(c.value) || 0;
+  const p = document.getElementById('ex-peso');
+  const u = document.getElementById('ex-uds');
+  if (p) _exPeso = parseFloat(p.value) || 0;
+  if (u) _exUds = parseFloat(u.value) || 0;
   exPintar();
 }
 
 function _exCtx() {
   const item = _exItems().find(i => i.key === _exSel);
-  return item ? { item, d: exCalcular(item, _exModo, _exCant) } : null;
+  if (!item) return null;
+  const pesoU = _exPeso !== null ? _exPeso : _exPesoDefecto(item);
+  return { item, d: exCalcular(item, pesoU, _exUds) };
 }
 
 function exPintar() {
@@ -406,7 +430,7 @@ function exPintar() {
   if (!out) return;
   const ctx = _exCtx();
   if (!ctx) { out.innerHTML = '<div class="card">Elegí un producto con receta ligada (Maestros → Tipos de pan/galleta).</div>'; return; }
-  if (!ctx.d) { out.innerHTML = '<div class="card">Indicá una cantidad mayor a cero. Si ya lo hiciste, revisá que la receta tenga ingredientes y masa total.</div>'; return; }
+  if (!ctx.d) { out.innerHTML = '<div class="card">Indicá gramos por unidad y unidades (ambos mayores a cero). Si ya lo hiciste, revisá que la receta tenga ingredientes y masa total.</div>'; return; }
   out.innerHTML = _exHojaHTML(ctx.d);
 }
 
