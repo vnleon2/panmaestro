@@ -111,9 +111,17 @@ function exExpandir(r, targetMass, visited) {
   return nodos;
 }
 
-// Abre los inóculos (masa madre) en harina + agua, y escala todo por k.
-function exProcesar(nodos, k) {
+// Abre los inóculos (masa madre) en harina + agua, y escala por k.
+// k escala la masa (ingredientes y subrecetas); kAdd escala los rellenos y
+// coberturas, que en la receta van "g por unidad × unidades" y NO son parte de
+// la masa (igual que en Recetario).
+function exProcesar(nodos, k, kAdd) {
+  if (kAdd === undefined) kAdd = k;
   return nodos.map(nd => {
+    if (nd.tipo === 'addon') {
+      const gA = nd.g * kAdd;
+      return Object.assign({}, nd, { g: gA, hijos: exProcesar(nd.hijos || [], kAdd, kAdd) });
+    }
     const g = nd.g * k;
     if (nd.tipo === 'ing' && EX_INOCULO_RE.test(nd.n)) {
       const mNum = nd.n.match(/(\d{2,3})\s*%?\s*$/);
@@ -127,7 +135,7 @@ function exProcesar(nodos, k) {
         ]
       };
     }
-    if (nd.hijos) return Object.assign({}, nd, { g, hijos: exProcesar(nd.hijos, k) });
+    if (nd.hijos) return Object.assign({}, nd, { g, hijos: exProcesar(nd.hijos, k, kAdd) });
     return Object.assign({}, nd, { g });
   });
 }
@@ -149,18 +157,27 @@ function exCalcular(item, modo, cant) {
   const base = pmCostoReceta(r);
   if (!base || !base.mass) return null;
 
+  // base.mass incluye los rellenos (addons); la masa de pan es lo demás.
+  const addBase = (base.lines || []).filter(l => l.isAddon).reduce((a, l) => a + (l.g || 0), 0);
+  const masaBase = base.mass - addBase;
+  if (!(masaBase > 0)) return null;
+
   let pesoU = item.peso, pesoDeReceta = false;
-  if (!(pesoU > 0)) { pesoU = base.mass / (r.units || 1); pesoDeReceta = true; }
-  const gramos = modo === 'g' ? cant : cant * pesoU;
+  if (!(pesoU > 0)) { pesoU = masaBase / (r.units || 1); pesoDeReceta = true; }
+  const gramos = modo === 'g' ? cant : cant * pesoU;   // gramos de MASA
   if (!(gramos > 0)) return null;
   const unidades = gramos / pesoU;
 
-  const k = gramos / base.mass;
-  const arbol = exProcesar(exExpandir(r), k);
+  const k = gramos / masaBase;                 // masa y subrecetas
+  const kAdd = unidades / (r.units || 1);      // rellenos: g/ud × unidades
+  const arbol = exProcesar(exExpandir(r), k, kAdd);
   const hojas = exHojas(arbol);
+  const gAddons = arbol.filter(nd => nd.tipo === 'addon').reduce((a, nd) => a + nd.g, 0);
 
+  // La hidratación es de la masa: los rellenos no cuentan
   let H = 0, Aagua = 0, Aaporte = 0;
   hojas.forEach(h => {
+    if (h.via === 'addon') return;
     if (EX_HARINA_RE.test(h.n)) { H += h.g; return; }
     const a = _exAguaDe(h.n);
     if (!a) return;
@@ -194,7 +211,7 @@ function exCalcular(item, modo, cant) {
   (function rec(ns) { ns.forEach(nd => { if (nd.tipo === 'ino' && nd.supuesto) sinNumero.push(nd.n); if (nd.hijos) rec(nd.hijos); }); })(arbol);
 
   return {
-    r, item, gramos, unidades, pesoU, pesoDeReceta, arbol, filas, H,
+    r, item, gramos, gAddons, unidades, pesoU, pesoDeReceta, arbol, filas, H,
     Aagua, Aaporte, declarada, sinNumero,
     real: H > 0 ? (Aagua + Aaporte) / H * 100 : null,
     soloAgua: H > 0 ? Aagua / H * 100 : null,
@@ -243,7 +260,8 @@ function _exHojaHTML(d) {
     const nota = x.agua && x.agua.k === 'aporte' ? `(aporta ${_exF(x.g * x.agua.w)} g de agua)` : '';
     s += fila(x, nota);
   });
-  s += `<tr class="tot"><td>Total masa</td><td class="n">${_exF(d.gramos)} g</td><td class="n">${_exP(d.gramos, d.H)}</td></tr>`;
+  const totSum = d.gramos + (d.gAddons || 0);
+  s += `<tr class="tot"><td>${d.gAddons > 0 ? 'Total producto (masa + rellenos)' : 'Total masa'}</td><td class="n">${_exF(totSum)} g</td><td class="n">${_exP(totSum, d.H)}</td></tr>`;
 
   // Tarjetas de hidratación
   const caja = (k, v, acento) => `<div class="ex-m${acento ? ' ac' : ''}"><div class="ex-k">${k}</div><div class="ex-v">${v}</div></div>`;
@@ -281,8 +299,11 @@ function _exHojaHTML(d) {
     </div>
     <h3>1. EXPLOSIÓN POR COMPONENTE</h3>
     <table class="ex-t"><thead><tr><th>Ingrediente</th><th class="n">Gramos</th><th class="n">% panadero</th></tr></thead><tbody>
-      ${_exFilasArbol(d.arbol, d.H, 0)}
+      ${_exFilasArbol(d.arbol.filter(nd => nd.tipo !== 'addon'), d.H, 0)}
       <tr class="tot"><td>Total masa</td><td class="n">${_exF(d.gramos)} g</td><td class="n"></td></tr>
+      ${d.gAddons > 0 ? `<tr class="grp"><td colspan="3">Rellenos y coberturas</td></tr>
+      ${_exFilasArbol(d.arbol.filter(nd => nd.tipo === 'addon'), d.H, 0)}
+      <tr class="tot"><td>Total producto (masa + rellenos)</td><td class="n">${_exF(d.gramos + d.gAddons)} g</td><td class="n"></td></tr>` : ''}
     </tbody></table>
     <h3>2. SUMARIO TOTAL DE INGREDIENTES</h3>
     <table class="ex-t"><thead><tr><th>Ingrediente</th><th class="n">Gramos</th><th class="n">% panadero</th></tr></thead><tbody>${s}</tbody></table>
