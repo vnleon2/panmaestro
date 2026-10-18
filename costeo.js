@@ -774,61 +774,120 @@ function mrSubCostPreview(uid) {
 }
 
 // ── Guardar receta_items en Supabase ──
-async function _sbSaveRecetaItems(sbRecId, flour, other) {
-  if (!pmDB.disponible() || !sbRecId) return;
+//
+// POR QUÉ ESTÁ ASÍ (18 oct 2026): se encontraron ingredientes duplicados en
+// recetas como "Pan de Jamon Cr Regular" y su relleno. Causas posibles del
+// diseño anterior: (1) una línea se reenviaba sola tras un corte de red aunque
+// Supabase ya la hubiera recibido; (2) un guardado a medias dejaba las líneas
+// viejas + parte de las nuevas, sin avisar; (3) dos guardados de la misma
+// receta a la vez insertaban cada uno su juego completo. Ahora:
+//   - Un guardado por receta a la vez (cola _sbItemsCola).
+//   - Todas las líneas nuevas entran en UNA sola petición (todo o nada).
+//   - Se vuelve a leer la base y se comprueba que las líneas nuevas llegaron
+//     completas ANTES de borrar las viejas (nunca se pierde nada).
+//   - Si por cualquier motivo una línea nueva quedó repetida, se borra la
+//     sobrante. Las viejas se borran en una sola petición, no una por una.
+
+const _sbItemsCola = {};   // sbRecId → promesa del guardado en curso
+
+// Llave para reconocer "la misma línea": ingrediente, nombre manual, % (a 4
+// decimales, como lo guarda la base) y si es harina.
+function _sbItemKey(r) {
+  const pct = Math.round((Number(r.porcentaje) || 0) * 10000) / 10000;
+  return [r.ingrediente_id || '', r.nombre_manual || '', pct, r.es_harina ? 1 : 0].join('|');
+}
+
+function _sbSaveRecetaItems(sbRecId, flour, other) {
+  if (!pmDB.disponible() || !sbRecId) return Promise.resolve();
+  const anterior = _sbItemsCola[sbRecId] || Promise.resolve();
+  const turno = anterior.catch(() => {}).then(() => _sbSaveRecetaItemsAhora(sbRecId, flour, other));
+  _sbItemsCola[sbRecId] = turno;
+  const limpiar = () => { if (_sbItemsCola[sbRecId] === turno) delete _sbItemsCola[sbRecId]; };
+  turno.then(limpiar, limpiar);
+  return turno;
+}
+
+async function _sbSaveRecetaItemsAhora(sbRecId, flour, other) {
   try {
-    // FIX SESIÓN 3 (D2): antes se borraba todo primero y se insertaba
-    // después — un corte de red a mitad de camino dejaba la receta con
-    // ingredientes borrados y no reemplazados (pérdida real de datos,
-    // mismo tipo de riesgo que causó el problema de plan_producción
-    // antes del fix de Sesión 11). Ahora se guardan los ids viejos,
-    // se insertan los NUEVOS items primero, y solo se borran los viejos
-    // al final, ya confirmado que los nuevos se guardaron bien. Si algo
-    // falla a mitad de camino, en el peor caso quedan ingredientes
-    // duplicados (se puede volver a guardar para corregir), nunca
-    // borrados sin reemplazo.
     const existing = await pmDB.get('receta_items', { receta_id: sbRecId });
     const oldIds = (existing || []).map(item => item.id);
+    const oldSet = new Set(oldIds);
 
-    // Insertar nuevos items
     // SESIÓN 11 fix real: 'tipo' en esta tabla NO distingue harina/otro — solo
     // acepta 'ingrediente' | 'subreceta' | 'addon' (confirmado con el constraint
     // real en Supabase). La harina se marca con la columna 'es_harina' (boolean).
-    for (const ing of (flour || [])) {
+    const filas = [];
+    const armar = (lista, esHarina) => (lista || []).forEach(ing => {
       const nom = ing.productName || ing.manualName || '';
       const ingId = ing.ingredientId || _sbIngMapNom?.[nom] || _sbIngMap?.[nom] || null;
-      await pmDB.insert('receta_items', {
+      filas.push({
         receta_id:      sbRecId,
         ingrediente_id: ingId,
         nombre_manual:  ingId ? null : (nom || null),
         porcentaje:     ing.pct || 0,
         tipo:           'ingrediente',
-        es_harina:      true
-      }, false);
-    }
-    for (const ing of (other || [])) {
-      const nom = ing.productName || ing.manualName || '';
-      const ingId = ing.ingredientId || _sbIngMapNom?.[nom] || _sbIngMap?.[nom] || null;
-      await pmDB.insert('receta_items', {
-        receta_id:      sbRecId,
-        ingrediente_id: ingId,
-        nombre_manual:  ingId ? null : (nom || null),
-        porcentaje:     ing.pct || 0,
-        tipo:           'ingrediente',
-        es_harina:      false
-      }, false);
+        es_harina:      esHarina
+      });
+    });
+    armar(flour, true);
+    armar(other, false);
+
+    // 1) Insertar TODAS las líneas nuevas en una sola petición. Si falla, no
+    //    se rinde todavía: puede que Supabase sí la haya recibido y solo se
+    //    perdió la respuesta; eso se comprueba en el paso 2.
+    let errInsert = null;
+    if (filas.length) {
+      try { await pmDB.insert('receta_items', filas, false); }
+      catch (e) { errInsert = e; }
     }
 
-    // Recién ahora, con los nuevos ya insertados y confirmados, borrar
-    // los viejos.
-    for (const id of oldIds) {
-      await pmDB.hardDelete('receta_items', id);
+    // 2) Releer lo que realmente quedó en la base y comprobarlo.
+    const despues = await pmDB.get('receta_items', { receta_id: sbRecId });
+    const nuevas = (despues || []).filter(r => !oldSet.has(r.id));
+
+    const esperado = {};
+    filas.forEach(f => { const k = _sbItemKey(f); esperado[k] = (esperado[k] || 0) + 1; });
+    const vistos = {};
+    const sobrantes = [];   // líneas nuevas repetidas de más
+    let cubiertas = 0;      // líneas nuevas que corresponden a una esperada
+    nuevas.forEach(r => {
+      const k = _sbItemKey(r);
+      vistos[k] = (vistos[k] || 0) + 1;
+      if (vistos[k] <= (esperado[k] || 0)) cubiertas++;
+      else if (esperado[k]) sobrantes.push(r.id);   // solo repetidas de líneas esperadas
+    });
+
+    // Si el insert respondió bien, basta con que haya al menos tantas líneas
+    // nuevas como se mandaron. Si falló, se exige que cada una esté por llave
+    // (ya que no sabemos qué pasó).
+    const completo = errInsert
+      ? cubiertas >= filas.length
+      : nuevas.length >= filas.length;
+
+    if (!completo) {
+      // Nada se borra: las líneas viejas siguen intactas.
+      throw errInsert || new Error('Supabase no confirmó todas las líneas nuevas de la receta (' +
+        nuevas.length + ' de ' + filas.length + ') — se conservaron las anteriores');
     }
+    if (errInsert) console.warn('[pmDB] receta_items: el insert dio error pero las líneas sí llegaron:', errInsert.message);
+    if (sobrantes.length) console.warn('[pmDB] receta_items: se eliminaron ' + sobrantes.length + ' línea(s) repetida(s)');
+
+    // 3) Recién ahora, con las nuevas confirmadas, borrar las viejas y las
+    //    repetidas — en una sola petición (por trozos), no una por una.
+    await pmDB.hardDeleteMany('receta_items', oldIds.concat(sobrantes));
+    return { guardadas: filas.length, repetidasEliminadas: sobrantes.length };
   } catch(e) {
     console.warn('[pmDB] _sbSaveRecetaItems error:', e.message);
     throw e; // SESIÓN 11 fix: antes se tragaba el error en silencio y quien
              // llamaba a esta función creía que había guardado bien aunque no.
   }
+}
+
+// Aviso VISIBLE cuando un guardado en Supabase falla. Antes el error solo iba
+// a la consola mientras la pantalla ya había dicho "guardada ✓".
+function _recFalloGuardado(que, e) {
+  console.warn('[pmDB] fallo al guardar (' + que + '):', e && e.message);
+  pmToast('⚠️ NO se confirmó el guardado en Supabase (' + que + '). Abrí la receta, revisá los ingredientes y guardala de nuevo.', 'err', 10000);
 }
 
 /**
@@ -1093,7 +1152,22 @@ function _pmNextRecCode() {
   return 'R-' + String(max + 1).padStart(4, '0');
 }
 
+// Candado de guardado: Guardar no puede correr dos veces a la vez (doble clic /
+// doble toque). Mientras guarda, el botón queda desactivado.
+let _recGuardando = false;
 async function recSave() {
+  if (_recGuardando) { pmToast('Ya se está guardando — esperá un momento', 'err'); return; }
+  _recGuardando = true;
+  const btn = document.querySelector('button[onclick="recSave()"]');
+  if (btn) btn.disabled = true;
+  try { await _recSaveImpl(); }
+  finally {
+    _recGuardando = false;
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function _recSaveImpl() {
   const id    = document.getElementById('mr-id').value;
   const code  = document.getElementById('mr-code').value.trim();
   const name  = document.getElementById('mr-name').value.trim();
@@ -1236,9 +1310,9 @@ async function recSave() {
       }).then(rows => {
         if (rows?.[0]) {
           target.sbId = rows[0].id;
-          return _sbSaveRecetaItems(rows[0].id, obj.flour, obj.other).catch(e => console.warn('[pmDB] items personalSource error:', e.message));
+          return _sbSaveRecetaItems(rows[0].id, obj.flour, obj.other).catch(e => _recFalloGuardado('ingredientes', e));
         }
-      }).catch(e => console.warn('[pmDB] recSave personalSource create error:', e.message));
+      }).catch(e => _recFalloGuardado('receta', e));
       _sbRecCache = null;
     }
   } else if (gmSource) {
@@ -1267,7 +1341,7 @@ async function recSave() {
           gm_source: gmSource || null,
           subrecs: obj.subrecs || [], addons: obj.addons || []
         }).then(() => _sbSaveRecetaItems(cached.sbId, obj.flour, obj.other))
-          .catch(e => console.warn('[pmDB] recSave gmSource update error:', e.message));
+          .catch(e => _recFalloGuardado('receta', e));
       } else {
         sbGuardado = pmDB.recetas.crear({
           codigo: target.code, nombre: obj.name, categoria: obj.cat,
@@ -1280,9 +1354,9 @@ async function recSave() {
         }).then(rows => {
           if (rows?.[0]) {
             target.sbId = rows[0].id;
-            return _sbSaveRecetaItems(rows[0].id, obj.flour, obj.other).catch(e => console.warn('[pmDB] items gmSource error:', e.message));
+            return _sbSaveRecetaItems(rows[0].id, obj.flour, obj.other).catch(e => _recFalloGuardado('ingredientes', e));
           }
-        }).catch(e => console.warn('[pmDB] recSave gmSource create error:', e.message));
+        }).catch(e => _recFalloGuardado('receta', e));
       }
       _sbRecCache = null; // invalidar cache para que recargue
     }
@@ -1340,7 +1414,7 @@ async function recSave() {
           mod_pct: obj.modPct ?? null, gg_pct: obj.ggPct ?? null,
             subrecs: obj.subrecs || [], addons: obj.addons || []
           }).then(() => _sbSaveRecetaItems(cached.sbId, obj.flour, obj.other))
-            .catch(e => console.warn('[pmDB] recSave edit error:', e.message));
+            .catch(e => _recFalloGuardado('receta', e));
         } else {
           pmToast('⚠️ Guardado local, pero no se pudo confirmar en Supabase', 'err');
         }
@@ -1367,9 +1441,9 @@ async function recSave() {
       }).then(rows => {
         if (rows?.[0]) {
           newRec.sbId = rows[0].id;
-          return _sbSaveRecetaItems(rows[0].id, obj.flour, obj.other).catch(e => console.warn('[pmDB] items create error:', e.message));
+          return _sbSaveRecetaItems(rows[0].id, obj.flour, obj.other).catch(e => _recFalloGuardado('ingredientes', e));
         }
-      }).catch(e => console.warn('[pmDB] recSave create error:', e.message));
+      }).catch(e => _recFalloGuardado('receta', e));
       _sbRecCache = null; // invalidar cache
     }
   }
@@ -1815,6 +1889,7 @@ async function _sbCosteoCargar() {
     });
 
     _sbRecCache = _nuevaCache;
+    _avisarLineasRepetidas(_nuevaCache);
 
   } catch(e) {
     console.warn('[pmDB] Costeo cache error — usando localStorage:', e.message);
@@ -1825,6 +1900,31 @@ async function _sbCosteoCargar() {
   if (miSeq !== _sbCargaSeq) return; // otra llamada más nueva terminó primero
   fillRscSel();
   _refrescarVistaActiva();
+}
+
+// Avisa (una vez por sesión y por conjunto de recetas) si alguna receta trae la
+// misma línea de ingrediente repetida con el mismo %. NO cambia ningún dato:
+// solo dice cuáles recetas abrir para corregir a mano.
+let _avisoRepetidasKey = '';
+function _avisarLineasRepetidas(recetas) {
+  const malas = [];
+  (recetas || []).forEach(r => {
+    const vistos = new Set();
+    let repetida = false;
+    const lineas = (r.flour || []).map(i => ['H', i]).concat((r.other || []).map(i => ['O', i]));
+    lineas.forEach(([tipo, i]) => {
+      const k = [tipo, i.ingredientId || i.productName || i.manualName || '', Number(i.pct) || 0].join('|');
+      if (vistos.has(k)) repetida = true; else vistos.add(k);
+    });
+    if (repetida) malas.push(r.code || r.name);
+  });
+  const key = malas.join(',');
+  if (key && key !== _avisoRepetidasKey) {
+    pmToast('⚠️ Líneas repetidas en: ' + malas.slice(0, 8).join(', ') +
+      (malas.length > 8 ? ' y ' + (malas.length - 8) + ' más' : '') +
+      ' — abrí la receta y corregí', 'err', 9000);
+  }
+  _avisoRepetidasKey = key;
 }
 
 /** Lista de recetas: Supabase cache si disponible, G.recetas como fallback */

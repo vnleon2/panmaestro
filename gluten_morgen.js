@@ -327,9 +327,9 @@ function personalTransferir(toEditor) {
       if (rows?.[0]) {
         const idx = G.recetas.findIndex(x=>x.id===rec.id);
         if (idx >= 0) { G.recetas[idx]._sbId = rows[0].id; pmSave('recetas'); }
-        _sbSaveRecetaItems(rows[0].id, rec.flour, rec.other).catch(e => console.warn('[pmDB] items personal error:', e.message));
+        _sbSaveRecetaItems(rows[0].id, rec.flour, rec.other).catch(e => _recFalloGuardado('ingredientes', e));
       }
-    }).catch(e => console.warn('[pmDB] personal transfer crear error:', e.message));
+    }).catch(e => _recFalloGuardado('receta', e));
   }
 
   G.recetaPersonalActual = null;
@@ -430,7 +430,7 @@ function gmDoTransfer(name, toEditor) {
         gm_source: rec.gmSource || null,
         subrecs: rec.subrecs || [], addons: rec.addons || []
       }).then(() => _sbSaveRecetaItems(cached.sbId, rec.flour, rec.other))
-        .catch(e => console.warn('[pmDB] gmDoTransfer update error:', e.message));
+        .catch(e => _recFalloGuardado('receta', e));
     } else {
       pmDB.recetas.crear({
         codigo: rec.code, nombre: rec.name, categoria: rec.cat,
@@ -442,9 +442,9 @@ function gmDoTransfer(name, toEditor) {
       }).then(rows => {
         if (rows?.[0]) {
           rec.sbId = rows[0].id;
-          _sbSaveRecetaItems(rows[0].id, rec.flour, rec.other).catch(e => console.warn('[pmDB] items gmDirect error:', e.message));
+          _sbSaveRecetaItems(rows[0].id, rec.flour, rec.other).catch(e => _recFalloGuardado('ingredientes', e));
         }
-      }).catch(e => console.warn('[pmDB] gmDoTransfer create error:', e.message));
+      }).catch(e => _recFalloGuardado('receta', e));
     }
     _sbRecCache = null;
   }

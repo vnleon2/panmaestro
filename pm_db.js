@@ -235,6 +235,23 @@ const pmDB = (() => {
     });
   }
 
+  /**
+   * Hard delete de varias filas por id, en trozos de 40 ids por petición
+   * (una sola petición por trozo, no una por fila). Borrar es idempotente:
+   * si una petición se reintenta, la segunda vez simplemente no encuentra
+   * nada que borrar.
+   */
+  async function hardDeleteMany(tabla, ids) {
+    const lista = (ids || []).filter(Boolean);
+    for (let i = 0; i < lista.length; i += 40) {
+      const trozo = lista.slice(i, i + 40);
+      await _fetch(`${tabla}?id=in.(${trozo.join(',')})`, {
+        method: 'DELETE',
+        headers: { 'Prefer': 'return=minimal' }
+      });
+    }
+  }
+
   // ── UPSERT ────────────────────────────────────────────────────────────────
 
   /**
@@ -458,6 +475,7 @@ const pmDB = (() => {
     updateWhere,
     softDelete,
     hardDelete,
+    hardDeleteMany,
     upsert,
 
     // Módulos de dominio
