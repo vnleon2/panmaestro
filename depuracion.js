@@ -255,7 +255,14 @@ function depEstandarHTML() {
   let html = `<div class="sec"><h2>Estandarizar nombres — ${lista.length} sugerencias</h2></div>
     <div class="card" style="font-size:12px;color:var(--cream2);line-height:1.5">
       Solo sugerencias: esta pantalla <b>no cambia nada</b>. Tú decides y corriges a mano lo que quieras.<br>
-      Ojo con <b>Ingredientes</b> (el nombre se usa como llave en otras partes) y <b>Clientes</b> (el nombre queda copiado en ventas y pedidos): edítalos con cuidado y de a poco.
+      <b>Antes de renombrar, ten en cuenta dónde se usa el nombre:</b>
+      <ul style="margin:4px 0 0 18px;padding:0">
+        <li><b>Ingredientes:</b> cachés locales, Gluten Morgen y Labrec los reconocen por nombre.</li>
+        <li><b>Recetas:</b> editar y guardar en Costeo conserva el código y los vínculos, así que es seguro; solo la copia en Gluten Morgen o Labrec queda con el nombre viejo.</li>
+        <li><b>Productos:</b> el bot de pedidos por WhatsApp reconoce lo que escriben los clientes por el nombre del producto.</li>
+        <li><b>Clientes:</b> el nombre queda copiado en ventas y pedidos anteriores; el historial no se actualiza.</li>
+      </ul>
+      Cambia de a poco y verifica cada cosa después.
     </div>`;
   if (!lista.length) html += '<div class="card" style="font-size:13px;color:var(--cream2)">✅ Todos los nombres ya están escritos con el formato estándar.</div>';
   lista.slice(0, 500).forEach(x => {
