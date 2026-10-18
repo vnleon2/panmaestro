@@ -5,7 +5,8 @@
 // (g por unidad × unidades). La receta se explota en todos los niveles
 // (subrecetas, masa madre, rellenos) con su % panadero y su costo, y al lado
 // se puede cambiar la cantidad de cualquier ingrediente para ver el efecto
-// sobre el costo total, el costo por gramo y la hidratación.
+// sobre el costo total, el costo por gramo y la hidratación. Las cantidades
+// se escriben en % panadero (sobre la harina total original = 100 %).
 //
 // Es SOLO un simulador comparativo: no escribe en Supabase ni en la receta.
 // Si la simulación convence, el cambio real se hace en Costeo. Los números
@@ -223,7 +224,7 @@ function _simCeldas(o, s, Ho, Hs) {
     p0: Ho > 0 ? _exF(o.g / Ho * 100) + ' %' : '—',
     c0: der ? '—' : _simM(o.c) + (sinPrecio ? ' ⚠' : ''),
     gs: _exF(s.g) + ' g',
-    ps: Hs > 0 ? _exF(s.g / Hs * 100) + ' %' : '—',
+    ps: Ho > 0 ? _exF(s.g / Ho * 100) + ' %' : '—',
     cs: der ? '—' : _simM(s.c) + (sinPrecio ? ' ⚠' : ''),
     dc: der ? '' : _simDelta(s.c - o.c, _simM)
   };
@@ -242,14 +243,17 @@ function _simFilaHTML(o, s, nivel, modo, Ho, Hs) {
   else if (o.tipo === 'sub' || o.tipo === 'addon') nombre += ` <span class="sim-mu">· ${pmEsc(o.rec || '')}</span>`;
   else if (der) nombre += ' <span class="sim-mu">(de la masa madre)</span>';
 
-  const celdaGs = (edit && modo === 'pantalla' && o.g > 0)
-    ? `<input type="number" inputmode="decimal" min="0" step="any" class="sim-in" id="sim-in-${id}" value="${Math.round(s.g * 10) / 10}" placeholder="${Math.round(o.g * 10) / 10}" oninput="simEditar('${id}',this.value)">`
-    : `<span id="sim-gs-${id}">${ce.gs}</span>`;
+  // Se edita el % panadero (sobre la harina total original = 100 %). Si la
+  // receta no tiene harina se cae a gramos.
+  const pctMode = Ho > 0;
+  const celdaPs = (edit && modo === 'pantalla' && o.g > 0)
+    ? `<input type="number" inputmode="decimal" min="0" step="any" class="sim-in" id="sim-in-${id}" value="${pctMode ? Math.round(s.g / Ho * 10000) / 100 : Math.round(s.g * 10) / 10}" placeholder="${pctMode ? Math.round(o.g / Ho * 10000) / 100 : Math.round(o.g * 10) / 10}" oninput="simEditar('${id}',this.value)"><span class="sim-u">${pctMode ? '%' : 'g'}</span>`
+    : `<span id="sim-ps-${id}">${ce.ps}</span>`;
 
   let h = `<tr id="sim-r-${id}" class="${cls}${Math.abs(s.g - o.g) > 1e-9 || Math.abs(s.c - o.c) > 1e-9 ? ' chg' : ''}">`;
   h += `<td${pad}>${nombre}</td>`;
   h += `<td class="n" id="sim-g0-${id}">${ce.g0}</td><td class="n" id="sim-p0-${id}">${ce.p0}</td><td class="n" id="sim-c0-${id}">${ce.c0}</td>`;
-  h += `<td class="n sim-s">${celdaGs}</td><td class="n sim-s" id="sim-ps-${id}">${ce.ps}</td><td class="n sim-s" id="sim-cs-${id}">${ce.cs}</td>`;
+  h += `<td class="n sim-s">${celdaPs}</td><td class="n sim-s" id="sim-gs-${id}">${ce.gs}</td><td class="n sim-s" id="sim-cs-${id}">${ce.cs}</td>`;
   h += `<td class="n" id="sim-dc-${id}">${ce.dc}</td></tr>`;
   return h;
 }
@@ -271,11 +275,11 @@ function _simTablaHTML(E, modo) {
   const addS = E.ms.filter(nd => nd.tipo === 'addon');
   let h = `<div class="sim-scroll"><table class="sim-t"><thead>
     <tr><th rowspan="2">Ingrediente</th><th colspan="3" class="n">Original</th><th colspan="3" class="n sim-s">Simulado</th><th rowspan="2" class="n">Δ costo</th></tr>
-    <tr><th class="n">Gramos</th><th class="n">% pan.</th><th class="n">Costo</th><th class="n sim-s">Gramos</th><th class="n sim-s">% pan.</th><th class="n sim-s">Costo</th></tr>
+    <tr><th class="n">Gramos</th><th class="n">% pan.</th><th class="n">Costo</th><th class="n sim-s">% pan. ✎</th><th class="n sim-s">Gramos</th><th class="n sim-s">Costo</th></tr>
   </thead><tbody>`;
   h += _simFilasHTML(masa, masaS, 0, modo, Ho, Hs);
   h += `<tr class="tot"><td>Total masa a mezclar</td><td class="n" id="sim-tm-g0">${_exF(E.To.masa)} g</td><td class="n"></td><td class="n" id="sim-tm-c0">${_simM(masa.reduce((a, x) => a + x.c, 0))}</td>
-        <td class="n sim-s" id="sim-tm-gs">${_exF(E.Ts.masa)} g</td><td class="n sim-s"></td><td class="n sim-s" id="sim-tm-cs">${_simM(masaS.reduce((a, x) => a + x.c, 0))}</td><td class="n" id="sim-tm-dc"></td></tr>`;
+        <td class="n sim-s"></td><td class="n sim-s" id="sim-tm-gs">${_exF(E.Ts.masa)} g</td><td class="n sim-s" id="sim-tm-cs">${_simM(masaS.reduce((a, x) => a + x.c, 0))}</td><td class="n" id="sim-tm-dc"></td></tr>`;
   if (add.length) {
     h += `<tr class="grp"><td colspan="8">Rellenos y coberturas</td></tr>`;
     h += _simFilasHTML(add, addS, 0, modo, Ho, Hs);
@@ -311,11 +315,13 @@ function _simCambiosHTML(E) {
   _simPares(E.mo, E.ms, []).forEach(([o, s]) => {
     if (!_simEditable(o)) return;
     if (Math.abs(s.g - o.g) < 1e-9) return;
-    items.push(`<li>${pmEsc(o.n)}: ${_exF(o.g)} g → <b>${_exF(s.g)} g</b> (${s.g > o.g ? '+' : '−'}${_exF(Math.abs(s.g - o.g))} g)</li>`);
+    const Ho = E.To.hid.H;
+    const pc = Ho > 0 ? `${_exF(o.g / Ho * 100)} % → <b>${_exF(s.g / Ho * 100)} %</b> · ` : '';
+    items.push(`<li>${pmEsc(o.n)}: ${pc}${_exF(o.g)} g → ${_exF(s.g)} g (${s.g > o.g ? '+' : '−'}${_exF(Math.abs(s.g - o.g))} g)</li>`);
   });
   return items.length
     ? `<h3>Cambios simulados</h3><ul class="sim-notas">${items.join('')}</ul>`
-    : `<div class="sim-mu" style="margin-top:8px">Sin cambios todavía: escribí otra cantidad en la columna «Simulado» de cualquier ingrediente.</div>`;
+    : `<div class="sim-mu" style="margin-top:8px">Sin cambios todavía: escribí otro % en la columna «% pan. ✎» de cualquier ingrediente.</div>`;
 }
 
 function _simNotasHTML(E) {
@@ -330,6 +336,7 @@ function _simNotasHTML(E) {
   } else if (_simCtx.item.tipo === 'galleta') {
     notas.push('La hidratación no aplica a las galletas.');
   }
+  if (E.To.hid.H > 0) notas.push('Los % panadero se calculan sobre la harina total de la receta original (= 100 %). Si cambias el % de una harina, la harina total simulada deja de ser 100 %; la hidratación sí usa la harina real de cada escenario.');
   notas.push('Costo por gramo = costo total ÷ (masa vendida + rellenos). El costo incluye la merma de la receta.');
   _simCtx.arbol.forEach(function rec(nd) {
     if (nd.tipo === 'ino' && nd.supuesto) notas.push(`<b>Supuesto:</b> «${pmEsc(nd.n)}» no trae número en el nombre; se supuso 100 % de hidratación.`);
@@ -388,7 +395,8 @@ const _SIM_CSS = `
 .sim-ig{color:#999}
 .sim-up{color:#a32020;font-weight:700}
 .sim-dn{color:#1d6b2e;font-weight:700}
-.sim-in{width:84px;text-align:right;padding:3px 5px;font-size:12.5px;border:1.5px solid #161616;border-radius:3px;background:#fff;color:#161616}
+.sim-u{margin-left:3px;color:#555;font-size:12px}
+.sim-in{width:76px;text-align:right;padding:3px 5px;font-size:12.5px;border:1.5px solid #161616;border-radius:3px;background:#fff;color:#161616}
 .sim-notas{margin:6px 0 0;padding-left:18px;font-size:11.5px;line-height:1.45}
 .sim-pie{text-align:center;font-size:10.5px;color:#555;margin-top:12px}
 @media (max-width:640px){.sim-hoja{padding:14px 10px}.sim-hoja h1{font-size:21px}}
@@ -443,7 +451,7 @@ async function simInit() {
       <button class="btn btn-out btn-sm" onclick="simReset()">↺ Volver a la receta original</button>
       <button class="btn btn-gold btn-sm" onclick="simImprimir()">🖨 Imprimir / guardar PDF</button>
     </div>
-    <div style="font-size:12px;color:#64748B;margin-top:8px">Es un simulador: nada se guarda. Cambiá cantidades en la columna «Simulado»; si el cambio te convence, hacelo en Costeo.</div>
+    <div style="font-size:12px;color:#64748B;margin-top:8px">Es un simulador: nada se guarda. Cambiá el % panadero en la columna «% pan. ✎»; si el cambio te convence, hacelo en Costeo.</div>
   </div>`;
   simPintar();
 }
@@ -494,8 +502,9 @@ function simEditar(id, val) {
   const nd = _simIndex[id];
   if (!nd) return;
   const v = parseFloat(String(val).replace(',', '.'));
+  const Ho = _simEscenarios().To.hid.H;
   if (val === '' || isNaN(v) || !(nd.g > 0)) delete _simRatios[id];
-  else _simRatios[id] = Math.max(0, v) / nd.g;
+  else _simRatios[id] = (Ho > 0 ? Math.max(0, v) / 100 * Ho : Math.max(0, v)) / nd.g;
   simActualizar();
 }
 
