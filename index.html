@@ -1414,6 +1414,7 @@
     <button class="pill" onclick="depTab('clientes',this)">👥 Clientes</button>
     <button class="pill" onclick="depTab('productos',this)">📦 Productos</button>
     <button class="pill" onclick="depTab('otras',this)">🔎 Otras revisiones</button>
+    <button class="pill" onclick="depTab('estandar',this)">✏️ Estandarizar</button>
   </div>
 
   <div class="card no-print" id="dep-controles">
@@ -1425,6 +1426,17 @@
       </div>
       <div class="col xs"><label>&nbsp;</label><label style="font-size:12px;display:flex;gap:5px;align-items:center;white-space:nowrap"><input type="checkbox" id="dep-ver-desc" onchange="depRender()"> Ver descartados</label></div>
     </div>
+  </div>
+
+  <div class="card no-print" id="dep-est-ctrl" style="display:none">
+    <label>Mostrar sugerencias de</label>
+    <select id="dep-est-filtro" onchange="depRender()">
+      <option value="todos">Todos los maestros</option>
+      <option value="ingredientes">Ingredientes</option>
+      <option value="recetas">Recetas</option>
+      <option value="clientes">Clientes</option>
+      <option value="productos">Productos terminados</option>
+    </select>
   </div>
 
   <div class="card no-print" style="display:flex;gap:8px;flex-wrap:wrap">
@@ -1836,7 +1848,7 @@
 <script src="etiquetas_hoja.js?v=20261003a"></script>
 
 <script src="mercadeo.js?v=20261001c"></script>
-<script src="depuracion.js?v=20261018a"></script>
+<script src="depuracion.js?v=20261018b"></script>
 <script src="costos_core.js?v=20261012b"></script>
 <script src="costos_empaques.js?v=20261012b"></script>
 <script src="costos_maestros.js?v=20261013a"></script>
