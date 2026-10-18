@@ -255,10 +255,10 @@ function depEstandarHTML() {
   let html = `<div class="sec"><h2>Estandarizar nombres — ${lista.length} sugerencias</h2></div>
     <div class="card" style="font-size:12px;color:var(--cream2);line-height:1.5">
       Solo sugerencias: esta pantalla <b>no cambia nada</b>. Tú decides y corriges a mano lo que quieras.<br>
-      <b>Cuidado, en los cuatro maestros el nombre se usa como llave en algún lugar:</b>
+      <b>Antes de renombrar, ten en cuenta dónde se usa el nombre:</b>
       <ul style="margin:4px 0 0 18px;padding:0">
         <li><b>Ingredientes:</b> cachés locales, Gluten Morgen y Labrec los reconocen por nombre.</li>
-        <li><b>Recetas:</b> Gluten Morgen y Labrec trabajan por nombre; revisa antes de renombrar una receta que viene de ahí.</li>
+        <li><b>Recetas:</b> editar y guardar en Costeo conserva el código y los vínculos, así que es seguro; solo la copia en Gluten Morgen o Labrec queda con el nombre viejo.</li>
         <li><b>Productos:</b> el bot de pedidos por WhatsApp reconoce lo que escriben los clientes por el nombre del producto.</li>
         <li><b>Clientes:</b> el nombre queda copiado en ventas y pedidos anteriores; el historial no se actualiza.</li>
       </ul>
