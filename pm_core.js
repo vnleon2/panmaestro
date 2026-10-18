@@ -679,13 +679,13 @@ function pmCostoReceta(r, targetMass, _visited, _cache) {
   return _result;
 }
 
-function pmToast(msg, type='ok') {
+function pmToast(msg, type='ok', ms=2600) {
   const t = document.getElementById('pm-toast');
   if (!t) { console.warn('[pmToast] elemento #pm-toast no encontrado —', msg); return; }
   t.textContent = msg;
   t.className = 'pm-toast show ' + type;
   clearTimeout(_toastTimer);
-  _toastTimer = setTimeout(() => { t.className = 'pm-toast'; }, 2600);
+  _toastTimer = setTimeout(() => { t.className = 'pm-toast'; }, ms);
 }
 
 function mOpen(id) { document.getElementById(id).classList.add('open'); }
