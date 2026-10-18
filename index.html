@@ -466,6 +466,7 @@
       </div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-out btn-sm" onclick="cvMostrar('cv-maestro');cvMaestroRender()">📋 Maestro</button>
+        <button class="btn btn-out btn-sm" onclick="cvMostrar('cv-nombres');cnmInit()">✏️ Nombres</button>
         <button class="btn btn-out btn-sm" onclick="cvMostrar('cv-gm');gmRenderList()">🌾 Gluten Morgen</button>
         <button class="btn btn-out btn-sm" onclick="cvMostrar('cv-personal');personalRenderPreview()">📝 Recetas Personales</button>
         <button class="btn btn-out btn-sm" onclick="repRecProductoImprimir()">📊 Reporte × Producto</button>
@@ -562,6 +563,30 @@
       <button class="btn btn-out" onclick="cvMostrar('cv-lista');recRender()">Cancelar</button>
       <button class="btn btn-gold" onclick="recSave()">💾 Guardar receta</button>
     </div>
+  </div>
+
+  <!-- VISTA: RENOMBRAR RECETAS (solo el nombre) -->
+  <div id="cv-nombres" style="display:none">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <button class="btn btn-out btn-sm" onclick="cvMostrar('cv-lista');recRender()">‹ Recetas</button>
+      <span style="color:var(--cream2);font-size:12px">›</span>
+      <span style="font-size:13px;font-weight:600;color:var(--cream)">✏️ Nombres de recetas</span>
+    </div>
+    <div class="card" style="font-size:12px;color:var(--cream2);line-height:1.5">
+      Marca las recetas que quieras renombrar (puedes corregir el nombre sugerido antes). Solo cambia el <b>nombre</b>:
+      el código, los ingredientes y los vínculos no se tocan. La copia de la receta en Gluten Morgen o Labrec queda con el nombre viejo.
+    </div>
+    <div class="row" style="margin-bottom:10px;gap:8px;align-items:flex-end;flex-wrap:wrap">
+      <div class="col srch"><input type="text" id="cnm-buscar" placeholder="Buscar por código o nombre..." oninput="cnmRender()"></div>
+      <div class="col sm"><label style="font-size:12px;display:flex;gap:5px;align-items:center;white-space:nowrap"><input type="checkbox" id="cnm-solo" checked onchange="cnmRender()"> Solo las que cambian</label></div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <button class="btn btn-out btn-sm" onclick="cnmMarcarTodas(true)">☑ Marcar todas las mostradas</button>
+      <button class="btn btn-out btn-sm" onclick="cnmMarcarTodas(false)">☐ Desmarcar</button>
+      <button class="btn btn-gold" id="cnm-guardar-btn" onclick="cnmGuardar()">💾 Guardar marcadas (0)</button>
+    </div>
+    <div id="cnm-resultado"></div>
+    <div id="cnm-lista"></div>
   </div>
 
   <!-- VISTA: MAESTRO DE RECETAS -->
@@ -1827,7 +1852,8 @@
 
 <script src="gastos.js?v=20261001c"></script>
 
-<script src="costeo.js?v=20261002b"></script>
+<script src="costeo.js?v=20261018a"></script>
+<script src="costeo_nombres.js?v=20261018a"></script>
 
 <script src="gluten_morgen.js?v=20261001c"></script>
 

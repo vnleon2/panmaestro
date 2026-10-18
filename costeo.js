@@ -1,6 +1,6 @@
 // ── 📖 COSTEO ──────────────────────────────────────────
 function cvMostrar(id) {
-  ['cv-lista','cv-nueva','cv-gm','cv-maestro','cv-personal'].forEach(v => {
+  ['cv-lista','cv-nueva','cv-gm','cv-maestro','cv-personal','cv-nombres'].forEach(v => {
     const el = document.getElementById(v);
     if (el) el.style.display = v===id ? 'block' : 'none';
   });
