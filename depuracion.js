@@ -208,6 +208,71 @@ function depBuscarPares(filas, umbral) {
 }
 
 // ═══════════════════════════════════════════════════════════
+// ESTANDARIZAR TIPOGRAFÍA (solo sugiere, nunca cambia nada)
+// ═══════════════════════════════════════════════════════════
+
+// palabras que en español van en minúscula dentro de un nombre
+const DEP_MINUSC = new Set(['de', 'del', 'la', 'el', 'los', 'las', 'y', 'e', 'o', 'u', 'con', 'sin', 'para', 'por', 'en', 'a', 'al', 'un', 'una']);
+
+// "harina  de TRIGO " → "Harina de Trigo"; "pan de ajo 80G" → "Pan de Ajo 80g"
+function depTitulo(s) {
+  const orig = String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+  if (!orig) return orig;
+  const todoMayus = orig === orig.toUpperCase() && /[A-ZÁÉÍÓÚÑ]/.test(orig);
+  let primera = true;
+  return orig.split(/(\s|[-\/(])/).map(tok => {
+    if (!tok || /^(\s|[-\/(])$/.test(tok)) return tok;
+    const esPrimera = primera;
+    primera = false;
+    const conUnidad = tok.match(/^(\d+(?:[.,]\d+)?)([a-zA-Z]+)$/);   // 80g, 1kg, 500ml, 1L
+    if (conUnidad) { const u = conUnidad[2].toLowerCase(); return conUnidad[1] + (u === 'l' ? 'L' : u); }
+    if (/^\d/.test(tok)) return tok;
+    // sigla dentro de una frase normal (UHT, MM): se respeta tal cual
+    if (!todoMayus && tok.length >= 2 && tok.length <= 4 && /^[A-ZÁÉÍÓÚÑ]+$/.test(tok)) return tok;
+    const low = tok.toLowerCase();
+    if (!esPrimera && DEP_MINUSC.has(low)) return low;
+    return low.charAt(0).toLocaleUpperCase('es') + low.slice(1);
+  }).join('');
+}
+
+// Lista de nombres cuya escritura actual difiere de la sugerida
+function depSugerencias(filtro) {
+  const out = [];
+  Object.keys(DEP_MAESTROS).forEach(m => {
+    if (filtro && filtro !== 'todos' && filtro !== m) return;
+    (_depDatos[m] || []).forEach(r => {
+      const actual = r.nombre == null ? '' : String(r.nombre);
+      const sug = depTitulo(actual);
+      if (sug && sug !== actual) out.push({ maestro: m, codigo: r.codigo || '', actual, sug });
+    });
+  });
+  return out;
+}
+
+function depEstandarHTML() {
+  const filtro = (document.getElementById('dep-est-filtro') || {}).value || 'todos';
+  const lista = depSugerencias(filtro);
+  let html = `<div class="sec"><h2>Estandarizar nombres — ${lista.length} sugerencias</h2></div>
+    <div class="card" style="font-size:12px;color:var(--cream2);line-height:1.5">
+      Solo sugerencias: esta pantalla <b>no cambia nada</b>. Tú decides y corriges a mano lo que quieras.<br>
+      Ojo con <b>Ingredientes</b> (el nombre se usa como llave en otras partes) y <b>Clientes</b> (el nombre queda copiado en ventas y pedidos): edítalos con cuidado y de a poco.
+    </div>`;
+  if (!lista.length) html += '<div class="card" style="font-size:13px;color:var(--cream2)">✅ Todos los nombres ya están escritos con el formato estándar.</div>';
+  lista.slice(0, 500).forEach(x => {
+    html += `<div class="item-row" style="flex-wrap:wrap;align-items:flex-start">
+      <span class="badge" style="background:#64748B;color:#fff;flex-shrink:0">${pmEsc(DEP_MAESTROS[x.maestro].label.split(' ')[0])}</span>
+      <div style="flex:1;min-width:220px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div><div style="font-size:10px;color:var(--cream2)">Actual</div><div style="font-size:13px;word-break:break-word">${pmEsc(x.actual) || '(vacío)'}</div></div>
+        <div><div style="font-size:10px;color:var(--cream2)">Sugerido</div><div style="font-size:13px;font-weight:600;word-break:break-word">${pmEsc(x.sug)}</div></div>
+      </div>
+      <div style="flex-basis:100%;font-family:'DM Mono',monospace;font-size:10px;color:var(--cream2)">${pmEsc(x.codigo || 'sin código')}</div>
+    </div>`;
+  });
+  if (lista.length > 500) html += `<div class="card" style="font-size:12px;color:var(--cream2)">Se muestran las primeras 500 de ${lista.length}. Filtra por maestro para ver el resto.</div>`;
+  return html;
+}
+
+// ═══════════════════════════════════════════════════════════
 // CARGA DE DATOS
 // ═══════════════════════════════════════════════════════════
 
@@ -289,7 +354,9 @@ function depTab(tab, btn) {
   document.querySelectorAll('#dep-pills .pill').forEach(p => p.classList.remove('on'));
   if (btn) btn.classList.add('on');
   const ctrl = document.getElementById('dep-controles');
-  if (ctrl) ctrl.style.display = tab === 'otras' ? 'none' : 'block';
+  if (ctrl) ctrl.style.display = (tab === 'otras' || tab === 'estandar') ? 'none' : 'block';
+  const ectrl = document.getElementById('dep-est-ctrl');
+  if (ectrl) ectrl.style.display = tab === 'estandar' ? 'block' : 'none';
   depRender();
 }
 
@@ -327,6 +394,7 @@ function depRender() {
   if (!box) return;
   if (!Object.keys(_depDatos).length) { depInit(); return; }
   if (_depTab === 'otras') { box.innerHTML = depOtrasHTML(); return; }
+  if (_depTab === 'estandar') { box.innerHTML = depEstandarHTML(); return; }
 
   const cfg = DEP_MAESTROS[_depTab];
   const filas = _depDatos[_depTab] || [];
@@ -514,6 +582,12 @@ function depOtrasHTML() {
 
 // Filas planas de lo que se está viendo (pares o hallazgos)
 function _depFilasExport() {
+  if (_depTab === 'estandar') {
+    const filtro = (document.getElementById('dep-est-filtro') || {}).value || 'todos';
+    const filas = [['Maestro', 'Código', 'Nombre actual', 'Nombre sugerido']];
+    depSugerencias(filtro).forEach(x => filas.push([DEP_MAESTROS[x.maestro].label, x.codigo, x.actual, x.sug]));
+    return filas;
+  }
   if (_depTab === 'otras') {
     const filas = [['Revisión', 'Detalle']];
     depOtras().forEach(s => s.items.forEach(t => filas.push([s.titulo, t])));
@@ -544,7 +618,7 @@ function depCSV() {
 function depImprimir() {
   if (!Object.keys(_depDatos).length) { pmToast('Primero presiona Analizar', 'err'); return; }
   const filas = _depFilasExport();
-  const titulo = _depTab === 'otras' ? 'Otras revisiones' : DEP_MAESTROS[_depTab].label + ' — nombres parecidos (umbral ' + depUmbral() + ')';
+  const titulo = _depTab === 'otras' ? 'Otras revisiones' : _depTab === 'estandar' ? 'Estandarizar nombres (sugerencias)' : DEP_MAESTROS[_depTab].label + ' — nombres parecidos (umbral ' + depUmbral() + ')';
   const tabla = '<table><thead><tr>' + filas[0].map(h => '<th>' + pmEsc(h) + '</th>').join('') + '</tr></thead><tbody>' +
     filas.slice(1).map(f => '<tr>' + f.map(c => '<td>' + pmEsc(c) + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
   const w = window.open('', '_blank');
