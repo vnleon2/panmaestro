@@ -30,7 +30,7 @@ function showTab(id) {
     'pg-com':'COMERCIAL','pg-prod':'PRODUCCIÓN','pg-rep':'REPORTES',
     'pg-gastos':'GASTOS','pg-costeo':'COSTEO','pg-hid':'HIDRATACIÓN',
     'app-inner':'MAESTROS','pg-rec':'RECETARIO','pg-gmrec':'GLUTEN MORGEN','pg-planlibre':'PLAN LIBRE',
-    'pg-etiquetas':'ETIQUETAS','pg-mercadeo':'MERCADEO','pg-depuracion':'DEPURACIÓN','pg-simulador':'SIMULADOR','pg-empaques':'COSTOS','pg-costos-config':'COSTOS','pg-costos-maestros':'COSTOS','pg-costos-personal':'COSTOS','pg-costos-laboral':'COSTOS'
+    'pg-etiquetas':'ETIQUETAS','pg-mercadeo':'MERCADEO','pg-empaques':'COSTOS','pg-costos-config':'COSTOS','pg-costos-maestros':'COSTOS','pg-costos-personal':'COSTOS','pg-costos-laboral':'COSTOS','pg-costos-gastos':'COSTOS','pg-costos-capacidad':'COSTOS'
   };
   const modEl = document.querySelector('.brand-mod');
   if (modEl) modEl.textContent = labels[id] || 'PANMAESTRO';
@@ -38,13 +38,13 @@ function showTab(id) {
     'pg-dash':    () => { document.getElementById('dash-date').value = pmHoy(); dashRender(); },
     'pg-etiquetas': () => { etCargarCatalogo(); ethInit(); },
     'pg-mercadeo': () => { mktInit(); },
-    'pg-depuracion': () => { depInit(); },
-    'pg-simulador': () => { simInit(); },
     'pg-empaques': () => { cstEmpInit(); },
     'pg-costos-config': () => { cstCfgInit(); },
     'pg-costos-maestros': () => { cstMaeInit(); },
     'pg-costos-personal': () => { cstPersInit(); },
     'pg-costos-laboral': () => { cstLabInit(); },
+    'pg-costos-gastos': () => { cstGasInit(); },
+    'pg-costos-capacidad': () => { cstCapInit(); },
     'pg-pedidos': () => { document.getElementById('pp-fecha').value = pmHoy(); ppCargarSb(); },
     'pg-galletas':() => { document.getElementById('pg-fecha').value = pmHoy(); pgCargarSb(); },
     'pg-com':     () => { document.getElementById('pc-fecha').value = pmHoy(); pcCargarClientes(); pcCargarSb(); },

@@ -98,7 +98,6 @@
         <button class="ntab" data-tab="app-inner" onclick="showTab('app-inner');pmCloseNav()">⚙️ Maestros</button>
         <button class="ntab" data-tab="pg-gastos" onclick="showTab('pg-gastos');pmCloseNav()">💰 Gastos</button>
         <button class="ntab" data-tab="pg-rep" onclick="showTab('pg-rep');pmCloseNav()">🖨 Reportes</button>
-        <button class="ntab" data-tab="pg-depuracion" onclick="showTab('pg-depuracion');pmCloseNav()">🧹 Depuración</button>
       </div>
     </div>
 
@@ -110,13 +109,14 @@
         <button class="ntab" data-tab="pg-costos-maestros" onclick="showTab('pg-costos-maestros');pmCloseNav()">🏭 Departamentos y cuentas</button>
         <button class="ntab" data-tab="pg-costos-personal" onclick="showTab('pg-costos-personal');pmCloseNav()">👥 Personal</button>
         <button class="ntab" data-tab="pg-costos-laboral" onclick="showTab('pg-costos-laboral');pmCloseNav()">💵 Costo laboral</button>
+        <button class="ntab" data-tab="pg-costos-gastos" onclick="showTab('pg-costos-gastos');pmCloseNav()">💰 Gastos del período</button>
+        <button class="ntab" data-tab="pg-costos-capacidad" onclick="showTab('pg-costos-capacidad');pmCloseNav()">📐 Capacidad y reparto</button>
         <button class="ntab" data-tab="pg-costos-config" onclick="showTab('pg-costos-config');pmCloseNav()">⚙️ Parámetros</button>
       </div>
     </div>
 
     <button class="ntab" data-tab="pg-etiquetas" onclick="showTab('pg-etiquetas');pmCloseNav()">🏷️ Etiquetas</button>
     <button class="ntab" data-tab="pg-mercadeo" onclick="showTab('pg-mercadeo');pmCloseNav()">🎯 Mercadeo</button>
-    <button class="ntab" data-tab="pg-simulador" onclick="showTab('pg-simulador');pmCloseNav()">🔬 Simulador</button>
     <button class="ntab" onclick="pmOpenModule('utilidades.html');pmCloseNav()">🧮 Utilidades</button>
     <button class="ntab" onclick="pmOpenModule('labrec.html');pmCloseNav()">🧪 Laboratorio</button>
 </div>
@@ -419,18 +419,8 @@
     <button class="pill" onclick="repTab('nopagados',this)">🔴 No Pagados</button>
     <button class="pill" onclick="repTab('precioventa',this)">💲 Precio de venta</button>
     <button class="pill" onclick="repTab('explosion',this)">🧪 Explosión de ingredientes</button>
-    <button class="pill" onclick="repTab('control',this)">🧮 Control de ventas</button>
   </div>
   <div id="rep-out"></div>
-</div>
-
-<!-- ═══ 🔬 Simulador de receta ═══ -->
-<div class="page" id="pg-simulador">
-  <div class="pg-title">🔬 Simulador de receta</div>
-  <div class="pg-sub">Probá cambios de cantidad en una receta y mirá el efecto en el costo y la hidratación — sin guardar nada</div>
-  <div id="sim-ctrl"></div>
-  <div id="sim-barra"></div>
-  <div id="sim-out"></div>
 </div>
 
 <!-- ═══ 💰 Gastos ═══ -->
@@ -467,7 +457,6 @@
       </div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-out btn-sm" onclick="cvMostrar('cv-maestro');cvMaestroRender()">📋 Maestro</button>
-        <button class="btn btn-out btn-sm" onclick="cvMostrar('cv-nombres');cnmInit()">✏️ Nombres</button>
         <button class="btn btn-out btn-sm" onclick="cvMostrar('cv-gm');gmRenderList()">🌾 Gluten Morgen</button>
         <button class="btn btn-out btn-sm" onclick="cvMostrar('cv-personal');personalRenderPreview()">📝 Recetas Personales</button>
         <button class="btn btn-out btn-sm" onclick="repRecProductoImprimir()">📊 Reporte × Producto</button>
@@ -564,30 +553,6 @@
       <button class="btn btn-out" onclick="cvMostrar('cv-lista');recRender()">Cancelar</button>
       <button class="btn btn-gold" onclick="recSave()">💾 Guardar receta</button>
     </div>
-  </div>
-
-  <!-- VISTA: RENOMBRAR RECETAS (solo el nombre) -->
-  <div id="cv-nombres" style="display:none">
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-      <button class="btn btn-out btn-sm" onclick="cvMostrar('cv-lista');recRender()">‹ Recetas</button>
-      <span style="color:var(--cream2);font-size:12px">›</span>
-      <span style="font-size:13px;font-weight:600;color:var(--cream)">✏️ Nombres de recetas</span>
-    </div>
-    <div class="card" style="font-size:12px;color:var(--cream2);line-height:1.5">
-      Marca las recetas que quieras renombrar (puedes corregir el nombre sugerido antes). Solo cambia el <b>nombre</b>:
-      el código, los ingredientes y los vínculos no se tocan. La copia de la receta en Gluten Morgen o Labrec queda con el nombre viejo.
-    </div>
-    <div class="row" style="margin-bottom:10px;gap:8px;align-items:flex-end;flex-wrap:wrap">
-      <div class="col srch"><input type="text" id="cnm-buscar" placeholder="Buscar por código o nombre..." oninput="cnmRender()"></div>
-      <div class="col sm"><label style="font-size:12px;display:flex;gap:5px;align-items:center;white-space:nowrap"><input type="checkbox" id="cnm-solo" checked onchange="cnmRender()"> Solo las que cambian</label></div>
-    </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-      <button class="btn btn-out btn-sm" onclick="cnmMarcarTodas(true)">☑ Marcar todas las mostradas</button>
-      <button class="btn btn-out btn-sm" onclick="cnmMarcarTodas(false)">☐ Desmarcar</button>
-      <button class="btn btn-gold" id="cnm-guardar-btn" onclick="cnmGuardar()">💾 Guardar marcadas (0)</button>
-    </div>
-    <div id="cnm-resultado"></div>
-    <div id="cnm-lista"></div>
   </div>
 
   <!-- VISTA: MAESTRO DE RECETAS -->
@@ -1429,51 +1394,6 @@
   </div>
 </div>
 
-<!-- ═══ 🧹 Depuración ═══ -->
-<div class="page" id="pg-depuracion">
-  <div class="pg-title">🧹 Depuración de maestros</div>
-  <div class="pg-sub">Detecta nombres parecidos o inconsistentes en ingredientes, recetas, clientes y productos — solo lectura, no modifica nada</div>
-
-  <div class="pills" id="dep-pills">
-    <button class="pill on" onclick="depTab('ingredientes',this)">🧂 Ingredientes</button>
-    <button class="pill" onclick="depTab('recetas',this)">📖 Recetas</button>
-    <button class="pill" onclick="depTab('clientes',this)">👥 Clientes</button>
-    <button class="pill" onclick="depTab('productos',this)">📦 Productos</button>
-    <button class="pill" onclick="depTab('otras',this)">🔎 Otras revisiones</button>
-    <button class="pill" onclick="depTab('estandar',this)">✏️ Estandarizar</button>
-  </div>
-
-  <div class="card no-print" id="dep-controles">
-    <div class="row">
-      <div class="col">
-        <label>Sensibilidad: mostrar pares con puntaje ≥ <b id="dep-umbral-val">80</b></label>
-        <input type="range" id="dep-umbral" min="60" max="100" step="1" value="80" oninput="depUmbralCambio()" style="width:100%">
-        <div style="font-size:10px;color:var(--cream2)">Más bajo = revisión más estricta (más pares, más falsos positivos)</div>
-      </div>
-      <div class="col xs"><label>&nbsp;</label><label style="font-size:12px;display:flex;gap:5px;align-items:center;white-space:nowrap"><input type="checkbox" id="dep-ver-desc" onchange="depRender()"> Ver descartados</label></div>
-    </div>
-  </div>
-
-  <div class="card no-print" id="dep-est-ctrl" style="display:none">
-    <label>Mostrar sugerencias de</label>
-    <select id="dep-est-filtro" onchange="depRender()">
-      <option value="todos">Todos los maestros</option>
-      <option value="ingredientes">Ingredientes</option>
-      <option value="recetas">Recetas</option>
-      <option value="clientes">Clientes</option>
-      <option value="productos">Productos terminados</option>
-    </select>
-  </div>
-
-  <div class="card no-print" style="display:flex;gap:8px;flex-wrap:wrap">
-    <button class="btn btn-gold" onclick="depAnalizar()">🔍 Analizar</button>
-    <button class="btn btn-out" onclick="depImprimir()">🖨 Imprimir</button>
-    <button class="btn btn-out" onclick="depCSV()">⬇ CSV</button>
-  </div>
-
-  <div id="dep-resultados"></div>
-</div>
-
 <!-- ═══ 🎯 Mercadeo ═══ -->
 <div class="page" id="pg-mercadeo">
   <div class="pg-title">🎯 Mercadeo</div>
@@ -1812,6 +1732,76 @@
   <div id="cstlab-colabs"></div>
 </div>
 
+<!-- ═══ 💲 Costos · Gastos del período ═══ -->
+<div class="page" id="pg-costos-gastos">
+  <div class="pg-title">💰 Gastos del período</div>
+  <div class="pg-sub">Carga fabril, venta, mercadeo y administración del período — por cuenta y departamento, con su parte fija y variable. Los sueldos salen de la nómina.</div>
+
+  <div class="card">
+    <div class="ctitle">Período</div>
+    <div class="row">
+      <div class="col" style="flex:2"><label>Período</label><select id="cstgas-periodo" onchange="cstGasElegirPer(this.value)"></select></div>
+    </div>
+    <div id="cstgas-estado" style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      <button class="btn btn-gold btn-sm" id="cstgas-btn-prep" onclick="cstGasPreparar()">⚙️ Preparar renglones</button>
+    </div>
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid #E2E8F0">
+      <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--cream2);margin-bottom:6px">Copiar de otro período</div>
+      <div class="row">
+        <div class="col" style="flex:2"><label>Período de origen</label><select id="cstgas-copiar"></select></div>
+        <div class="col sm"><label>&nbsp;</label><button class="btn btn-out" id="cstgas-btn-copiar" onclick="cstGasCopiar()">Copiar</button></div>
+      </div>
+    </div>
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid #E2E8F0">
+      <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--cream2);margin-bottom:6px">Agregar renglón</div>
+      <div class="row">
+        <div class="col" style="flex:2"><label>Cuenta</label><select id="cstgas-n-cuenta" onchange="cstGasNuevoCuenta()"></select></div>
+        <div class="col"><label>Departamento</label><select id="cstgas-n-depto"></select></div>
+        <div class="col sm"><label>Monto</label><input type="number" id="cstgas-n-monto" min="0" step="any" placeholder="0"></div>
+        <div class="col sm"><label>&nbsp;</label><button class="btn btn-out" id="cstgas-btn-add" onclick="cstGasAgregar()">+ Agregar</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="stats" id="cstgas-stats"></div>
+  <div id="cstgas-avisos"></div>
+  <div id="cstgas-deptos"></div>
+  <div id="cstgas-lista"></div>
+</div>
+
+<!-- ═══ 💲 Costos · Capacidad y reparto ═══ -->
+<div class="page" id="pg-costos-capacidad">
+  <div class="pg-title">📐 Capacidad y reparto</div>
+  <div class="pg-sub">Capacidad normal de cada departamento productivo y bases para repartir los gastos compartidos y los departamentos de apoyo — con vista previa de las tarifas</div>
+
+  <div class="card">
+    <div class="ctitle">Período</div>
+    <div class="row">
+      <div class="col" style="flex:2"><label>Período</label><select id="cstcap-periodo" onchange="cstCapElegirPer(this.value)"></select></div>
+    </div>
+    <div id="cstcap-estado" style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      <button class="btn btn-gold btn-sm" id="cstcap-btn-prep" onclick="cstCapPreparar()">⚙️ Preparar departamentos</button>
+    </div>
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid #E2E8F0">
+      <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--cream2);margin-bottom:6px">Copiar de otro período</div>
+      <div class="row">
+        <div class="col" style="flex:2"><label>Período de origen</label><select id="cstcap-copiar"></select></div>
+        <div class="col sm"><label>&nbsp;</label><button class="btn btn-out" id="cstcap-btn-copiar" onclick="cstCapCopiar()">Copiar</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="stats" id="cstcap-stats"></div>
+  <div id="cstcap-avisos"></div>
+  <div class="sec"><h2>Capacidad normal por departamento</h2></div>
+  <div id="cstcap-cap"></div>
+  <div class="sec" style="margin-top:14px"><h2>Bases de reparto</h2></div>
+  <div id="cstcap-bases"></div>
+  <div id="cstcap-prev"></div>
+</div>
+
 </div><!-- /#app -->
 
 <div class="pm-toast" id="pm-toast"></div>
@@ -1849,12 +1839,11 @@
 
 <script src="produccion.js?v=20261001c"></script>
 
-<script src="reportes.js?v=20261018a"></script>
+<script src="reportes.js?v=20261002a"></script>
 
 <script src="gastos.js?v=20261001c"></script>
 
-<script src="costeo.js?v=20261018a"></script>
-<script src="costeo_nombres.js?v=20261018a"></script>
+<script src="costeo.js?v=20261002b"></script>
 
 <script src="gluten_morgen.js?v=20261001c"></script>
 
@@ -1875,20 +1864,19 @@
 <script src="etiquetas_hoja.js?v=20261003a"></script>
 
 <script src="mercadeo.js?v=20261001c"></script>
-<script src="depuracion.js?v=20261018c"></script>
 <script src="costos_core.js?v=20261012b"></script>
 <script src="costos_empaques.js?v=20261012b"></script>
 <script src="costos_maestros.js?v=20261013a"></script>
 <script src="costos_personal.js?v=20261013a"></script>
 <script src="costos_laboral.js?v=20261013a"></script>
+<script src="costos_gastos.js?v=20261019a"></script>
+<script src="costos_capacidad.js?v=20261019a"></script>
 
 <script src="precio_venta.js?v=20261002a"></script>
 <script src="explosion.js?v=20261003b"></script>
-<script src="reporte_control.js?v=20261018a"></script>
-<script src="simulador.js?v=20261018c"></script>
 <script src="plan_libre.js?v=20261001c"></script>
 
-<script src="pm_app.js?v=20261018b"></script>
+<script src="pm_app.js?v=20261019a"></script>
 
 </body>
 </html>
