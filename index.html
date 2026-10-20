@@ -112,6 +112,7 @@
         <button class="ntab" data-tab="pg-costos-laboral" onclick="showTab('pg-costos-laboral');pmCloseNav()">💵 Costo laboral</button>
         <button class="ntab" data-tab="pg-costos-gastos" onclick="showTab('pg-costos-gastos');pmCloseNav()">💰 Gastos del período</button>
         <button class="ntab" data-tab="pg-costos-capacidad" onclick="showTab('pg-costos-capacidad');pmCloseNav()">📐 Capacidad y reparto</button>
+        <button class="ntab" data-tab="pg-costos-rutas" onclick="showTab('pg-costos-rutas');pmCloseNav()">🧭 Etapas y rutas</button>
         <button class="ntab" data-tab="pg-costos-config" onclick="showTab('pg-costos-config');pmCloseNav()">⚙️ Parámetros</button>
       </div>
     </div>
@@ -1884,6 +1885,50 @@
   <div id="cstcap-prev"></div>
 </div>
 
+<!-- ═══ 💲 Costos · Etapas y rutas ═══ -->
+<div class="page" id="pg-costos-rutas">
+  <div class="pg-title">🧭 Etapas y rutas</div>
+  <div class="pg-sub">Las etapas por las que pasa cada tipo de pan o galleta y sus tiempos estándar — con el consumo por departamento, por pieza y por kg</div>
+
+  <div class="pills" id="cstr-pills">
+    <button class="pill on" onclick="cstRutTab('rut',this)">🧭 Rutas por producto</button>
+    <button class="pill" onclick="cstRutTab('eta',this)">🏷 Etapas</button>
+  </div>
+
+  <!-- RUTAS -->
+  <div id="cstr-rut">
+    <div class="stats" id="cstr-stats"></div>
+    <div class="card">
+      <div class="row">
+        <div class="col" style="flex:2"><label>Buscar</label><input type="text" id="cstr-search" placeholder="Nombre o código..." oninput="cstRutRender()"></div>
+        <div class="col sm"><label>Tipo</label><select id="cstr-tipo" onchange="cstRutRender()"></select></div>
+      </div>
+      <label style="display:flex;gap:6px;align-items:center;justify-content:flex-start;font-size:12px;text-transform:none;letter-spacing:0;font-weight:400;margin-top:8px;cursor:pointer"><input type="checkbox" id="cstr-solo" style="width:auto;margin:0" onchange="cstRutRender()"> Solo productos sin ruta</label>
+      <div style="font-size:11px;color:var(--cream2);margin-top:8px">Tiempo de una etapa por unidad = tiempo de la tanda ÷ tamaño de la tanda + tiempo por unidad. Ejemplo: un horno de 12 piezas que tarda 40 min y 0 min por pieza consume 3,33 min por pieza.</div>
+    </div>
+    <div id="cstr-lista"></div>
+  </div>
+
+  <!-- ETAPAS -->
+  <div id="cstr-eta" style="display:none">
+    <div class="card">
+      <div class="ctitle">Nueva etapa</div>
+      <div class="row">
+        <div class="col sm"><label>Código</label><input type="text" id="cstEta-codigo" placeholder="ETA-100" style="text-transform:uppercase"></div>
+        <div class="col" style="flex:2"><label>Nombre</label><input type="text" id="cstEta-nombre" placeholder="Decorado"></div>
+      </div>
+      <div class="row">
+        <div class="col" style="flex:2"><label>Departamento (productivo)</label><select id="cstEta-depto"></select></div>
+        <div class="col"><label>Se mide por defecto</label><select id="cstEta-unidad"></select></div>
+        <div class="col sm"><label>&nbsp;</label><button class="btn btn-gold" onclick="cstEtaAdd()">+ Agregar</button></div>
+      </div>
+      <div style="font-size:11px;color:var(--cream2);margin-top:8px">Cada etapa pertenece a un departamento productivo: ahí se le asignan el costo de su personal (MOD) y la carga fabril cuando el motor calcule las tarifas.</div>
+    </div>
+    <div class="sec"><h2 id="cstEta-count">Etapas</h2></div>
+    <div id="cstEta-list"></div>
+  </div>
+</div>
+
 </div><!-- /#app -->
 
 <div class="pm-toast" id="pm-toast"></div>
@@ -1955,6 +2000,7 @@
 <script src="costos_laboral.js?v=20261013a"></script>
 <script src="costos_gastos.js?v=20261019a"></script>
 <script src="costos_capacidad.js?v=20261019a"></script>
+<script src="costos_rutas.js?v=20261020a"></script>
 
 <script src="precio_venta.js?v=20261002a"></script>
 <script src="explosion.js?v=20261003b"></script>
@@ -1962,7 +2008,7 @@
 <script src="simulador.js?v=20261018c"></script>
 <script src="plan_libre.js?v=20261001c"></script>
 
-<script src="pm_app.js?v=20261019a"></script>
+<script src="pm_app.js?v=20261020a"></script>
 
 </body>
 </html>
