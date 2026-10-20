@@ -114,6 +114,7 @@
         <button class="ntab" data-tab="pg-costos-capacidad" onclick="showTab('pg-costos-capacidad');pmCloseNav()">📐 Capacidad y reparto</button>
         <button class="ntab" data-tab="pg-costos-rutas" onclick="showTab('pg-costos-rutas');pmCloseNav()">🧭 Etapas y rutas</button>
         <button class="ntab" data-tab="pg-costos-tarifas" onclick="showTab('pg-costos-tarifas');pmCloseNav()">🧮 Tarifas y aprobación</button>
+        <button class="ntab" data-tab="pg-costos-reportes" onclick="showTab('pg-costos-reportes');pmCloseNav()">📊 Reportes de costo</button>
         <button class="ntab" data-tab="pg-costos-config" onclick="showTab('pg-costos-config');pmCloseNav()">⚙️ Parámetros</button>
       </div>
     </div>
@@ -1954,6 +1955,29 @@
   <div id="cstta-prod"></div>
 </div>
 
+
+<!-- ═══ 💲 Costos · Reportes de costo ═══ -->
+<div class="page" id="pg-costos-reportes">
+  <div class="pg-title">📊 Reportes de costo</div>
+  <div class="pg-sub">El costo estándar completo de cada producto (materiales, empaque, mano de obra, carga fabril y gasto del período), comparado con el costo que usa hoy Costeo — solo lectura, no cambia nada</div>
+
+  <div class="card">
+    <div class="ctitle">Período y filtros</div>
+    <div class="row">
+      <div class="col" style="flex:2"><label>Período</label><select id="cstrp-periodo" onchange="cstRepElegirPer(this.value)"></select></div>
+      <div class="col"><label>Buscar</label><input type="text" id="cstrp-buscar" placeholder="Nombre o código..." oninput="cstRepRender()"></div>
+      <div class="col sm"><label>Tipo</label><select id="cstrp-tipo" onchange="cstRepRender()"></select></div>
+    </div>
+    <div id="cstrp-estado" style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap"></div>
+  </div>
+
+  <div class="stats" id="cstrp-stats"></div>
+  <div id="cstrp-avisos"></div>
+  <div class="sec"><h2>Costo estándar por producto</h2></div>
+  <div id="cstrp-tabla"></div>
+  <div id="cstrp-detalle"></div>
+</div>
+
 </div><!-- /#app -->
 
 <div class="pm-toast" id="pm-toast"></div>
@@ -2027,6 +2051,7 @@
 <script src="costos_capacidad.js?v=20261019a"></script>
 <script src="costos_rutas.js?v=20261020a"></script>
 <script src="costos_tasas.js?v=20261021a"></script>
+<script src="costos_reportes.js?v=20261022a"></script>
 
 <script src="precio_venta.js?v=20261002a"></script>
 <script src="explosion.js?v=20261003b"></script>
@@ -2034,7 +2059,7 @@
 <script src="simulador.js?v=20261018c"></script>
 <script src="plan_libre.js?v=20261001c"></script>
 
-<script src="pm_app.js?v=20261021a"></script>
+<script src="pm_app.js?v=20261022a"></script>
 
 </body>
 </html>
