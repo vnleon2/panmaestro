@@ -639,6 +639,23 @@ function pmCostoReceta(r, targetMass, _visited, _cache) {
   let addonMassTotal = 0;
   let addonCostTotal = 0;
   for (const addon of (r.addons||[])) {
+    // Relleno/cobertura que es un INGREDIENTE directo (sin subreceta envoltorio)
+    if (addon.ingrediente) {
+      if (!addon.gPorUnidad) continue;
+      const iAdd   = pmAddonIng(addon);
+      const gI     = addon.gPorUnidad * (r.units || 1);
+      const cpgI   = iAdd && iAdd.price && iAdd.qty ? iAdd.price / iAdd.qty : 0;
+      const costI  = cpgI * gI;
+      const labelI = addon.label || (addon.tipo === 'cobertura' ? '🍫 ' : '🍯 ') + (iAdd?.nombre || addon.ingrediente);
+      addonCostTotal += costI;
+      addonMassTotal += gI;
+      lines.push({
+        name: labelI, pct: 0, g: gI,
+        cost: costI, flour: false, isSub: false, isAddon: true,
+        gPorUnidad: addon.gPorUnidad, tipo: addon.tipo
+      });
+      continue;
+    }
     // SESIÓN 11 fix: resolver SOLO por código — mismo motivo que sub-recetas
     const ref = (_sbRecLista()||[]).find(x => x.code === addon.recId);
     if (!ref || !addon.gPorUnidad) continue;
@@ -711,4 +728,12 @@ function pmMostrarConflicto(mensaje, onRecargar, onSobrescribir) {
 function toggleBody(id) {
   const b = document.getElementById('pb-' + id);
   if (b) b.classList.toggle('open');
+}
+
+
+/** Ingrediente al que apunta un addon directo (relleno/cobertura = ingrediente).
+ *  Prioriza ingredientId; si no, el nombre. Devuelve el objeto de ingrediente o null. */
+function pmAddonIng(addon) {
+  if (!addon || !addon.ingrediente) return null;
+  return _sbResolveIng({ ingredientId: addon.ingredientId, productName: addon.ingrediente });
 }

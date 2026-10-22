@@ -672,6 +672,7 @@ function mrAddAddon(data={}) {
     .map(r => `<option value="${r.code}"${r.code===data.recId?' selected':''}>${r.code} · ${r.name}</option>`)
     .join('');
 
+  const esIng = !!data.ingrediente;
   const div = document.createElement('div');
   div.id = uid;
   div.style.cssText = 'background:rgba(192,64,64,.06);border:1px solid rgba(192,64,64,.25);border-radius:8px;padding:10px;margin-bottom:8px';
@@ -686,13 +687,29 @@ function mrAddAddon(data={}) {
           <option value="otro"${data.tipo==='otro'?' selected':''}>📦 Otro</option>
         </select>
       </div>
-      <div style="flex:2;min-width:140px">
+      <div style="flex:1;min-width:110px">
+        <label style="font-size:11px;color:var(--cream2)">Origen</label>
+        <select id="adn-orig-${uid}" onchange="mrAddonOrigen('${uid}')"
+          style="width:100%;font-size:12px;padding:6px 8px;background:var(--sf);border:1px solid var(--border);border-radius:8px;color:var(--cream)">
+          <option value="sub"${!esIng?' selected':''}>🔗 Subreceta</option>
+          <option value="ing"${esIng?' selected':''}>🌾 Ingrediente</option>
+        </select>
+      </div>
+      <div id="adn-subw-${uid}" style="flex:2;min-width:140px;${esIng?'display:none':''}">
         <label style="font-size:11px;color:var(--cream2)">Sub-receta</label>
         <select id="adn-rec-${uid}"
           style="width:100%;font-size:12px;padding:6px 8px;background:var(--sf);border:1px solid var(--border);border-radius:8px;color:var(--cream)"
           onchange="mrAddonCostPreview('${uid}')">
           <option value="">— seleccionar —</option>${recOpts}
         </select>
+      </div>
+      <div id="adn-ingw-${uid}" style="flex:2;min-width:140px;${esIng?'':'display:none'}">
+        <label style="font-size:11px;color:var(--cream2)">Ingrediente</label>
+        <input type="text" id="adn-ing-${uid}" list="adn-dl-${uid}" value="${(data.ingrediente||'').replace(/"/g,'&quot;')}"
+          data-ing-id="${data.ingredientId||''}" placeholder="Escribí para buscar..." autocomplete="off"
+          oninput="mrAddonCostPreview('${uid}')" onchange="mrAddonCostPreview('${uid}')"
+          style="width:100%;font-size:12px;padding:6px 8px;background:var(--sf);border:1px solid var(--border);border-radius:8px;color:var(--cream)">
+        <datalist id="adn-dl-${uid}">${Object.keys(_sbIngLista()).sort().map(k=>`<option value="${k.replace(/"/g,'&quot;')}">`).join('')}</datalist>
       </div>
       <div style="width:80px">
         <label style="font-size:11px;color:var(--cream2)">g / unidad</label>
@@ -712,10 +729,37 @@ function mrAddAddon(data={}) {
 
   document.getElementById('mr-addon-list').appendChild(div);
   mrRefreshEmpty();
-  if (data.recId) setTimeout(() => mrAddonCostPreview(uid), 50);
+  if (data.recId || data.ingrediente) setTimeout(() => mrAddonCostPreview(uid), 50);
+}
+
+function mrAddonOrigen(uid) {
+  const esIng = document.getElementById('adn-orig-' + uid)?.value === 'ing';
+  const sw = document.getElementById('adn-subw-' + uid);
+  const iw = document.getElementById('adn-ingw-' + uid);
+  if (sw) sw.style.display = esIng ? 'none' : '';
+  if (iw) iw.style.display = esIng ? '' : 'none';
+  mrAddonCostPreview(uid);
 }
 
 function mrAddonCostPreview(uid) {
+  if (document.getElementById('adn-orig-' + uid)?.value === 'ing') {
+    const costI = document.getElementById('adn-cost-' + uid);
+    const nomI  = (document.getElementById('adn-ing-' + uid)?.value || '').trim();
+    const gI    = parseFloat(document.getElementById('adn-g-' + uid)?.value) || 0;
+    if (!costI) return;
+    if (!nomI || !gI) { costI.textContent = ''; return; }
+    const iI = _sbGetIng(nomI);
+    if (!iI || !iI.price || !iI.qty) {
+      costI.innerHTML = iI ? '⚠️ ingrediente sin precio en Maestros' : '⚠️ ingrediente no encontrado en Maestros';
+      return;
+    }
+    const unI = parseInt(document.getElementById('mr-units')?.value) || 1;
+    const totI = gI * unI;
+    const cpgI = iI.price / iI.qty;
+    costI.innerHTML = `🌾 ${nomI} · ${gI}g/ud × ${unI} ud = ${totI}g → <strong style="color:var(--gold2)">${pmMoney(Math.round(cpgI * totI))}</strong> total · ₡${cpgI.toFixed(2)}/g`;
+    return;
+  }
+
   const selEl  = document.getElementById('adn-rec-' + uid);
   const gEl    = document.getElementById('adn-g-'   + uid);
   const costEl = document.getElementById('adn-cost-' + uid);
@@ -1247,6 +1291,22 @@ async function _recSaveImpl() {
     const recEl  = document.getElementById('adn-rec-'  + rowId);
     const gEl    = document.getElementById('adn-g-'    + rowId);
     const lblEl  = document.getElementById('adn-lbl-'  + rowId);
+    const origEl = document.getElementById('adn-orig-' + rowId);
+    if (origEl?.value === 'ing') {
+      const ingEl  = document.getElementById('adn-ing-' + rowId);
+      const ingNom = (ingEl?.value||'').trim();
+      if (!ingNom) return;
+      const ingObj = _sbGetIng(ingNom);
+      const ingId  = ingObj?.sbId || _sbIngMapNom?.[ingNom] || '';
+      addons.push({
+        tipo:       tipoEl?.value||'relleno',
+        ingrediente: ingNom,
+        ...(ingId ? { ingredientId: ingId } : {}),
+        gPorUnidad: parseFloat(gEl?.value)||0,
+        label:      lblEl?.value||''
+      });
+      return;
+    }
     if (!recEl||!recEl.value) return;
     addons.push({
       tipo:       tipoEl?.value||'relleno',

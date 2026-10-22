@@ -155,6 +155,15 @@ async function recetarioEscalar() {
 
   // Addons: scale by factor (gPorUnidad × units)
   const addonLines = (r.addons||[]).map(addon => {
+    if (addon.ingrediente) {
+      if (!addon.gPorUnidad) return null;
+      const iA   = pmAddonIng(addon);
+      const gA   = addon.gPorUnidad * units;
+      const cpgA = iA && iA.price && iA.qty ? iA.price / iA.qty : 0;
+      const lblA = addon.label || (addon.tipo==='cobertura'?'🍫 ':'🍯 ') + (iA?.nombre || addon.ingrediente);
+      return { name: lblA, g: gA, cost: cpgA * gA,
+               gPorUnidad: addon.gPorUnidad, tipo: addon.tipo, isAddon: true };
+    }
     const ref = _sbRecLista().find(x => x.code === addon.recId);
     if (!ref || !addon.gPorUnidad) return null;
     const totalG  = addon.gPorUnidad * units;  // factor already in units
