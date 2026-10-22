@@ -293,6 +293,12 @@ cache"`. Se resuelve con `NOTIFY pgrst, 'reload schema';`.
   las 6pm y medianoche.
 - **Sub-recetas y addons referencian por código estable** (`R-0008`),
   no por id local (`Date.now()`).
+- **Addon como ingrediente directo**: un relleno/cobertura puede ser
+  `{tipo, ingrediente, ingredientId?, gPorUnidad, label}` en vez de
+  `{tipo, recId, ...}` (una u otra, nunca ambas). Se costea con el precio/g
+  del ingrediente, sin merma (igual que los addons de subreceta). Lo leen
+  `pmCostoReceta`, Recetario, Explosión, Simulador y Etiquetas vía
+  `pmAddonIng()`. Las líneas viejas con `recId` no cambian.
 - **Códigos de receta nunca se reciclan**: `_pmNextRecCode()` toma el
   número más alto que exista (local + Supabase) y suma 1.
 - **El código de una receta se bloquea al editar** (no al crear).

@@ -100,6 +100,17 @@ function exExpandir(r, targetMass, visited) {
   });
 
   (r.addons || []).forEach(addon => {
+    if (addon.ingrediente) {
+      if (!addon.gPorUnidad) return;
+      const iA = pmAddonIng(addon);
+      const nA = _exLimpiar(iA?.nombre || addon.ingrediente);
+      const mA = addon.gPorUnidad * (r.units || 1);
+      nodos.push({
+        tipo: 'addon', n: _exLimpiar(addon.label || nA), rec: 'ingrediente',
+        g: mA, hijos: [{ tipo: 'ing', n: nA, g: mA }]
+      });
+      return;
+    }
     const ref = lista.find(x => x.code === addon.recId);
     if (!ref || !addon.gPorUnidad || vis.has(ref.code)) return;
     const m = addon.gPorUnidad * (r.units || 1);

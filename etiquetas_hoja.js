@@ -97,6 +97,13 @@ function ethRecolectar(r, targetMass, visited, out) {
   });
 
   (r.addons || []).forEach(addon => {
+    if (addon.ingrediente) {
+      const iA = pmAddonIng(addon);
+      const nA = ethLimpiarNombre(iA?.nombre || addon.ingrediente);
+      const gA = (addon.gPorUnidad || 0) * (r.units || 1);
+      if (nA && gA > 0) out.push({ nombre: nA, g: gA });
+      return;
+    }
     const ref = lista.find(x => x.code === addon.recId);
     if (!ref || !addon.gPorUnidad) return;
     ethRecolectar(ref, addon.gPorUnidad * (r.units || 1), vis, out);
