@@ -59,7 +59,7 @@ function cstRepCalcular() {
     const avisos = [];
     const m = cstRepMateriales(p, ruta, cache);
     if (!m.ok) avisos.push('Materiales: ' + m.motivo);
-    else if (m.masaRuta && Math.abs(m.masaRuta - Number(p.peso_g)) > 0.005) avisos.push(`Ruta: la masa por pieza (${_cstNum(m.masaRuta, 1)} g) es distinta del peso del producto (${_cstNum(Number(p.peso_g), 1)} g); los materiales usan el peso — dejá la masa de la ruta vacía para usar siempre el peso`);
+    else if (m.masaRuta && Math.abs(m.masaRuta - Number(p.peso_g)) > 0.005) avisos.push(`Ruta: la masa por pieza (${_cstNum(m.masaRuta, 1)} g) es distinta del peso del producto (${_cstNum(Number(p.peso_g), 1)} g); los materiales usan el peso del producto — si la dejás vacía, la masa cruda se calcula sola con la merma de la receta`);
     const c = cstTasCostoProducto(p, tas);
     if (c.sinRuta) avisos.push('Conversión: no tiene ruta (se arma en Etapas y rutas)');
     else c.avisos.forEach(a => avisos.push('Conversión: ' + a));
@@ -242,9 +242,11 @@ function cstRepDetalleHtml(f) {
   };
   const un = d => d.t.driver_codigo === 'HH' ? 'HH' : d.t.unidad || 'u';
   const dep = f.c && !f.c.sinRuta ? f.c.porDepto : [];
-  const masaTxt = kgPz > 0 ? `${_cstNum(kgPz * 1000, 1)} g` + (f.ruta && Number(f.ruta.masa_pieza_g) > 0 ? ' (masa de la ruta)' : ' (peso del producto)') : 'sin masa';
+  const mi = cstMasaPiezaInfo(f.p, f.ruta);
+  const masaTxt = kgPz > 0 ? `${_cstNum(kgPz * 1000, 1)} g de masa cruda` + (mi.origen === 'ruta' ? ' (masa escrita en la ruta)' : mi.origen === 'receta' ? ` (${cstMasaPiezaFormula(mi)}, según la receta)` : ' (peso del producto, la receta no tiene merma)') : 'sin masa';
   return `
     <div class="sec" style="margin-top:14px"><h2>Desglose · ${pmEsc(f.p.nombre)}</h2></div>
+    <div style="margin-bottom:8px"><button class="btn btn-gold btn-sm" onclick="cstHojaAbrir('${f.p.id}')">📄 Hoja de estándares (sin costos)</button></div>
     <div style="font-size:11px;color:var(--cream2);margin-bottom:6px">Masa por pieza: <b>${masaTxt}</b>${f.m && f.m.ok ? ` · receta ${pmEsc(f.m.receta.code)}` : ''} · valores por ${por}</div>
     <div class="card" style="padding:0;overflow-x:auto">
       <table style="width:100%;border-collapse:collapse;min-width:360px">
