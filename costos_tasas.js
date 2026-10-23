@@ -132,8 +132,12 @@ function cstTasPendientes(v) {
     if (t.tasaMod === null) bloqueos.push(`${nom}: tiene MOD pero ninguna HH productiva — revisá el % de utilización y el reparto de tiempo`);
   });
   if (v.sinRepartir > _CST_TAS_EPS) bloqueos.push(`Quedan ${cstMoney(v.sinRepartir)} sin repartir — revisá Capacidad y reparto`);
+  const rsN = cstLabResumen();
+  const nomTotal = Object.values(rsN.porColab).reduce((a, x) => a + x, 0);
+  const nomDist = rsN.tot.MOD + rsN.tot.MOI + rsN.tot.GASTO;
+  if (Math.abs(nomTotal - nomDist) > 0.005) bloqueos.push(`${cstMoney(Math.abs(nomTotal - nomDist))} de la nómina ${nomDist < nomTotal ? 'no llega' : 'se cuenta de más'} a los departamentos — revisá el reparto de tiempo de cada colaborador en Personal`);
   if (!(v.kg > 0)) bloqueos.push('Falta indicar los kg de ventas normales del período (base de la tasa de gasto)');
-  const avisos = v.avisos.filter(a => !/sin repartir|no tiene nómina|no tiene gastos|falta definir la base|capacidad normal está vacía|no se puede calcular la tarifa|base ni la capacidad/i.test(a));
+  const avisos = v.avisos.filter(a => !/sin repartir|no tiene nómina|no tiene gastos|falta definir la base|capacidad normal está vacía|no se puede calcular la tarifa|base ni la capacidad|^Nómina:/i.test(a));
   return { bloqueos, avisos };
 }
 

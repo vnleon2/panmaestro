@@ -379,6 +379,13 @@ function cstRepartoCalc() {
   });
   if (sinRepartir.f + sinRepartir.v > 0) avisos.push(`Quedan ${cstMoney(sinRepartir.f + sinRepartir.v)} sin repartir: ${sinRepartir.detalle.join('; ')}`);
   if (!_cstLineas.length) avisos.push('El período no tiene nómina: MOD y MOI no están incluidos — generala en Costo laboral');
+  // Nómina cuyo costo no llega a los departamentos (sin reparto de tiempo o reparto distinto de 100 %)
+  const nomTotal = Object.values(rs.porColab).reduce((a, x) => a + x, 0);
+  const nomDist = rs.tot.MOD + rs.tot.MOI + rs.tot.GASTO;
+  if (Math.abs(nomTotal - nomDist) > 0.005) {
+    avisos.push(`Nómina: ${cstMoney(Math.abs(nomTotal - nomDist))} de la nómina ${nomDist < nomTotal ? 'no llega' : 'se cuenta de más'} a los departamentos (cargada ${cstMoney(nomTotal)}, repartida ${cstMoney(nomDist)}) — revisá el reparto de tiempo de cada colaborador en Personal`);
+    rs.avisos.filter(a => /reparto de tiempo|reparto suma/i.test(a)).forEach(a => avisos.push('Nómina: ' + a));
+  }
   if (!_cstGasRows.length) avisos.push('El período no tiene gastos cargados — cargalos en Gastos del período');
   return { R, prod, apoyo, gasto, total, sinRepartir, avisos };
 }

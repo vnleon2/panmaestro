@@ -267,7 +267,7 @@ function cstLabRender() {
   }
   const rs = cstLabResumen();
   const stat = (lbl, val, sub) => `<div class="stat"><div class="stat-lbl">${lbl}</div><div class="stat-val" style="font-size:17px">${val}</div>${sub ? `<div class="stat-sub">${sub}</div>` : ''}</div>`;
-  const total = rs.tot.MOD + rs.tot.MOI + rs.tot.GASTO + rs.tot.sinAsignar;
+  const total = Object.values(rs.porColab).reduce((a, x) => a + x, 0);   // suma real de las líneas (aunque un reparto no cuadre)
   const modHH = rs.tot.hh > 0 ? rs.tot.MOD / rs.tot.hh : null;
   stats.innerHTML = _cstLineas.length
     ? stat('Nómina del período', cstMoney(total), `${Object.keys(rs.porColab).length} persona${Object.keys(rs.porColab).length === 1 ? '' : 's'}`) +
