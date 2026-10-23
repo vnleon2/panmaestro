@@ -113,6 +113,7 @@
         <button class="ntab" data-tab="pg-costos-gastos" onclick="showTab('pg-costos-gastos');pmCloseNav()">💰 Gastos del período</button>
         <button class="ntab" data-tab="pg-costos-capacidad" onclick="showTab('pg-costos-capacidad');pmCloseNav()">📐 Capacidad y reparto</button>
         <button class="ntab" data-tab="pg-costos-rutas" onclick="showTab('pg-costos-rutas');pmCloseNav()">🧭 Etapas y rutas</button>
+        <button class="ntab" data-tab="pg-costos-plan" onclick="showTab('pg-costos-plan');pmCloseNav()">🗓️ Plan de producción</button>
         <button class="ntab" data-tab="pg-costos-tarifas" onclick="showTab('pg-costos-tarifas');pmCloseNav()">🧮 Tarifas y aprobación</button>
         <button class="ntab" data-tab="pg-costos-reportes" onclick="showTab('pg-costos-reportes');pmCloseNav()">📊 Reportes de costo</button>
         <button class="ntab" data-tab="pg-costos-config" onclick="showTab('pg-costos-config');pmCloseNav()">⚙️ Parámetros</button>
@@ -1933,6 +1934,26 @@
 
 
 <!-- ═══ 💲 Costos · Tarifas y aprobación ═══ -->
+<div class="page" id="pg-costos-plan">
+  <div class="pg-title">🗓️ Plan de producción</div>
+  <div class="pg-sub">Semana tipo del período: cuántas piezas de cada pan o galleta estarán disponibles cada día — calcula kilos, horas y la capacidad que consume</div>
+
+  <div class="card">
+    <div class="ctitle">Período</div>
+    <div class="row">
+      <div class="col" style="flex:2"><label>Período</label><select id="cstpl-periodo" onchange="cstPlnElegirPer(this.value)"></select></div>
+    </div>
+    <div id="cstpl-estado" style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap"></div>
+  </div>
+
+  <div class="stats" id="cstpl-stats"></div>
+  <div id="cstpl-avisos"></div>
+  <div class="sec"><h2>Plan semanal (piezas disponibles por día)</h2></div>
+  <div class="card" id="cstpl-tabla"></div>
+  <div class="sec" style="margin-top:14px"><h2>Capacidad usada</h2></div>
+  <div class="card" id="cstpl-cap"></div>
+</div>
+
 <div class="page" id="pg-costos-tarifas">
   <div class="pg-title">🧮 Tarifas y aprobación</div>
   <div class="pg-sub">Las tarifas de MOD y carga fabril de cada departamento, la tasa de gasto por kg y el costo de conversión de cada producto — se aprueba el período para congelarlas</div>
@@ -2051,6 +2072,7 @@
 <script src="costos_capacidad.js?v=20261019a"></script>
 <script src="costos_rutas.js?v=20261020a"></script>
 <script src="costos_tasas.js?v=20261021a"></script>
+<script src="costos_plan.js?v=20261023a"></script>
 <script src="costos_reportes.js?v=20261022a"></script>
 
 <script src="precio_venta.js?v=20261002a"></script>
