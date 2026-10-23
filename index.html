@@ -1967,7 +1967,7 @@
       <div class="col" style="flex:2"><label>Período</label><select id="cstta-periodo" onchange="cstTasElegirPer(this.value)"></select></div>
       <div class="col"><label>Kg de ventas normales del período</label><input type="number" min="0" step="any" id="cstta-kg" placeholder="Ej.: 1200" onchange="cstTasSetKg(this.value)"></div>
     </div>
-    <div style="font-size:11px;color:var(--cream2);margin-top:6px">Los kg de ventas normales son la base de la tasa de gasto: gasto de venta, mercadeo y administración ÷ estos kg. Poné un volumen normal, no el de un mes excepcional.</div>
+    <div style="font-size:11px;color:var(--cream2);margin-top:6px">Los kg de ventas normales son la base de la tasa de gasto: gasto de venta, mercadeo y administración ÷ estos kg. Poné un volumen normal, no el de un mes excepcional. Se miden en <b>kg de masa cruda</b>, la misma masa que usan las rutas (peso del pan + merma de la receta).</div>
     <div id="cstta-estado" style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap"></div>
     <div id="cstta-btns" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"></div>
   </div>
@@ -2000,6 +2000,7 @@
   <div class="sec"><h2>Costo estándar por producto</h2></div>
   <div id="cstrp-tabla"></div>
   <div id="cstrp-detalle"></div>
+  <div id="cstrp-hoja"></div>
 </div>
 
 </div><!-- /#app -->
@@ -2073,10 +2074,11 @@
 <script src="costos_laboral.js?v=20261013a"></script>
 <script src="costos_gastos.js?v=20261019a"></script>
 <script src="costos_capacidad.js?v=20261019a"></script>
-<script src="costos_rutas.js?v=20261020a"></script>
+<script src="costos_rutas.js?v=20261023a"></script>
 <script src="costos_tasas.js?v=20261021a"></script>
 <script src="costos_plan.js?v=20261023b"></script>
-<script src="costos_reportes.js?v=20261022a"></script>
+<script src="costos_reportes.js?v=20261023a"></script>
+<script src="costos_hoja.js?v=20261023a"></script>
 
 <script src="precio_venta.js?v=20261002a"></script>
 <script src="explosion.js?v=20261003b"></script>

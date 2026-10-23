@@ -8,7 +8,7 @@
 // - Ruta = las etapas por las que pasa un producto (tipo de pan o galleta), con sus tiempos estándar.
 // - Consumo por unidad de la etapa (minutos de reloj) = t_tanda ÷ q_tanda + t_unidad.
 //   La unidad de cada etapa es kg de masa o pieza; se convierte con la masa por pieza
-//   (la del producto, o la que se indique en la ruta porque la masa cruda pesa más que el pan).
+//   (la masa cruda: la de la ruta si se escribió, o el peso del producto + la merma de su receta).
 // - Minutos-hombre = minutos de reloj × personas de la etapa (base de la tarifa MOD).
 // - Aquí solo se capturan y suman tiempos. Los importes salen en la entrega 7, cuando el
 //   motor multiplica estos consumos por las tarifas de cada departamento.
@@ -44,10 +44,53 @@ function _cstDeptosProd(actualId) {
 }
 
 // ── Cálculo (puro) ──────────────────────────────────────────
-// Masa por pieza en kg: la de la ruta, o el peso del producto
+// Receta ligada al producto (null si no tiene, no existe o las recetas no están cargadas)
+function cstRecetaProd(prod) {
+  if (!prod || !prod.receta_cod || typeof _sbRecLista !== 'function') return null;
+  return (_sbRecLista() || []).find(x => x.code === prod.receta_cod) || null;
+}
+
+// Merma (%) de la receta ligada al producto: 0 si no tiene receta, no está cargada o no tiene merma
+function cstMermaProd(prod) {
+  const r = cstRecetaProd(prod);
+  const m = r ? Number(r.merma) : 0;
+  return m > 0 ? m : 0;
+}
+
+// Masa cruda por pieza y de dónde sale. Las bases de kg de masa (amasado, formado, fermentación)
+// y la tasa de gasto trabajan con la masa que entra a la batidora, no con el pan horneado:
+//   1) la que se escribió a mano en la ruta (manda siempre),
+//   2) de la receta: (peso del producto terminado − relleno/cobertura por pieza) × (1 + merma ÷ 100),
+//      igual que la Guía de Amasado (la merma es de la masa; el relleno ya está a su peso final),
+//   3) el peso del producto (receta sin merma ni relleno, sin receta o sin cargar).
+function cstMasaPiezaInfo(prod, ruta) {
+  const peso = Number(prod && prod.peso_g) > 0 ? Number(prod.peso_g) : 0;
+  const manual = ruta && Number(ruta.masa_pieza_g) > 0 ? Number(ruta.masa_pieza_g) : 0;
+  if (manual) return { g: manual, origen: 'ruta', peso, merma: 0, relleno: 0 };
+  const rec = cstRecetaProd(prod);
+  const merma = cstMermaProd(prod);
+  let relleno = rec ? (rec.addons || []).reduce((a, x) => a + (Number(x.gPorUnidad) > 0 ? Number(x.gPorUnidad) : 0), 0) : 0;
+  if (!(relleno > 0) || relleno >= peso) relleno = 0;
+  if (peso > 0 && (merma > 0 || relleno > 0)) return { g: (peso - relleno) * (1 + merma / 100), origen: 'receta', peso, merma, relleno };
+  return { g: peso, origen: peso > 0 ? 'peso' : 'ninguna', peso, merma: 0, relleno: 0 };
+}
+
+// "800 g + merma 12 %" · "1 180 g − relleno 530 g + merma 3 %"
+function cstMasaPiezaFormula(mi) {
+  return `${_cstMinTxt(mi.peso)} g` + (mi.relleno > 0 ? ` − relleno ${_cstMinTxt(mi.relleno)} g` : '') + (mi.merma > 0 ? ` + merma ${_cstMinTxt(mi.merma)} %` : '');
+}
+
+// Masa cruda por pieza en kg
 function cstMasaPiezaKg(prod, ruta) {
-  const g = ruta && ruta.masa_pieza_g ? Number(ruta.masa_pieza_g) : Number(prod && prod.peso_g);
+  const g = cstMasaPiezaInfo(prod, ruta).g;
   return g > 0 ? g / 1000 : 0;
+}
+
+// Las recetas se usan para la merma: se aseguran cargadas antes de calcular rutas y tarifas
+async function cstRecetasAsegurar() {
+  try {
+    if (typeof _sbRecCache !== 'undefined' && _sbRecCache === null && typeof _sbCosteoCargar === 'function' && pmDB.disponible()) await _sbCosteoCargar();
+  } catch (e) { console.warn('[cstRecetasAsegurar]', e.message); }
 }
 
 // Consumo estándar de una ruta. Devuelve por etapa y por departamento los minutos de reloj y
@@ -89,6 +132,7 @@ async function cstRutInit() {
 
 async function cstRutDatos() {
   await cstMaeDatos();
+  await cstRecetasAsegurar();
   const [eta, rut, lin, prods] = await Promise.all([
     pmDB.get('cost_etapas'),
     pmDB.get('cost_rutas'),
@@ -356,11 +400,16 @@ function cstRutCuerpoHtml(p) {
   const opciones = _cstEtapas.filter(e => e.activo !== false && !usadas.has(e.id))
     .map(e => `<option value="${e.id}">${pmEsc(e.codigo + ' · ' + e.nombre)}</option>`).join('');
   const peso = Number(p.peso_g) > 0 ? Number(p.peso_g) : 0;
+  const mi = cstMasaPiezaInfo(p, ruta);
+  const ayudaMasa = !peso && !mi.g ? '<span style="color:var(--red)">El producto no tiene peso: escribí aquí la masa cruda por pieza</span>'
+    : mi.origen === 'ruta' ? `Escrita a mano (peso del producto ${_cstMinTxt(peso)} g). Borrala para que se calcule sola con la merma de la receta`
+    : mi.origen === 'receta' ? `Vacío = se calcula con la receta: ${cstMasaPiezaFormula(mi)} = <b>${_cstMinTxt(mi.g)} g</b> de masa cruda`
+    : `Vacío = peso del producto (${_cstMinTxt(peso)} g): la receta no tiene merma, así que la masa cruda se toma igual al pan`;
   return `
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px">
-      <div style="flex:0 1 190px"><span style="${_CST_ST_LBL}">Masa por pieza (g)</span>
-        <input type="number" min="0" step="any" id="cstr-masa-${p.id}" value="${ruta.masa_pieza_g === null ? '' : ruta.masa_pieza_g}" placeholder="${peso || ''}" onchange="cstRutSetMasa('${p.id}', this.value)" style="${_CST_ST_IN}"></div>
-      <div style="font-size:11px;color:var(--cream2);flex:1 1 200px">${peso ? `Vacío = peso del producto (${_cstMinTxt(peso)} g)` : '<span style="color:var(--red)">El producto no tiene peso: escribí aquí la masa por pieza</span>'}. La masa cruda pesa más que el pan horneado.</div>
+      <div style="flex:0 1 190px"><span style="${_CST_ST_LBL}">Masa cruda por pieza (g)</span>
+        <input type="number" min="0" step="any" id="cstr-masa-${p.id}" value="${ruta.masa_pieza_g === null ? '' : ruta.masa_pieza_g}" placeholder="${mi.g ? _cstMinTxt(mi.g) : ''}" onchange="cstRutSetMasa('${p.id}', this.value)" style="${_CST_ST_IN}"></div>
+      <div style="font-size:11px;color:var(--cream2);flex:1 1 200px">${ayudaMasa}.</div>
     </div>
     <div id="cstr-lineas-${p.id}">${ls.map((l, i) => cstRutLineaHtml(p, ruta, l, i, ls.length)).join('') || '<div style="font-size:12px;color:var(--cream2);margin-bottom:6px">Ruta sin etapas: agregá la primera.</div>'}</div>
     <div class="row" style="margin-top:6px">
