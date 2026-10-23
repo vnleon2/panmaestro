@@ -124,13 +124,13 @@ function cstHojaHtml(d) {
     <tr class="tot"><td>Total de la masa</td><td class="n">${N(d.rec.totalPct, 1)}</td><td class="n">${N(d.rec.totalG, 1)}</td><td class="n">${N(d.lote > 0 ? d.rec.totalG / d.lote : null, 1)}</td></tr></tbody></table>
     <div class="nota">Receta de nivel 1: las subrecetas aparecen en una sola línea. Cantidades para ${d.lote} ${d.lote === 1 ? 'pieza' : 'piezas'} (${N(d.masaLoteG / 1000, 2)} kg de masa cruda).</div>`
     : '<div class="nota r">Sin receta para mostrar.</div>';
-  const rutaTabla = d.filas.length ? `<table class="t"><thead><tr><th>Op.</th><th>Etapa</th><th>Depto</th><th>Base</th><th class="n">Tanda</th><th class="n">Min / tanda</th><th class="n">Min / ${d.filas.some(f => f.tUnidad > 0) ? 'unidad' : 'unidad*'}</th><th class="n">Pers.</th>
+  const rutaTabla = d.filas.length ? `<table class="t"><thead><tr><th>Op.</th><th>Etapa</th><th>Depto</th><th>Base</th><th class="n">Tanda</th><th class="n">Min / tanda</th><th class="n">Min / unidad</th><th class="n">Pers.</th>
       <th class="n">Min reloj / pz</th><th class="n">Min-HH / pz</th><th class="n">Min-HH / kg</th><th class="n">Min-HH / lote</th><th class="c">Tiempo cronometrado</th></tr></thead><tbody>
     ${d.filas.map(f => `<tr><td>${f.op}</td><td>${E(f.etapa)}</td><td>${E(f.depto)}</td><td>${f.unidad === 'pz' ? 'pieza' : 'kg de masa'}</td>
-      <td class="n">${N(f.q, 2)} ${f.unidad === 'pz' ? 'pz' : 'kg'}</td><td class="n">${N(f.tTanda, 1)}</td><td class="n">${f.tUnidad > 0 ? N(f.tUnidad, 2) : '—'}</td><td class="n">${N(f.pers, 2)}</td>
+      <td class="n">${N(f.q, 2)} ${f.unidad === 'pz' ? 'pz' : 'kg'}</td><td class="n">${N(f.tTanda, 1)}</td><td class="n">${N(f.q > 0 ? f.tTanda / f.q + f.tUnidad : f.tUnidad, 2)}</td><td class="n">${N(f.pers, 2)}</td>
       <td class="n">${N(f.minPz, 2)}</td><td class="n">${N(f.hhPz, 2)}</td><td class="n">${N(f.hhKg, 2)}</td><td class="n">${N(f.hhLote, 1)}</td><td class="c"></td></tr>`).join('')}
     <tr class="tot"><td colspan="8">Total</td><td class="n">${N(d.resumen.relojPz, 2)}</td><td class="n">${N(d.resumen.hhPz, 2)}</td><td class="n">${N(d.resumen.hhKg, 2)}</td><td class="n">${N(d.resumen.hhLote, 1)}</td><td class="c"></td></tr></tbody></table>
-    <div class="nota">Solo tiempo de manos: las esperas (fermentación, reposos) no se registran. Tiempo por unidad de la etapa = min / tanda ÷ tanda + min por unidad (la unidad es kg de masa o pieza). Min-HH = minutos de reloj × personas.</div>`
+    <div class="nota">Solo tiempo de manos: las esperas (fermentación, reposos) no se registran. Min / unidad = min por tanda ÷ tamaño de la tanda + min extra por unidad (la unidad es kg de masa o pieza). Min-HH = minutos de reloj × personas.</div>`
     : '<div class="nota r">El producto no tiene ruta.</div>';
   const batidora = d.rec.pctLimite === null ? '—' : `${N(d.rec.harinaLoteG, 0)} g de ${N(d.limite, 0)} g (${N(d.rec.pctLimite, 0)} %)`;
   return `<!doctype html><html><head><meta charset="utf-8"><title>Hoja de estándares · ${E(p.nombre)}</title>
