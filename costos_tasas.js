@@ -330,11 +330,14 @@ function cstTasRenderResumen() {
   const v = guardado ? cstTasGuardadas() : cstTasVivas();
   const stat = (lbl, val, sub) => `<div class="stat"><div class="stat-lbl">${lbl}</div><div class="stat-val" style="font-size:17px">${val}</div>${sub ? `<div class="stat-sub">${sub}</div>` : ''}</div>`;
   const sum = k => v.tarifas.reduce((a, t) => a + t[k], 0);
+  let ocioso = 0;
+  try { ocioso = cstRepartoCalc().ocioso || 0; } catch (e) { console.warn('[cstTasRender ocioso]', e.message); }
   stats.innerHTML = stat('MOD del período', cstMoney(sum('mod')), 'departamentos productivos') +
     stat('CIF fijo', cstMoney(sum('cifF')), 'después del reparto') +
     stat('CIF variable', cstMoney(sum('cifV')), 'después del reparto') +
     stat('Gasto del período', cstMoney(v.gasto.total), 'venta · mercadeo · admin.') +
-    stat('Gasto por kg vendido', v.tasaKg === null ? '—' : cstMoneyU(v.tasaKg), v.kg > 0 ? 'sobre ' + _cstNum(v.kg) + ' kg' : 'faltan los kg normales');
+    stat('Gasto por kg vendido', v.tasaKg === null ? '—' : cstMoneyU(v.tasaKg), v.kg > 0 ? 'sobre ' + _cstNum(v.kg) + ' kg' : 'faltan los kg normales') +
+    (ocioso > 0 ? stat('Capacidad ociosa', cstMoney(ocioso), 'horas sin trabajo · no va a las piezas') : '');
 
   // Avisos y estado de la aprobación
   if (guardado) {

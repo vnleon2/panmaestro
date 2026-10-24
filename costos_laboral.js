@@ -209,7 +209,7 @@ function cstLabResumen() {
   const per = _cstPerActual();
   const meses = per ? Number(per.meses) : 1;
   const porDepto = {};
-  const tot = { MOD: 0, MOI: 0, GASTO: 0, sinAsignar: 0, hh: 0 };
+  const tot = { MOD: 0, MOI: 0, GASTO: 0, OCIOSA: 0, sinAsignar: 0, hh: 0 };
   const avisos = [];
   const porColab = {};
   _cstLineas.forEach(l => { porColab[l.colaborador_id] = (porColab[l.colaborador_id] || 0) + Number(l.monto); });
@@ -274,6 +274,7 @@ function cstLabRender() {
       stat('MOD', cstMoney(rs.tot.MOD), 'mano de obra directa') +
       stat('MOI', cstMoney(rs.tot.MOI), 'mano de obra indirecta') +
       stat('Gasto del período', cstMoney(rs.tot.GASTO), 'venta · mercadeo · admin.') +
+      (rs.tot.OCIOSA > 0 ? stat('Capacidad ociosa', cstMoney(rs.tot.OCIOSA), 'sin trabajo · no va a las piezas') : '') +
       stat('HH productivas', rs.tot.hh.toLocaleString('es-CR', { maximumFractionDigits: 1 }), 'en departamentos productivos') +
       stat('MOD por HH', modHH === null ? '—' : cstMoneyU(modHH), 'referencia')
     : '';
@@ -296,7 +297,7 @@ function cstLabRender() {
           const t = cstTratamiento(f.depto.tipo);
           return `<tr>
             <td style="${celda}">${pmEsc(f.depto.codigo)} · ${pmEsc(f.depto.nombre)}</td>
-            <td style="${celda}">${t === 'GASTO' ? 'Gasto del período' : t}</td>
+            <td style="${celda}">${t === 'GASTO' ? 'Gasto del período' : t === 'OCIOSA' ? 'Capacidad ociosa (no va a las piezas)' : t}</td>
             <td style="${celda};text-align:right;font-family:'DM Mono',monospace">${cstMoney(f.costo)}</td>
             <td style="${celda};text-align:right;font-family:'DM Mono',monospace">${f.hh ? f.hh.toLocaleString('es-CR', { maximumFractionDigits: 1 }) : '—'}</td>
             <td style="${celda};text-align:right;font-family:'DM Mono',monospace">${f.hh ? cstMoneyU(f.costo / f.hh) : '—'}</td>

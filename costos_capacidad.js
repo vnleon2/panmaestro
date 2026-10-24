@@ -358,6 +358,8 @@ function cstRepartoCalc() {
     const x = get(d.id);
     return Object.assign({}, x, { depto: d, total: x.dirF + x.dirV + x.comF + x.comV + x.nomF });
   });
+  // Capacidad ociosa: horas pagadas sin trabajo. No entra a las tarifas ni al gasto por kg
+  const ocioso = _cstCapDeps(['ociosa']).reduce((a, d) => { const x = get(d.id); return a + x.dirF + x.dirV + x.comF + x.comV + x.nomF; }, 0);
   const total = {
     cifF: prod.reduce((a, x) => a + x.cifF, 0), cifV: prod.reduce((a, x) => a + x.cifV, 0),
     gasto: gasto.reduce((a, x) => a + x.total, 0), mod: prod.reduce((a, x) => a + x.mod, 0),
@@ -381,13 +383,13 @@ function cstRepartoCalc() {
   if (!_cstLineas.length) avisos.push('El período no tiene nómina: MOD y MOI no están incluidos — generala en Costo laboral');
   // Nómina cuyo costo no llega a los departamentos (sin reparto de tiempo o reparto distinto de 100 %)
   const nomTotal = Object.values(rs.porColab).reduce((a, x) => a + x, 0);
-  const nomDist = rs.tot.MOD + rs.tot.MOI + rs.tot.GASTO;
+  const nomDist = rs.tot.MOD + rs.tot.MOI + rs.tot.GASTO + rs.tot.OCIOSA;
   if (Math.abs(nomTotal - nomDist) > 0.005) {
     avisos.push(`Nómina: ${cstMoney(Math.abs(nomTotal - nomDist))} de la nómina ${nomDist < nomTotal ? 'no llega' : 'se cuenta de más'} a los departamentos (cargada ${cstMoney(nomTotal)}, repartida ${cstMoney(nomDist)}) — revisá el reparto de tiempo de cada colaborador en Personal`);
     rs.avisos.filter(a => /reparto de tiempo|reparto suma/i.test(a)).forEach(a => avisos.push('Nómina: ' + a));
   }
   if (!_cstGasRows.length) avisos.push('El período no tiene gastos cargados — cargalos en Gastos del período');
-  return { R, prod, apoyo, gasto, total, sinRepartir, avisos };
+  return { R, prod, apoyo, gasto, ocioso, total, sinRepartir, avisos };
 }
 
 // ── Pintado ─────────────────────────────────────────────────

@@ -9,7 +9,8 @@
 //
 // Departamento = centro de costo. Su tipo define el tratamiento del personal:
 //   productivo → MOD · apoyo → MOI (se reparte a los productivos) ·
-//   venta / mercadeo / administración → gasto del período (capa 2).
+//   venta / mercadeo / administración → gasto del período (capa 2) ·
+//   ociosa → horas pagadas sin trabajo: costo del período que NO se carga a las piezas.
 // Cuenta: serie = primer dígito del código (4 laboral, 5 fabril, 6 venta,
 //   7 mercadeo, 8 administrativos). % variable: fijo 0 · variable 100 · mixto 1–99.
 // Driver: base con que se reparte una cuenta o se absorbe un costo (HH, m², kWh...).
@@ -20,6 +21,7 @@ const CST_TIPOS_DEP = [
   { id: 'venta',          nombre: 'Venta',          nota: 'Gasto del período (capa 2)' },
   { id: 'mercadeo',       nombre: 'Mercadeo',       nota: 'Gasto del período (capa 2)' },
   { id: 'administracion', nombre: 'Administración', nota: 'Gasto del período · no se reparte' },
+  { id: 'ociosa',         nombre: 'Capacidad ociosa', nota: 'Horas pagadas sin trabajo · no se carga a las piezas' },
 ];
 const CST_SERIES = [
   { id: 4, nombre: 'Costo laboral' },
