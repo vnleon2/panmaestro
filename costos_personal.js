@@ -30,11 +30,12 @@ const CST_TRATAMIENTOS = {
 function cstTratamiento(tipoDep) {
   if (tipoDep === 'productivo') return 'MOD';
   if (tipoDep === 'apoyo') return 'MOI';
+  if (tipoDep === 'ociosa') return 'OCIOSA';
   return 'GASTO';
 }
 
 // Etiqueta corta para mostrar
-function _cstTratLabel(t) { return t === 'GASTO' ? 'Gasto' : t; }
+function _cstTratLabel(t) { return t === 'GASTO' ? 'Gasto' : t === 'OCIOSA' ? 'Capacidad ociosa' : t; }
 
 function cstConceptosActivos() {
   return _cstConceptos.filter(c => c.activo !== false).sort((a, b) => (a.orden || 0) - (b.orden || 0) || a.codigo.localeCompare(b.codigo));
@@ -57,7 +58,7 @@ function _cstRepartoOk(colabId) { return Math.abs(cstRepartoSuma(colabId) - 100)
 
 // Participación (%) de una persona en cada tratamiento: { MOD, MOI, GASTO }
 function cstTratamientoDe(colabId) {
-  const r = { MOD: 0, MOI: 0, GASTO: 0 };
+  const r = { MOD: 0, MOI: 0, GASTO: 0, OCIOSA: 0 };
   cstRepartoDe(colabId).forEach(x => {
     const d = _cstDeps.find(y => y.id === x.depto_id);
     r[cstTratamiento(d ? d.tipo : '')] += Number(x.pct);
@@ -409,7 +410,7 @@ function cstColSugerirCodigo() {
 
 function _cstTratamientoHtml(colabId) {
   const t = cstTratamientoDe(colabId);
-  const partes = ['MOD', 'MOI', 'GASTO'].filter(k => t[k] > 0).map(k => `${_cstTratLabel(k)} ${_cstFmtPct(t[k])}`);
+  const partes = ['MOD', 'MOI', 'GASTO', 'OCIOSA'].filter(k => t[k] > 0).map(k => `${_cstTratLabel(k)} ${_cstFmtPct(t[k])}`);
   return partes.join(' · ');
 }
 
@@ -424,11 +425,11 @@ function cstColRender() {
   document.getElementById('cstcol-count').textContent = `Colaboradores (${lista.filter(c => c.activo !== false).length} activos)`;
 
   // Resumen mensual del personal activo
-  const tot = { MOD: 0, MOI: 0, GASTO: 0 };
+  const tot = { MOD: 0, MOI: 0, GASTO: 0, OCIOSA: 0 };
   activos.forEach(c => {
     const cc = cstCostoCargado(c).total;
     const t = cstTratamientoDe(c.id);
-    ['MOD', 'MOI', 'GASTO'].forEach(k => { tot[k] += cc * t[k] / 100; });
+    ['MOD', 'MOI', 'GASTO', 'OCIOSA'].forEach(k => { tot[k] += cc * t[k] / 100; });
   });
   const stat = (lbl, val, sub) => `<div class="stat"><div class="stat-lbl">${lbl}</div><div class="stat-val" style="font-size:17px">${val}</div>${sub ? `<div class="stat-sub">${sub}</div>` : ''}</div>`;
   const statsEl = document.getElementById('cstcol-stats');
@@ -438,7 +439,8 @@ function cstColRender() {
         stat('MOD por mes', cstMoney(tot.MOD), 'costo cargado') +
         stat('MOI por mes', cstMoney(tot.MOI), 'costo cargado') +
         stat('Gasto del período', cstMoney(tot.GASTO), 'venta · mercadeo · admin.') +
-        stat('Total por mes', cstMoney(tot.MOD + tot.MOI + tot.GASTO), 'costo cargado')
+        (tot.OCIOSA > 0 ? stat('Capacidad ociosa', cstMoney(tot.OCIOSA), 'sin trabajo · no va a las piezas') : '') +
+        stat('Total por mes', cstMoney(tot.MOD + tot.MOI + tot.GASTO + tot.OCIOSA), 'costo cargado')
       : '';
   }
   el.innerHTML = lista.map(cstColCardHtml).join('') || _cstPh('👥', 'Sin colaboradores todavía — creá el primero arriba');
