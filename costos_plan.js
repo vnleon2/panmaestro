@@ -58,6 +58,34 @@ function cstPlnSemanasLista(inicio, fin) {
 
 // ── Utilidades ──────────────────────────────────────────────
 function _cstPlnProd(id) { return _cstRutProd.find(p => p.id === id) || null; }
+
+// ── Selector de productos ───────────────────────────────────
+// Muestra TODOS los productos activos que aún no están en el plan: primero los que tienen ruta
+// (entran al cálculo de capacidad) y luego los que no; dentro de cada bloque por familia y por código.
+const CST_PLN_FAMILIAS = [
+  { id: 'pan_mm', nombre: 'Pan de masa madre' }, { id: 'pan', nombre: 'Pan' },
+  { id: 'boll', nombre: 'Pan dulce y bollería' }, { id: 'galleta', nombre: 'Galletas' }, { id: 'otro', nombre: 'Otros' },
+];
+function _cstPlnFamilia(p) {
+  const r = typeof cstRecetaProd === 'function' ? cstRecetaProd(p) : null;
+  if (typeof _pvClase === 'function') return _pvClase(r, { nombre: p.nombre, tipo: p.tipo });
+  return p.tipo === 'galleta' ? 'galleta' : p.tipo === 'pan' ? 'pan' : 'otro';
+}
+function _cstPlnTieneRuta(p) { const r = _cstRutaDe(p.id); return !!(r && _cstRutaLineas(r.id).length); }
+function _cstPlnOpcionesHtml() {
+  const libres = _cstRutProd.filter(p => !_cstPlnIds.includes(p.id));
+  const cod = p => String(p.codigo || '');
+  const orden = (a, b) => cod(a).localeCompare(cod(b), 'es', { numeric: true }) || (a.nombre || '').localeCompare(b.nombre || '', 'es');
+  let html = '';
+  [[true, 'Con ruta'], [false, 'Sin ruta (no suma carga)']].forEach(([con, rotulo]) => {
+    CST_PLN_FAMILIAS.forEach(f => {
+      const grupo = libres.filter(p => _cstPlnTieneRuta(p) === con && _cstPlnFamilia(p) === f.id).sort(orden);
+      if (!grupo.length) return;
+      html += `<optgroup label="${pmEsc(rotulo + ' · ' + f.nombre)}">${grupo.map(p => `<option value="${p.id}">${pmEsc((p.codigo ? p.codigo + ' · ' : '') + p.nombre)}</option>`).join('')}</optgroup>`;
+    });
+  });
+  return html;
+}
 function _cstPlnCant(prodId, semana, dia) {
   const r = _cstPlnRows.find(x => x.producto_id === prodId && x.semana === semana && x.dia === dia);
   return r ? Number(r.cantidad) : 0;
@@ -337,14 +365,10 @@ function cstPlnRender() {
   if (pills) pills.innerHTML = lista.map(s => `<button class="pill ${s.n === _cstPlnSem ? 'on' : ''}" onclick="cstPlnSemana(${s.n})">Sem ${s.n} · ${pmEsc(_cstPlnRangoTxt(s))}</button>`).join('');
 
   // selector de productos que faltan por agregar
-  const libres = _cstRutProd.filter(p => !_cstPlnIds.includes(p.id));
-  const grupos = {};
-  libres.forEach(p => { (grupos[p.tipo || 'otro'] = grupos[p.tipo || 'otro'] || []).push(p); });
-  const rotulo = { pan: 'Panes', galleta: 'Galletas', otro: 'Otros' };
-  const opts = Object.keys(grupos).map(g => `<optgroup label="${pmEsc(rotulo[g] || g)}">${grupos[g].map(p => `<option value="${p.id}">${pmEsc(p.nombre)}${_cstRutaDe(p.id) ? '' : ' (sin ruta)'}</option>`).join('')}</optgroup>`).join('');
+  const opts = _cstPlnOpcionesHtml();
   const hayMas = lista.some(s => s.n > _cstPlnSem);
   const barra = `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px">
-      <div style="flex:2 1 240px"><label>Agregar producto al plan</label><select id="cstpl-agregar"><option value="">— Elegí un pan o galleta —</option>${opts}</select></div>
+      <div style="flex:2 1 240px"><label>Agregar producto al plan</label><select id="cstpl-agregar"><option value="">— Elegí un producto (${_cstRutProd.filter(p => !_cstPlnIds.includes(p.id)).length} disponibles) —</option>${opts}</select></div>
       <button class="btn btn-gold btn-sm" onclick="cstPlnAgregar()">+ Agregar</button>
       ${hayMas && _cstPlnIds.length ? `<button class="btn btn-out btn-sm" onclick="cstPlnCopiar('sig')">Copiar a la semana siguiente</button><button class="btn btn-out btn-sm" onclick="cstPlnCopiar('todas')">Copiar a todas las siguientes</button>` : ''}</div>`;
 
