@@ -1914,8 +1914,14 @@
         <div class="col sm"><label>Tipo</label><select id="cstr-tipo" onchange="cstRutRender()"></select></div>
       </div>
       <label style="display:flex;gap:6px;align-items:center;justify-content:flex-start;font-size:12px;text-transform:none;letter-spacing:0;font-weight:400;margin-top:8px;cursor:pointer"><input type="checkbox" id="cstr-solo" style="width:auto;margin:0" onchange="cstRutRender()"> Solo productos sin ruta</label>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
+        <button class="btn" onclick="criElegirArchivo()">📥 Importar rutas (JSON)</button>
+        <input type="file" id="cri-file" accept=".json,application/json" style="display:none" onchange="criCargarArchivo(this)">
+        <span style="font-size:11px;color:var(--cream2)">Carga rutas con tiempos estimados; primero muestra una vista previa.</span>
+      </div>
       <div style="font-size:11px;color:var(--cream2);margin-top:8px">Tiempo de una etapa por unidad = tiempo de la tanda ÷ tamaño de la tanda + tiempo por unidad. Ejemplo: un horno de 12 piezas que tarda 40 min y 0 min por pieza consume 3,33 min por pieza.</div>
     </div>
+    <div id="cri-panel"></div>
     <div id="cstr-lista"></div>
   </div>
 
@@ -2083,6 +2089,7 @@
 <script src="costos_gastos.js?v=20261019a"></script>
 <script src="costos_capacidad.js?v=20261024a"></script>
 <script src="costos_rutas.js?v=20261023a"></script>
+<script src="costos_rutas_import.js?v=20261024a"></script>
 <script src="costos_tasas.js?v=20261024b"></script>
 <script src="costos_plan.js?v=20261024b"></script>
 <script src="costos_reportes.js?v=20261023a"></script>
