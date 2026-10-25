@@ -5,6 +5,8 @@
 // crea las rutas (cost_rutas + cost_ruta_etapas) de los productos.
 //   - Producto: se busca por `codigo`.   - Etapa: por nombre (sin tildes/mayúsculas).
 //   - Lote: lo calcula la app con la receta (cstHojaDatos, máx. 4 000 g de harina).
+//   - Etapas por kg (unidad 'kg'): q_tanda = tanda_kg; t_tanda_min = min_tanda (masa cruda).
+//   - lote_tope_masa_kg: limita las piezas del lote a ese peso de masa cruda.
 //   - Etapas con tanda 'lote': q_tanda = lote; t_tanda_min = min_fijos_lote + min_por_pieza × lote.
 //   - Horneado: q_tanda = piezas por carga; t_tanda_min = minutos; personas (0,2).
 // Vista previa primero; por defecto NO toca productos que ya tienen ruta.
@@ -49,6 +51,9 @@ function criArmarPlan(data, nombreArchivo) {
     let d;
     try { d = cstHojaDatos(prod, 0); } catch (e) { d = null; }
     it.lote = d && d.auto > 0 ? d.auto : 0;
+    // Tope de masa por tanda (p. ej. masa madre: 6,5 kg de masa cruda)
+    const topeKg = Number(src.lote_tope_masa_kg) || 0, masaPzG = d && d.mi ? Number(d.mi.g) : 0;
+    if (it.lote && topeKg > 0 && masaPzG > 0) it.lote = Math.max(1, Math.min(it.lote, Math.floor(topeKg * 1000 / masaPzG + 1e-9)));
     if (!it.lote) { it.estado = 'err'; it.msg = 'No se pudo calcular el lote (falta peso o receta)'; return it; }
     const avisos = (d.avisos || []).filter(a => !/no tiene ruta/i.test(a));
     let orden = 0;
@@ -57,13 +62,16 @@ function criArmarPlan(data, nombreArchivo) {
       if (!eta) { it.estado = 'err'; it.msg = `Etapa no encontrada en PanMaestro: «${e.etapa}»`; return it; }
       const pers = Number(e.personas) || 1;
       let q, t;
-      if (e.tanda === 'lote') { q = it.lote; t = Number(e.min_fijos_lote || 0) + Number(e.min_por_pieza || 0) * it.lote; }
+      if (e.unidad === 'kg') { q = Number(e.tanda_kg); t = Number(e.min_tanda); }
+      else if (e.tanda === 'lote') { q = it.lote; t = Number(e.min_fijos_lote || 0) + Number(e.min_por_pieza || 0) * it.lote; }
       else { q = Number(e.tanda); t = Number(e.min_tanda); }
       if (!(q > 0) || !(t >= 0)) { it.estado = 'err'; it.msg = `Datos inválidos en «${e.etapa}»`; return it; }
       q = _criR(q, 3); t = _criR(t, 3);
       it.lineas.push({ etapa_id: eta.id, orden: ++orden, unidad: e.unidad === 'kg' ? 'kg' : 'pz', q_tanda: q, t_tanda_min: t, t_unidad_min: 0, personas: pers });
-      it.minReloj += t / q;
-      it.minHH += (t / q) * pers;
+      const kgPz = d && d.mi ? Number(d.mi.g) / 1000 : 0;       // kg de masa cruda por pieza
+      const minPz = e.unidad === 'kg' ? (t / q) * kgPz : t / q;
+      it.minReloj += minPz;
+      it.minHH += minPz * pers;
     }
     if (!it.lineas.length) { it.estado = 'err'; it.msg = 'Sin etapas'; return it; }
     if (avisos.length) it.msg = avisos[0];
