@@ -11,6 +11,7 @@ function mTab(tab, btn) {
   const renders = {pan:panCargarSb, galleta:gallCargarSb, ing:ingCargarSb, clientes:() => { _sbCliCache = null; cliRender(); }, estados:estCargarSb, catalogo:catRender};
   if (renders[tab]) renders[tab]();
   if (tab === 'sync') pmSyncUIRefresh();
+  if (tab === 'backup' && typeof mexRenderGrupos === 'function') mexRenderGrupos();
 }
 
 // ─── MAESTROS — PRODUCTOS TERMINADOS (pan y galleta) ────────────────────────
