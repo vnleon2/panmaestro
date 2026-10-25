@@ -331,8 +331,9 @@ function recNuevo() {
   document.getElementById('mr-masa').value = 1000;
   document.getElementById('mr-units').value = 1;
   document.getElementById('mr-merma').value = 0;
-  document.getElementById('mr-mod') && (document.getElementById('mr-mod').value = '');
-  document.getElementById('mr-gg')  && (document.getElementById('mr-gg').value  = '');
+  // Receta nueva: el default (80/45) queda como valor real en el campo, para que se guarde
+  document.getElementById('mr-mod') && (document.getElementById('mr-mod').value = 80);
+  document.getElementById('mr-gg')  && (document.getElementById('mr-gg').value  = 45);
   document.getElementById('mr-notes').value = '';
   document.getElementById('mr-cat').value = 'pan';
   document.getElementById('mr-ing-list').innerHTML = ''; mrRecalcQty();
@@ -376,8 +377,9 @@ async function recEditar(id) {
   document.getElementById('mr-units').value = r.units||1;
   document.getElementById('mr-merma').value = r.merma||0;
   document.getElementById('mr-margen').value = r.margen!==undefined ? r.margen : '';
-  document.getElementById('mr-mod') && (document.getElementById('mr-mod').value = r.modPct!==undefined ? r.modPct : '');
-  document.getElementById('mr-gg')  && (document.getElementById('mr-gg').value  = r.ggPct!==undefined  ? r.ggPct  : '');
+  // Lo que se ve es lo que se guarda: si la receta no trae %, se muestra el default (80/45) como valor real
+  document.getElementById('mr-mod') && (document.getElementById('mr-mod').value = r.modPct!=null ? r.modPct : 80);
+  document.getElementById('mr-gg')  && (document.getElementById('mr-gg').value  = r.ggPct!=null  ? r.ggPct  : 45);
   document.getElementById('mr-notes').value = r.notes||'';
   document.getElementById('mr-cat').value = r.cat||'pan';
   document.getElementById('mr-ing-list').innerHTML = ''; mrRecalcQty();
@@ -1320,8 +1322,9 @@ async function _recSaveImpl() {
   const margen = margenVal !== '' ? parseFloat(margenVal) : undefined;
   const modPctVal = document.getElementById('mr-mod')?.value;
   const ggPctVal  = document.getElementById('mr-gg')?.value;
-  const modPct = modPctVal !== '' && modPctVal !== undefined ? parseFloat(modPctVal) : undefined;
-  const ggPct  = ggPctVal  !== '' && ggPctVal  !== undefined ? parseFloat(ggPctVal)  : undefined;
+  // Si el campo está vacío se graba el default (80/45): nunca queda null en la receta
+  const modPct = modPctVal !== '' && modPctVal !== undefined ? parseFloat(modPctVal) : 80;
+  const ggPct  = ggPctVal  !== '' && ggPctVal  !== undefined ? parseFloat(ggPctVal)  : 45;
   const obj = {code, name, cat, totalMass:masa, units, merma,
     ...(margen!==undefined?{margen}:{}),
     ...(modPct!==undefined?{modPct}:{}),
