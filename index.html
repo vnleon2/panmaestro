@@ -773,6 +773,7 @@
       </div>
     </div>
     <div class="sec"><h2 id="pan-count">Tipos de pan</h2>
+      <button class="btn btn-out btn-xs" onclick="mexExportarProductos()" title="Descargar tipos de pan y galleta en JSON">⬇ JSON</button>
       <div class="srch" style="width:160px"><input type="text" id="pan-search" placeholder="Buscar..." oninput="panRender()"></div>
     </div>
     <div id="pan-list"></div>
@@ -1097,6 +1098,12 @@
           <input type="file" accept=".json" style="display:none" onchange="pmImport(this);setTimeout(onDataLoaded,500)">
         </label>
       </div>
+    </div>
+    <div class="card">
+      <div class="ctitle">📦 Exportar maestros (JSON)</div>
+      <p style="font-size:12px;color:var(--cream2);margin-bottom:10px">Descarga los maestros, leídos en este momento desde la nube, en un archivo JSON para trabajarlos fuera de PanMaestro. Solo lee: no modifica nada. Marcá lo que querés incluir.</p>
+      <div id="mex-grupos" style="margin-bottom:10px"></div>
+      <button class="btn btn-gold" onclick="mexExportarSeleccion()">⬇ Exportar maestros</button>
     </div>
     <div class="card">
       <div class="ctitle">🗑 Limpiar pedidos y gastos</div>
@@ -2056,6 +2063,7 @@
 <script src="hidratacion.js?v=20261001c"></script>
 
 <script src="maestros.js?v=20261001c"></script>
+<script src="maestros_export.js?v=20261024a"></script>
 <script src="ing_import.js?v=20261005a"></script>
 
 <script src="catalogo.js?v=20261001c"></script>
