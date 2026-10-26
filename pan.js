@@ -305,7 +305,7 @@ function ppRender() {
 function ppCard(p) {
   const locked = p.status === (G.estados[G.estados.length-1] || 'Pagado');
   const totCli = (p.lineas||[]).reduce((s,l) => s+l.cant, 0);
-  const panOpts = G.tiposPan.map(x=>`<option value="${x.id}">${x.nombre} · ${pmMoney(x.precio||0)}</option>`).join('');
+  const panOpts = pmOrdenar(G.tiposPan,'nombre').map(x=>`<option value="${x.id}">${x.nombre} · ${pmMoney(x.precio||0)}</option>`).join('');
   const estOpts = G.estados.map(e=>`<option value="${e}"${e===p.status?' selected':''}>${e}</option>`).join('');
 
   let lineasHtml = '';
@@ -751,7 +751,7 @@ function ppEditLinea(pedId, lid) {
   if (!l) return;
   const tr = document.getElementById('lr-' + lid);
   if (!tr) return;
-  const panOpts = G.tiposPan.map(x=>`<option value="${x.id}"${x.id===l.pid?' selected':''}>${x.nombre}</option>`).join('');
+  const panOpts = pmOrdenar(G.tiposPan,'nombre').map(x=>`<option value="${x.id}"${x.id===l.pid?' selected':''}>${x.nombre}</option>`).join('');
   tr.innerHTML = `
     <td style="padding:4px 6px">
       <select id="ep-pan-${lid}" style="font-size:12px;padding:4px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream)">${panOpts}</select>

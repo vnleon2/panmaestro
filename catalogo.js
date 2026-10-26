@@ -53,7 +53,7 @@ function catAbrirSubida() {
   const sel = document.getElementById('cat-prod-sel');
   const prods = [...(G.tiposPan||[]), ...(G.tiposGalleta||[])];
   sel.innerHTML = '<option value="">— seleccionar —</option>' +
-    prods.map(p => `<option value="${p.id}">${p.id} · ${p.nombre}</option>`).join('');
+    pmOrdenar(prods,'nombre').map(p => `<option value="${p.id}">${p.nombre} · ${p.id}</option>`).join('');
   document.getElementById('cat-status').textContent = '';
   document.getElementById('cat-preview-wrap').style.display = 'none';
   document.getElementById('cat-foto-input').value = '';

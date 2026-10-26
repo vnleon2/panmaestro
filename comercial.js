@@ -40,9 +40,8 @@ async function pcCargarClientes() {
   if (!sel) return;
   const clientes = _sbCliCache || await _sbCliCargar();
   sel.innerHTML = '<option value="">— seleccionar cliente —</option>' +
-    clientes
-      .sort((a,b) => (a.codigo||'').localeCompare(b.codigo||''))
-      .map(c => `<option value="${c.id}" data-nom="${pmEsc(c.nombre)}">${c.codigo ? pmEsc(c.codigo)+' · ' : ''}${pmEsc(c.nombre)}</option>`)
+    pmOrdenar(clientes,'nombre')
+      .map(c => `<option value="${c.id}" data-nom="${pmEsc(c.nombre)}">${pmEsc(c.nombre)}${c.codigo ? ' · '+pmEsc(c.codigo) : ''}</option>`)
       .join('');
 }
 
@@ -321,7 +320,7 @@ async function pcOpenLinea(pedId) {
   }
 
   sel.innerHTML = '<option value="">— seleccionar producto —</option>' +
-    opciones.map(o =>
+    pmOrdenar(opciones,'nombre').map(o =>
       `<option value="${o.id}" data-sbid="${o.sbId}" data-precio="${o.precioEfectivo}" data-precio-full="${o.precioFull}" data-desc="${o.descPct}">
         ${pmEsc(o.nombre)} · ₡${o.precioEfectivo}${o.descPct ? ' (−'+o.descPct+'%)' : ''}
       </option>`).join('');

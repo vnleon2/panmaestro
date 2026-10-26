@@ -223,7 +223,7 @@ function pgRender() {
 function pgCard(p) {
   const locked = p.status === (G.estados[G.estados.length-1]||'Pagado');
   const totCli = (p.lineas||[]).reduce((s,l)=>s+l.cant,0);
-  const galOpts = G.tiposGalleta.map(x=>`<option value="${x.id}">${x.nombre} · ${pmMoney(x.precio||0)}</option>`).join('');
+  const galOpts = pmOrdenar(G.tiposGalleta,'nombre').map(x=>`<option value="${x.id}">${x.nombre} · ${pmMoney(x.precio||0)}</option>`).join('');
   const estOpts = G.estados.map(e=>`<option value="${e}"${e===p.status?' selected':''}>${e}</option>`).join('');
 
   let lineasHtml = '';
@@ -601,7 +601,7 @@ function pgEditLinea(pedId, lid) {
   if (!l) return;
   const tr = document.getElementById('lgr-' + lid);
   if (!tr) return;
-  const galOpts = G.tiposGalleta.map(x=>`<option value="${x.id}"${x.id===l.pid?' selected':''}>${x.nombre}</option>`).join('');
+  const galOpts = pmOrdenar(G.tiposGalleta,'nombre').map(x=>`<option value="${x.id}"${x.id===l.pid?' selected':''}>${x.nombre}</option>`).join('');
   tr.innerHTML = `
     <td style="padding:4px 6px"><select id="eg-pan-${lid}" style="font-size:12px;padding:4px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream)">${galOpts}</select></td>
     <td style="padding:4px 6px"><input type="number" id="eg-cant-${lid}" value="${l.cant}" min="1" style="width:56px;font-size:12px;padding:4px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream)"></td>

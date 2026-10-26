@@ -45,9 +45,9 @@ function premPoblarCultivos() {
   if (q) cultivos = cultivos.filter(r =>
     (r.name || '').toLowerCase().includes(q) || (r.code || '').toLowerCase().includes(q)
   );
-  cultivos.sort((a, b) => (a.code || '').localeCompare(b.code || ''));
+  cultivos = pmOrdenar(cultivos, 'name');
   sel.innerHTML = cultivos.length
-    ? cultivos.map(r => `<option value="${r.code}">${r.code} · ${r.name}${r.cat === 'masa' ? ' (masa)' : ''}</option>`).join('')
+    ? cultivos.map(r => `<option value="${r.code}">${r.name} · ${r.code}${r.cat === 'masa' ? ' (masa)' : ''}</option>`).join('')
     : '<option value="">Sin resultados</option>';
 }
 

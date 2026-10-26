@@ -779,7 +779,7 @@ async function repCom(fecha) {
   const getProd = pid => prods.find(p => p.id === pid) || { nombre: pid || '(producto)', precio: 0 };
 
   const todosOpt = `<option value="">— Todos los clientes —</option>`;
-  const cliOpts  = peds.map(p => `<option value="${p.id}">${pmEsc(p.cliNom)}${p.numPed?' ('+pmEsc(p.numPed)+')':''}</option>`).join('');
+  const cliOpts  = pmOrdenar(peds, 'cliNom').map(p => `<option value="${p.id}">${pmEsc(p.cliNom)}${p.numPed?' ('+pmEsc(p.numPed)+')':''}</option>`).join('');
 
   const filtroEl    = document.getElementById('rep-com-filtro');
   const filtroPedId = filtroEl ? filtroEl.value || '' : '';

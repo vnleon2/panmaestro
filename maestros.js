@@ -182,10 +182,10 @@ function panRender() {
 function panRecetaPopulate() {
   const sel = document.getElementById('pan-rec');
   if (!sel) return;
-  const recetas = _sbRecLista().filter(r => r.code && r.code.startsWith('R-'));
+  const recetas = pmOrdenar(_sbRecLista().filter(r => r.code && r.code.startsWith('R-')), 'name');
   const current = sel.value;
   sel.innerHTML = '<option value="">— Sin receta —</option>' +
-    recetas.map(r => `<option value="${r.code}"${r.code===current?' selected':''}>${r.code} · ${r.name}</option>`).join('');
+    recetas.map(r => `<option value="${r.code}"${r.code===current?' selected':''}>${r.name} · ${r.code}</option>`).join('');
 }
 
 async function panEdit(id) {
@@ -209,9 +209,9 @@ async function panEdit(id) {
       } catch (e) { console.warn('[pmDB] panEdit — no se pudo leer updated_at:', e.message); }
     }
   }
-  const recetas = _sbRecLista().filter(r => r.code && r.code.startsWith('R-'));
+  const recetas = pmOrdenar(_sbRecLista().filter(r => r.code && r.code.startsWith('R-')), 'name');
   const recOpts = '<option value="">— Sin receta —</option>' +
-    recetas.map(r => `<option value="${r.code}"${r.code===(p.recetaCod||'')?' selected':''}>${r.code} · ${r.name}</option>`).join('');
+    recetas.map(r => `<option value="${r.code}"${r.code===(p.recetaCod||'')?' selected':''}>${r.name} · ${r.code}</option>`).join('');
   const form = document.createElement('div');
   form.className = 'pan-edit-form';
   form.style.cssText = 'padding:10px 12px;background:rgba(200,146,42,.06);border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end';
@@ -399,10 +399,10 @@ function gallRender() {
 function gallRecetaPopulate() {
   const sel = document.getElementById('gall-rec');
   if (!sel) return;
-  const recetas = _sbRecLista().filter(r => r.code && r.code.startsWith('R-'));
+  const recetas = pmOrdenar(_sbRecLista().filter(r => r.code && r.code.startsWith('R-')), 'name');
   const current = sel.value;
   sel.innerHTML = '<option value="">— Sin receta —</option>' +
-    recetas.map(r => `<option value="${r.code}"${r.code===current?' selected':''}>${r.code} · ${r.name}</option>`).join('');
+    recetas.map(r => `<option value="${r.code}"${r.code===current?' selected':''}>${r.name} · ${r.code}</option>`).join('');
 }
 
 async function gallEdit(id) {
@@ -425,9 +425,9 @@ async function gallEdit(id) {
       } catch (e) { console.warn('[pmDB] gallEdit — no se pudo leer updated_at:', e.message); }
     }
   }
-  const recetas = _sbRecLista().filter(r => r.code && r.code.startsWith('R-'));
+  const recetas = pmOrdenar(_sbRecLista().filter(r => r.code && r.code.startsWith('R-')), 'name');
   const recOpts = '<option value="">— Sin receta —</option>' +
-    recetas.map(r => `<option value="${r.code}"${r.code===(p.recetaCod||'')?' selected':''}>${r.code} · ${r.name}</option>`).join('');
+    recetas.map(r => `<option value="${r.code}"${r.code===(p.recetaCod||'')?' selected':''}>${r.name} · ${r.code}</option>`).join('');
   const form = document.createElement('div');
   form.className = 'gall-edit-form';
   form.style.cssText = 'padding:10px 12px;background:rgba(200,146,42,.06);border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end';

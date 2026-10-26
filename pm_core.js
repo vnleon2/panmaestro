@@ -380,6 +380,16 @@ function pmMoney(n) { return '₡' + Number(n||0).toLocaleString('es-CR'); }
 // haya sido escrito por el código mismo — cualquier dato que venga de un
 // formulario (staff o cliente externo) o de Supabase debe pasar por acá
 // antes de ir a un template literal que se asigna a innerHTML.
+// ── ORDEN ALFABÉTICO ÚNICO PARA DESPLEGABLES ─────────────────
+// Ordena en español: ignora mayúsculas y tildes, y trata los números como
+// números ("Pan 80g" antes que "Pan 120g"). Devuelve una COPIA, no toca el
+// arreglo original. campo = nombre de propiedad o función que devuelve el texto.
+const _pmCollator = new Intl.Collator('es', { sensitivity: 'base', numeric: true });
+function pmOrdenar(arr, campo) {
+  const f = typeof campo === 'function' ? campo : (x => x[campo]);
+  return (arr || []).slice().sort((a, b) => _pmCollator.compare(String(f(a) ?? ''), String(f(b) ?? '')));
+}
+
 function pmEsc(str) {
   return String(str ?? '').replace(/[&<>"']/g, c => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
