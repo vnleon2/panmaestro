@@ -239,6 +239,12 @@ function pmToggleGroup(btn) {
   if (!yaAbierto) drop.classList.add('show');
 }
 
+function pmToggleUserMenu(e) {
+  if (e) e.stopPropagation();
+  document.querySelectorAll('.group-drop').forEach(d => d.classList.remove('show'));
+  document.getElementById('user-drop').classList.toggle('show');
+}
+
 function pmToggleNavPanel() {
   document.getElementById('nav').classList.toggle('open');
 }
@@ -249,6 +255,8 @@ function pmToggleNavPanel() {
 function pmCloseNav() {
   document.getElementById('nav').classList.remove('open');
   document.querySelectorAll('.group-drop').forEach(d => d.classList.remove('show'));
+  const ud = document.getElementById('user-drop');
+  if (ud) ud.classList.remove('show');
 }
 
 // Cerrar los dropdowns de escritorio si se hace clic afuera del menú
@@ -256,5 +264,9 @@ function pmCloseNav() {
 document.addEventListener('click', (e) => {
   if (!e.target.closest('.nav-group') && !e.target.closest('.hamburger-btn')) {
     document.querySelectorAll('.group-drop').forEach(d => d.classList.remove('show'));
+  }
+  if (!e.target.closest('.user-menu')) {
+    const ud = document.getElementById('user-drop');
+    if (ud) ud.classList.remove('show');
   }
 });

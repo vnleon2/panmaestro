@@ -267,7 +267,7 @@ async function amasRender() {
 
   const pasosHtml = pasos.map(p => `
     <div style="display:flex;gap:14px;padding:14px 16px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);align-items:flex-start;margin-bottom:12px">
-      <div style="width:28px;height:28px;flex-shrink:0;border-radius:8px;background:rgba(37,99,235,.1);color:var(--gold);display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;font-weight:700;font-size:13px">${p.n}</div>
+      <div style="width:28px;height:28px;flex-shrink:0;border-radius:8px;background:rgba(46,107,69,.1);color:var(--gold);display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;font-weight:700;font-size:13px">${p.n}</div>
       <div style="flex:1;display:flex;flex-direction:column;gap:5px;min-width:0">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
           <div style="font-weight:700;font-size:14.5px;color:var(--cream)">${p.titulo}</div>
