@@ -104,6 +104,7 @@
         <div class="drop-h">3 · Resultados</div>
         <button class="ntab" data-tab="pg-costos-tarifas" onclick="showTab('pg-costos-tarifas');pmCloseNav()">🧮 Tarifas y aprobación</button>
         <button class="ntab" data-tab="pg-costos-reportes" onclick="showTab('pg-costos-reportes');pmCloseNav()">📊 Reportes de costo</button>
+        <button class="ntab" data-tab="pg-costos-consulta" onclick="showTab('pg-costos-consulta');pmCloseNav()">🔎 Consulta de productos</button>
         <div class="drop-sep"></div>
         <button class="ntab" data-tab="pg-costos-config" onclick="showTab('pg-costos-config');pmCloseNav()">⚙️ Parámetros</button>
       </div>
@@ -2028,6 +2029,29 @@
   <div id="cstrp-hoja"></div>
 </div>
 
+<!-- ═══ 💲 Costos · Consulta de productos (costo estándar) ═══ -->
+<div class="page" id="pg-costos-consulta">
+  <div class="pg-title">🔎 Consulta de productos</div>
+  <div class="pg-sub">La misma consulta de Maestros (tipos de pan y de galleta), pero con el costo estándar del sistema de costeo nuevo: materiales, empaque, mano de obra, carga fabril y gasto del período — solo lectura, no cambia nada</div>
+
+  <div class="card">
+    <div class="ctitle">Período</div>
+    <div class="row">
+      <div class="col" style="flex:2"><label>Período</label><select id="cstco-periodo" onchange="cstConElegirPer(this.value)"></select></div>
+      <div class="col"><label>Buscar</label><input type="text" id="cstco-buscar" placeholder="Nombre o código..." oninput="cstConRender()"></div>
+    </div>
+    <div id="cstco-estado" style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap"></div>
+  </div>
+
+  <div class="pills" id="cstco-pills">
+    <button class="pill on" onclick="cstConTab('pan',this)">🍞 Tipos de pan</button>
+    <button class="pill" onclick="cstConTab('galleta',this)">🍪 Tipos galleta</button>
+  </div>
+  <div class="sec"><h2 id="cstco-count">Tipos de pan</h2></div>
+  <div id="cstco-lista"></div>
+  <div id="cstco-nota" style="font-size:11px;color:var(--cream2);margin:6px 2px 0"></div>
+</div>
+
 </div><!-- /#app -->
 
 <div class="pm-toast" id="pm-toast"></div>
@@ -2105,6 +2129,7 @@
 <script src="costos_tasas.js?v=20261024b"></script>
 <script src="costos_plan.js?v=20261024b"></script>
 <script src="costos_reportes.js?v=20261023a"></script>
+<script src="costos_consulta.js?v=20261025a"></script>
 <script src="costos_hoja.js?v=20261023a"></script>
 
 <script src="precio_venta.js?v=20261002a"></script>

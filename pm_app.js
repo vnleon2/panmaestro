@@ -30,7 +30,7 @@ function showTab(id) {
     'pg-com':'COMERCIAL','pg-prod':'PRODUCCIÓN','pg-rep':'REPORTES',
     'pg-gastos':'GASTOS','pg-costeo':'COSTEO','pg-hid':'HIDRATACIÓN',
     'app-inner':'MAESTROS','pg-rec':'RECETARIO','pg-gmrec':'GLUTEN MORGEN','pg-planlibre':'PLAN LIBRE',
-    'pg-etiquetas':'ETIQUETAS','pg-mercadeo':'MERCADEO','pg-depuracion':'DEPURACIÓN','pg-simulador':'SIMULADOR','pg-empaques':'COSTOS','pg-costos-config':'COSTOS','pg-costos-maestros':'COSTOS','pg-costos-personal':'COSTOS','pg-costos-laboral':'COSTOS','pg-costos-gastos':'COSTOS','pg-costos-capacidad':'COSTOS','pg-costos-rutas':'COSTOS','pg-costos-plan':'COSTOS','pg-costos-tarifas':'COSTOS','pg-costos-reportes':'COSTOS'
+    'pg-etiquetas':'ETIQUETAS','pg-mercadeo':'MERCADEO','pg-depuracion':'DEPURACIÓN','pg-simulador':'SIMULADOR','pg-empaques':'COSTOS','pg-costos-config':'COSTOS','pg-costos-maestros':'COSTOS','pg-costos-personal':'COSTOS','pg-costos-laboral':'COSTOS','pg-costos-gastos':'COSTOS','pg-costos-capacidad':'COSTOS','pg-costos-rutas':'COSTOS','pg-costos-plan':'COSTOS','pg-costos-tarifas':'COSTOS','pg-costos-reportes':'COSTOS','pg-costos-consulta':'COSTOS'
   };
   const modEl = document.querySelector('.brand-mod');
   if (modEl) modEl.textContent = labels[id] || 'PANMAESTRO';
@@ -51,6 +51,7 @@ function showTab(id) {
     'pg-costos-plan': () => { cstPlnInit(); },
     'pg-costos-tarifas': () => { cstTasInit(); },
     'pg-costos-reportes': () => { cstRepInit(); },
+    'pg-costos-consulta': () => { cstConInit(); },
     'pg-pedidos': () => { document.getElementById('pp-fecha').value = pmHoy(); ppCargarSb(); },
     'pg-galletas':() => { document.getElementById('pg-fecha').value = pmHoy(); pgCargarSb(); },
     'pg-com':     () => { document.getElementById('pc-fecha').value = pmHoy(); pcCargarClientes(); pcCargarSb(); },
