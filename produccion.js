@@ -398,7 +398,7 @@ async function loteNuevo() {
   document.getElementById('lote-obs').value = '';
   // Fill pan selector
   const sel = document.getElementById('lote-item-pan');
-  if (sel) sel.innerHTML = G.tiposPan.map(p => `<option value="${p.id}">${p.nombre}</option>`).join('');
+  if (sel) sel.innerHTML = pmOrdenar(G.tiposPan,'nombre').map(p => `<option value="${p.id}">${p.nombre}</option>`).join('');
   _loteItemsRender();
   document.getElementById('lote-modal').style.display = 'block';
 }
@@ -428,7 +428,7 @@ function loteEditar(id) {
       notas: it.notas || ''
     }));
     const sel = document.getElementById('lote-item-pan');
-    if (sel) sel.innerHTML = G.tiposPan.map(p => `<option value="${p.id}">${p.nombre}</option>`).join('');
+    if (sel) sel.innerHTML = pmOrdenar(G.tiposPan,'nombre').map(p => `<option value="${p.id}">${p.nombre}</option>`).join('');
     _loteItemsRender();
     document.getElementById('lote-modal').style.display = 'block';
   }).catch(e => pmToast('Error al cargar lote', 'err'));

@@ -10,7 +10,7 @@ function fillRscSel() {
   const sel = document.getElementById('rsc-sel');
   if (!sel) return;
   sel.innerHTML = '<option value="">— seleccionar —</option>' +
-    _sbRecLista().map(r => `<option value="${r.id}">${r.code} · ${r.name}</option>`).join('');
+    pmOrdenar(_sbRecLista(),'name').map(r => `<option value="${r.id}">${r.name} · ${r.code}</option>`).join('');
 }
 
 function rscCalc() {
@@ -617,10 +617,8 @@ function ingPickerSelect(name) {
 function mrAddSub(data={}) {
   mrSubCount++;
   const uid = 'mrs-' + mrSubCount;
-  const recOpts = _sbRecLista()
-    .filter(r => r.code && r.code.startsWith('R-'))
-    .sort((a,b) => (a.code||'').localeCompare(b.code||''))
-    .map(r => `<option value="${r.code}"${r.code===data.recId?' selected':''}>${r.code} · ${r.name}</option>`)
+  const recOpts = pmOrdenar(_sbRecLista().filter(r => r.code && r.code.startsWith('R-')), 'name')
+    .map(r => `<option value="${r.code}"${r.code===data.recId?' selected':''}>${r.name} · ${r.code}</option>`)
     .join('');
 
   const div = document.createElement('div');
@@ -668,10 +666,8 @@ function mrAddAddon(data={}) {
   if (!window._mrAddonCount) window._mrAddonCount = 0;
   window._mrAddonCount++;
   const uid = 'mra-' + window._mrAddonCount;
-  const recOpts = _sbRecLista()
-    .filter(r => r.code && r.code.startsWith('R-'))
-    .sort((a,b) => (a.code||'').localeCompare(b.code||''))
-    .map(r => `<option value="${r.code}"${r.code===data.recId?' selected':''}>${r.code} · ${r.name}</option>`)
+  const recOpts = pmOrdenar(_sbRecLista().filter(r => r.code && r.code.startsWith('R-')), 'name')
+    .map(r => `<option value="${r.code}"${r.code===data.recId?' selected':''}>${r.name} · ${r.code}</option>`)
     .join('');
 
   const esIng = !!data.ingrediente;

@@ -353,9 +353,9 @@ function mktProdRender() {
   }
 
   const catOpts = '<option value="">— Sin categoría —</option>' +
-    _mktCat.map(c => `<option value="${c.id}">${pmEsc(c.nombre)}</option>`).join('');
+    pmOrdenar(_mktCat,'nombre').map(c => `<option value="${c.id}">${pmEsc(c.nombre)}</option>`).join('');
   const estOpts = '<option value="">— Sin estilo —</option>' +
-    _mktEst.map(s => `<option value="${s.id}">${pmEsc(s.nombre)}</option>`).join('');
+    pmOrdenar(_mktEst,'nombre').map(s => `<option value="${s.id}">${pmEsc(s.nombre)}</option>`).join('');
 
   el.innerHTML = lista.map(p => {
     const catActual = _mktProdCat[p.id]?.categoria_id || '';

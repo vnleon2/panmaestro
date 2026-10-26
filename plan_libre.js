@@ -517,7 +517,7 @@ async function cliPreciosVer(clienteId, clienteNom) {
   const prods = [...(G.tiposPan||[]), ...(G.tiposGalleta||[])];
   const sel = document.getElementById('cp-prod');
   sel.innerHTML = '<option value="">— seleccionar producto —</option>' +
-    prods.map(p => '<option value="' + p.id + '">' + p.nombre + (p.precio ? ' · ₡'+p.precio : '') + '</option>').join('');
+    pmOrdenar(prods,'nombre').map(p => '<option value="' + p.id + '">' + p.nombre + (p.precio ? ' · ₡'+p.precio : '') + '</option>').join('');
   document.getElementById('cp-precio').value = '';
   document.getElementById('cp-desc').value   = '0';
   await cpListarPrecios(clienteId);

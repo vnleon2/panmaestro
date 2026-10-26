@@ -26,9 +26,9 @@ async function etCargarCatalogo() {
       { activo: true },
       'codigo,nombre,peso_g,precio_full,es_masa_madre'
     );
-    etProductos = (data || []).sort((a,b) => (a.codigo||'').localeCompare(b.codigo||''));
+    etProductos = pmOrdenar(data || [], 'nombre');
     sel.innerHTML = '<option value="">Seleccioná un producto…</option>' +
-      etProductos.map((p, i) => `<option value="${i}">${pmEsc(p.codigo)} — ${pmEsc(p.nombre)}</option>`).join('');
+      etProductos.map((p, i) => `<option value="${i}">${pmEsc(p.nombre)} — ${pmEsc(p.codigo)}</option>`).join('');
   } catch(e) {
     sel.innerHTML = '<option>Error cargando catálogo</option>';
     pmToast('Error al cargar catálogo: ' + e.message, 'err');
