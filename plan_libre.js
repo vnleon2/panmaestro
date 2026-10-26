@@ -333,7 +333,7 @@ async function cliRender() {
     return '<div class="item-row" style="align-items:center;gap:8px">' +
       '<div style="flex:1;min-width:0">' +
         '<div class="item-name" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">' +
-          '<span style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--cream2);background:rgba(37,99,235,.08);border:1px solid var(--border);border-radius:6px;padding:1px 7px">' + pmEsc(c.codigo||'') + '</span>' +
+          '<span style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--cream2);background:rgba(46,107,69,.08);border:1px solid var(--border);border-radius:6px;padding:1px 7px">' + pmEsc(c.codigo||'') + '</span>' +
           '<span style="font-weight:600">' + pmEsc(c.nombre) + '</span>' +
           tipoBadge(c.tipo||'regular') +
         '</div>' +
@@ -551,7 +551,7 @@ async function cpListarPrecios(clienteId) {
           '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">' +
             '<div>' +
               '<div style="font-weight:600;font-size:13px">' + prod.nombre + '</div>' +
-              '<span style="font-size:10px;font-weight:700;color:'+(escalaColor[esc]||'var(--cream2)')+';background:rgba(37,99,235,.08);border-radius:10px;padding:1px 8px;border:1px solid var(--border)">' + escLabel + '</span>' +
+              '<span style="font-size:10px;font-weight:700;color:'+(escalaColor[esc]||'var(--cream2)')+';background:rgba(46,107,69,.08);border-radius:10px;padding:1px 8px;border:1px solid var(--border)">' + escLabel + '</span>' +
             '</div>' +
             '<div style="display:flex;gap:5px">' +
               '<button class="btn btn-gold btn-xs" onclick="cpEditar(\''+r.id+'\')">✎ Editar</button>' +

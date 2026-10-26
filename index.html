@@ -6,16 +6,16 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#1C0F05">
+<meta name="theme-color" content="#2E6B45">
 <title>Dashboard — PanMaestro</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="pm_style.css">
+<link rel="stylesheet" href="pm_style.css?v=20261026a">
 
 </head>
 <body>
 
 <!-- ═══ 🔐 LOGIN ═══ -->
-<div id="pm-login" style="display:none;position:fixed;inset:0;background:#F4F6F9;z-index:9000;
+<div id="pm-login" style="display:none;position:fixed;inset:0;background:#F4F7F2;z-index:9000;
   display:none;align-items:center;justify-content:center;padding:20px">
   <div style="width:100%;max-width:360px">
     <div style="text-align:center;margin-bottom:32px">
@@ -41,7 +41,7 @@
           onkeydown="if(event.key==='Enter')pmLoginSubmit()">
       </div>
       <button id="pm-login-btn" onclick="pmLoginSubmit()"
-        style="width:100%;padding:12px;background:var(--gold);color:#1a0a00;font-weight:700;font-size:15px;
+        style="width:100%;padding:12px;background:var(--gold);color:#FFFFFF;font-weight:700;font-size:15px;
         border:none;border-radius:10px;cursor:pointer;font-family:'DM Sans',sans-serif;letter-spacing:.3px">
         Entrar
       </button>
@@ -59,11 +59,10 @@
   </div>
   <button class="hamburger-btn" onclick="pmToggleNavPanel()" aria-label="Abrir menú">☰</button>
   <div id="nav" class="nav-panel">
-    <button class="ntab" data-tab="pg-dash" onclick="showTab('pg-dash');pmCloseNav()">📊 Dashboard</button>
+    <button class="ntab" data-tab="pg-dash" onclick="showTab('pg-dash');pmCloseNav()">📊 Inicio</button>
 
     <div class="nav-group">
       <button class="nav-toggle" onclick="pmToggleGroup(this)">📋 Pedidos ▾</button>
-      <span class="nav-group-label">📋 Pedidos</span>
       <div class="group-drop">
         <button class="ntab" data-tab="pg-pedidos" onclick="showTab('pg-pedidos');pmCloseNav()">🍞 Pan</button>
         <button class="ntab" data-tab="pg-galletas" onclick="showTab('pg-galletas');pmCloseNav()">🍪 Galletas</button>
@@ -73,7 +72,6 @@
 
     <div class="nav-group">
       <button class="nav-toggle" onclick="pmToggleGroup(this)">🔥 Producción ▾</button>
-      <span class="nav-group-label">🔥 Producción</span>
       <div class="group-drop">
         <button class="ntab" data-tab="pg-prod" onclick="showTab('pg-prod');pmCloseNav()">🔥 Producción</button>
         <button class="ntab" data-tab="pg-planlibre" onclick="showTab('pg-planlibre');planLibreRender();pmCloseNav()">📋 Plan Libre</button>
@@ -82,7 +80,6 @@
 
     <div class="nav-group">
       <button class="nav-toggle" onclick="pmToggleGroup(this)">📖 Recetas ▾</button>
-      <span class="nav-group-label">📖 Recetas</span>
       <div class="group-drop">
         <button class="ntab" data-tab="pg-costeo" onclick="showTab('pg-costeo');pmCloseNav()">📖 Costeo</button>
         <button class="ntab" data-tab="pg-rec" onclick="showTab('pg-rec');pmCloseNav()">📚 Recetario</button>
@@ -92,8 +89,36 @@
     </div>
 
     <div class="nav-group">
+      <button class="nav-toggle" onclick="pmToggleGroup(this)">💲 Costos ▾</button>
+      <div class="group-drop">
+        <div class="drop-h">1 · Datos base</div>
+        <button class="ntab" data-tab="pg-costos-maestros" onclick="showTab('pg-costos-maestros');pmCloseNav()">🏭 Departamentos y cuentas</button>
+        <button class="ntab" data-tab="pg-costos-personal" onclick="showTab('pg-costos-personal');pmCloseNav()">👥 Personal</button>
+        <button class="ntab" data-tab="pg-costos-laboral" onclick="showTab('pg-costos-laboral');pmCloseNav()">💵 Costo laboral</button>
+        <button class="ntab" data-tab="pg-costos-gastos" onclick="showTab('pg-costos-gastos');pmCloseNav()">💰 Gastos del período</button>
+        <button class="ntab" data-tab="pg-empaques" onclick="showTab('pg-empaques');pmCloseNav()">📦 Empaques</button>
+        <div class="drop-h">2 · Reparto</div>
+        <button class="ntab" data-tab="pg-costos-capacidad" onclick="showTab('pg-costos-capacidad');pmCloseNav()">📐 Capacidad y reparto</button>
+        <button class="ntab" data-tab="pg-costos-rutas" onclick="showTab('pg-costos-rutas');pmCloseNav()">🧭 Etapas y rutas</button>
+        <button class="ntab" data-tab="pg-costos-plan" onclick="showTab('pg-costos-plan');pmCloseNav()">🗓️ Plan de producción</button>
+        <div class="drop-h">3 · Resultados</div>
+        <button class="ntab" data-tab="pg-costos-tarifas" onclick="showTab('pg-costos-tarifas');pmCloseNav()">🧮 Tarifas y aprobación</button>
+        <button class="ntab" data-tab="pg-costos-reportes" onclick="showTab('pg-costos-reportes');pmCloseNav()">📊 Reportes de costo</button>
+        <div class="drop-sep"></div>
+        <button class="ntab" data-tab="pg-costos-config" onclick="showTab('pg-costos-config');pmCloseNav()">⚙️ Parámetros</button>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <button class="nav-toggle" onclick="pmToggleGroup(this)">🎯 Mercadeo ▾</button>
+      <div class="group-drop">
+        <button class="ntab" data-tab="pg-mercadeo" onclick="showTab('pg-mercadeo');pmCloseNav()">🎯 Categorías, estilos y atributos</button>
+        <button class="ntab" data-tab="pg-etiquetas" onclick="showTab('pg-etiquetas');pmCloseNav()">🏷️ Etiquetas</button>
+      </div>
+    </div>
+
+    <div class="nav-group">
       <button class="nav-toggle" onclick="pmToggleGroup(this)">⚙️ Administración ▾</button>
-      <span class="nav-group-label">⚙️ Administración</span>
       <div class="group-drop">
         <button class="ntab" data-tab="app-inner" onclick="showTab('app-inner');pmCloseNav()">⚙️ Maestros</button>
         <button class="ntab" data-tab="pg-gastos" onclick="showTab('pg-gastos');pmCloseNav()">💰 Gastos</button>
@@ -103,34 +128,21 @@
     </div>
 
     <div class="nav-group">
-      <button class="nav-toggle" onclick="pmToggleGroup(this)">💲 Costos ▾</button>
-      <span class="nav-group-label">💲 Costos</span>
+      <button class="nav-toggle" onclick="pmToggleGroup(this)">🧰 Herramientas ▾</button>
       <div class="group-drop">
-        <button class="ntab" data-tab="pg-empaques" onclick="showTab('pg-empaques');pmCloseNav()">📦 Empaques</button>
-        <button class="ntab" data-tab="pg-costos-maestros" onclick="showTab('pg-costos-maestros');pmCloseNav()">🏭 Departamentos y cuentas</button>
-        <button class="ntab" data-tab="pg-costos-personal" onclick="showTab('pg-costos-personal');pmCloseNav()">👥 Personal</button>
-        <button class="ntab" data-tab="pg-costos-laboral" onclick="showTab('pg-costos-laboral');pmCloseNav()">💵 Costo laboral</button>
-        <button class="ntab" data-tab="pg-costos-gastos" onclick="showTab('pg-costos-gastos');pmCloseNav()">💰 Gastos del período</button>
-        <button class="ntab" data-tab="pg-costos-capacidad" onclick="showTab('pg-costos-capacidad');pmCloseNav()">📐 Capacidad y reparto</button>
-        <button class="ntab" data-tab="pg-costos-rutas" onclick="showTab('pg-costos-rutas');pmCloseNav()">🧭 Etapas y rutas</button>
-        <button class="ntab" data-tab="pg-costos-plan" onclick="showTab('pg-costos-plan');pmCloseNav()">🗓️ Plan de producción</button>
-        <button class="ntab" data-tab="pg-costos-tarifas" onclick="showTab('pg-costos-tarifas');pmCloseNav()">🧮 Tarifas y aprobación</button>
-        <button class="ntab" data-tab="pg-costos-reportes" onclick="showTab('pg-costos-reportes');pmCloseNav()">📊 Reportes de costo</button>
-        <button class="ntab" data-tab="pg-costos-config" onclick="showTab('pg-costos-config');pmCloseNav()">⚙️ Parámetros</button>
+        <button class="ntab" data-tab="pg-simulador" onclick="showTab('pg-simulador');pmCloseNav()">🔬 Simulador</button>
+        <button class="ntab" onclick="pmOpenModule('utilidades.html');pmCloseNav()">🧮 Utilidades<span class="ext-mark">↗</span></button>
+        <button class="ntab" onclick="pmOpenModule('labrec.html');pmCloseNav()">🧪 Laboratorio<span class="ext-mark">↗</span></button>
       </div>
     </div>
+  </div>
 
-    <button class="ntab" data-tab="pg-etiquetas" onclick="showTab('pg-etiquetas');pmCloseNav()">🏷️ Etiquetas</button>
-    <button class="ntab" data-tab="pg-mercadeo" onclick="showTab('pg-mercadeo');pmCloseNav()">🎯 Mercadeo</button>
-    <button class="ntab" data-tab="pg-simulador" onclick="showTab('pg-simulador');pmCloseNav()">🔬 Simulador</button>
-    <button class="ntab" onclick="pmOpenModule('utilidades.html');pmCloseNav()">🧮 Utilidades</button>
-    <button class="ntab" onclick="pmOpenModule('labrec.html');pmCloseNav()">🧪 Laboratorio</button>
-</div>
-  <button onclick="pmLogout()" title="Cerrar sesión" class="no-print"
-    style="flex-shrink:0;margin-left:8px;padding:5px 10px;background:transparent;border:1px solid var(--border);
-    border-radius:8px;color:var(--cream2);font-size:11px;cursor:pointer;white-space:nowrap">
-    🚪 Salir
-  </button>
+  <div class="user-menu no-print">
+    <button class="user-btn" onclick="pmToggleUserMenu(event)" title="Usuario" aria-label="Menú de usuario">👤 ▾</button>
+    <div class="user-drop" id="user-drop">
+      <button onclick="pmLogout()">🚪 Cerrar sesión</button>
+    </div>
+  </div>
 </div>
 
 <div id="app">
@@ -1807,7 +1819,7 @@
       <button class="btn btn-out btn-sm" id="cstlab-btn-regen" onclick="cstLabGenerar(true)">↻ Recalcular desde maestros</button>
       <button class="btn btn-red btn-sm" id="cstlab-btn-del" onclick="cstPerEliminar()">🗑 Eliminar período</button>
     </div>
-    <div style="margin-top:14px;padding-top:12px;border-top:1px solid #E2E8F0">
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid #E1E8DD">
       <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--cream2);margin-bottom:6px">Nuevo período</div>
       <div class="row">
         <div class="col sm"><label>Código</label><input type="text" id="cstper-codigo" placeholder="2026-11" style="text-transform:uppercase"></div>
@@ -1839,14 +1851,14 @@
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
       <button class="btn btn-gold btn-sm" id="cstgas-btn-prep" onclick="cstGasPreparar()">⚙️ Preparar renglones</button>
     </div>
-    <div style="margin-top:14px;padding-top:12px;border-top:1px solid #E2E8F0">
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid #E1E8DD">
       <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--cream2);margin-bottom:6px">Copiar de otro período</div>
       <div class="row">
         <div class="col" style="flex:2"><label>Período de origen</label><select id="cstgas-copiar"></select></div>
         <div class="col sm"><label>&nbsp;</label><button class="btn btn-out" id="cstgas-btn-copiar" onclick="cstGasCopiar()">Copiar</button></div>
       </div>
     </div>
-    <div style="margin-top:14px;padding-top:12px;border-top:1px solid #E2E8F0">
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid #E1E8DD">
       <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--cream2);margin-bottom:6px">Agregar renglón</div>
       <div class="row">
         <div class="col" style="flex:2"><label>Cuenta</label><select id="cstgas-n-cuenta" onchange="cstGasNuevoCuenta()"></select></div>
@@ -1877,7 +1889,7 @@
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
       <button class="btn btn-gold btn-sm" id="cstcap-btn-prep" onclick="cstCapPreparar()">⚙️ Preparar departamentos</button>
     </div>
-    <div style="margin-top:14px;padding-top:12px;border-top:1px solid #E2E8F0">
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid #E1E8DD">
       <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--cream2);margin-bottom:6px">Copiar de otro período</div>
       <div class="row">
         <div class="col" style="flex:2"><label>Período de origen</label><select id="cstcap-copiar"></select></div>
@@ -2064,7 +2076,7 @@
 
 <script src="recetario.js?v=20261001c"></script>
 <script src="prefermentos.js?v=20261001c"></script>
-<script src="amasado.js?v=20261001c"></script>
+<script src="amasado.js?v=20261026a"></script>
 
 <script src="hidratacion.js?v=20261001c"></script>
 
@@ -2099,9 +2111,9 @@
 <script src="explosion.js?v=20261003b"></script>
 <script src="reporte_control.js?v=20261018a"></script>
 <script src="simulador.js?v=20261018c"></script>
-<script src="plan_libre.js?v=20261001c"></script>
+<script src="plan_libre.js?v=20261026a"></script>
 
-<script src="pm_app.js?v=20261022a"></script>
+<script src="pm_app.js?v=20261026a"></script>
 
 </body>
 </html>
