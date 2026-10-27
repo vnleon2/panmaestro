@@ -29,6 +29,8 @@
 let _mpbReq = 0;
 let _mpbDatos = null;       // { mes, real, comp, prod } del mes abierto
 let _mpbPan = '';           // pan elegido en el selector
+let _mpbPrevFilas = [];     // filas de mps_prevision del mes
+let _mpbSinPrev = false;    // la tabla mps_prevision no existe todavía
 
 // ═══════════════════════════════════════════════════════════
 // FUNCIONES PURAS
@@ -43,7 +45,8 @@ function mpbRepartir(q, n) {
   return out;
 }
 
-// d = { mes, hoy, productos, est, inv, cal, exc, real, comp, prod }
+// d = { mes, hoy, productos, est, inv, cal, exc, real, comp, prod, prev }
+//   prev: 'fecha|pid|canal' -> unidades  (de mps_prevision; reemplaza al estimado repartido ese día)
 //   est:  pid -> {comercial, domestico, feria}
 //   inv:  pid -> inventario inicial
 //   real: 'fecha|pid|canal' -> unidades        (de mps_venta_real)
@@ -69,26 +72,29 @@ function mpbCalcular(d) {
     let tProd = 0, tVenta = 0, tReal = 0, minInv = inv, primerNeg = null;
     const dias = fechas.map(f => {
       const e = estDia[f] || {};
-      const re = {}, co = {};
-      let hayReal = false, estT = 0, compT = 0, realT = 0;
+      const prev = d.prev || {};
+      const re = {}, co = {}, eu = {};
+      let hayReal = false, hayPrev = false, estT = 0, compT = 0, realT = 0;
       MPS_CANALES.forEach(c => {
         const kr = f + '|' + pid + '|' + c.id;
         if (kr in d.real) hayReal = true;
         re[c.id] = d.real[kr] || 0;
         co[c.id] = d.comp[kr] || 0;
-        estT += e[c.id] || 0; compT += co[c.id]; realT += re[c.id];
+        // La previsión del día reemplaza al estimado repartido de ese canal.
+        if (kr in prev) { eu[c.id] = prev[kr]; hayPrev = true; } else eu[c.id] = e[c.id] || 0;
+        estT += eu[c.id]; compT += co[c.id]; realT += re[c.id];
       });
       const cerrado = f < d.hoy || hayReal;
       let venta = 0;
       if (cerrado) venta = realT;
-      else MPS_CANALES.forEach(c => { venta += Math.max(e[c.id] || 0, co[c.id]); });
+      else MPS_CANALES.forEach(c => { venta += Math.max(eu[c.id], co[c.id]); });
       const prod = d.prod[f + '|' + pid] || 0;
       inv = inv + prod - venta;
       tProd += prod; tVenta += venta; tReal += realT;
       if (inv < minInv) minInv = inv;
       if (inv < 0 && primerNeg === null) primerNeg = f;
       return { fecha: f, entrega: MPS_CANALES.filter(c => (e[c.id] !== undefined)).map(c => c.id),
-               est: estT, comp: compT, real: realT, cerrado, venta, prod, inv };
+               previsto: hayPrev && !cerrado, est: estT, comp: compT, real: realT, cerrado, venta, prod, inv };
     });
     out[pid] = { dias, resumen: { invIni, invFin: inv, prod: tProd, venta: tVenta, real: tReal, minInv, primerNeg } };
   });
@@ -106,12 +112,18 @@ async function mpbCargar() {
   root.innerHTML = '<div class="ph"><span class="ph-icon">⏳</span>Calculando balance...</div>';
   try {
     const sig = mpsMesDesplazar(mes, 1);
-    const [realRows, plan, ped] = await Promise.all([
+    _mpbSinPrev = false;
+    const [realRows, plan, ped, prevRows] = await Promise.all([
       pmDB.get('mps_venta_real', {}, `*&fecha=gte.${mes}-01&fecha=lt.${sig}-01`),
       pmDB.get('plan_produccion', {}, `*&fecha=gte.${mes}-01&fecha=lt.${sig}-01`),
-      mpvLeerPedidos(mes)
+      mpvLeerPedidos(mes),
+      // La previsión es opcional: si su tabla aún no existe, el balance funciona igual.
+      pmDB.get('mps_prevision', {}, `*&fecha=gte.${mes}-01&fecha=lt.${sig}-01`).catch(() => { _mpbSinPrev = true; return []; })
     ]);
     if (req !== _mpbReq) return;
+    _mpbPrevFilas = prevRows || [];
+    const prev = {};
+    _mpbPrevFilas.forEach(r => { prev[String(r.fecha).slice(0, 10) + '|' + r.producto_id + '|' + r.canal] = Number(r.cantidad) || 0; });
     const real = {};
     (realRows || []).forEach(r => { real[r.fecha + '|' + r.producto_id + '|' + r.canal] = (real[r.fecha + '|' + r.producto_id + '|' + r.canal] || 0) + (Number(r.cantidad) || 0); });
     const prod = {};
@@ -125,7 +137,7 @@ async function mpbCargar() {
     const comp = mpvAgrupar(ped.pedidos, ped.lineas, panes, mes, '9999-12-31').mapa;
     const compK = {};
     Object.keys(comp).forEach(k => { compK[k] = comp[k]; });
-    _mpbDatos = { mes, real, comp: compK, prod };
+    _mpbDatos = { mes, real, comp: compK, prod, prev };
   } catch (e) {
     if (req !== _mpbReq) return;
     console.warn('[mpbCargar]', e.message);
@@ -150,12 +162,12 @@ function mpbRender() {
   const hoy = pmHoy();
   const panes = _mpsProductos || [];
   const calc = mpbCalcular({ mes, hoy, productos: panes, est: _mpsEst, inv: _mpsInv,
-                             cal: _mpsCal, exc: _mpsExc, real: D.real, comp: D.comp, prod: D.prod });
+                             cal: _mpsCal, exc: _mpsExc, real: D.real, comp: D.comp, prod: D.prod, prev: D.prev });
   // Panes con algo que balancear
   const activos = panes.filter(p => {
     const r = calc[p.id].resumen;
     const e = _mpsEst[p.id] || {};
-    return r.venta || r.prod || r.invIni || MPS_CANALES.some(c => e[c.id]);
+    return r.venta || r.prod || r.invIni || MPS_CANALES.some(c => e[c.id]) || _mpbPrevFilas.some(x => x.producto_id === p.id);
   });
   if (!activos.length) {
     root.innerHTML = '<div class="ph"><span class="ph-icon">⚖️</span>Todavía no hay estimado, ventas ni producción este mes.</div>';
@@ -186,7 +198,7 @@ function mpbRender() {
     return `<tr style="${bg}">
       <td>${mpvDiaTxt(x.fecha)}${esHoy ? ' <b>·hoy</b>' : ''}</td>
       <td>${x.entrega.map(k => letra[k]).join(' ') || '·'}</td>
-      <td class="mps-n">${x.est ? mpsFmt(x.est, 0) : ''}</td>
+      <td class="mps-n"${x.previsto ? ' title="Previsión del día"' : ''}>${x.est ? mpsFmt(x.est, 0) : ''}${x.previsto ? '<b style="color:var(--gold)">*</b>' : ''}</td>
       <td class="mps-n">${x.comp ? mpsFmt(x.comp, 0) : ''}</td>
       <td class="mps-n">${x.cerrado ? mpsFmt(x.real, 0) : ''}</td>
       <td class="mps-n"><b>${x.venta ? mpsFmt(x.venta, 0) : '0'}</b></td>
@@ -207,14 +219,65 @@ function mpbRender() {
         <div class="stat"><div class="stat-lbl">Inventario final</div><div class="stat-val" style="${r.invFin < 0 ? 'color:#b3261e' : ''}">${mpsFmt(r.invFin, 1)}</div></div>
       </div>
     </div>
+    ${mpbFormPrev(panes, hoy, mes)}
     <div class="card">
       <div class="mps-wrap"><table class="mps-tbl">
         <thead><tr><th>Día</th><th>Entrega</th><th>Estimado</th><th>Pedidos</th><th>Real</th><th>Venta usada</th><th>Producción</th><th>Inv. final</th></tr></thead>
         <tbody>${filas}</tbody>
       </table></div>
       <div style="font-size:11px;color:var(--cream2);margin-top:8px;line-height:1.6">
-        Entrega: C comercial · D doméstico · F feria. Días cerrados (gris) usan la venta real; los abiertos usan el mayor entre el estimado del día y los pedidos de cada canal.
+        Entrega: C comercial · D doméstico · F feria · <b>*</b> = previsión del día. Días cerrados (gris) usan la venta real; los abiertos usan el mayor entre el estimado del día y los pedidos de cada canal.
         La producción sale del plan de producción (Producción y Plan Libre): para moverla, cambiala allí y recargá esta pestaña.
       </div>
     </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════
+// PREVISIÓN DE VENTA POR DÍA
+// ═══════════════════════════════════════════════════════════
+function mpbFormPrev(panes, hoy, mes) {
+  if (_mpbSinPrev) {
+    return `<div class="card"><div style="font-size:12px;color:var(--cream2)">Para prever la venta de un día concreto (ej. la feria del viernes) corré <b>sql_mps_prevision.sql</b> y recargá.</div></div>`;
+  }
+  const ultimo = mpsFechasDelMes(mes).slice(-1)[0].fecha;
+  const min = hoy > `${mes}-01` ? hoy : `${mes}-01`;
+  const lista = _mpbPrevFilas.filter(r => String(r.fecha).slice(0, 10) >= hoy)
+    .sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)))
+    .map(r => `<tr><td>${mpvDiaTxt(String(r.fecha).slice(0, 10))}</td><td>${MPV_NOM[r.canal]}</td><td style="text-align:left">${pmEsc(mpvNombre(r.producto_id))}</td>
+      <td class="mps-n">${mpsFmt(r.cantidad, 1)}</td><td><button class="btn btn-out btn-xs" onclick="mpbPrevBorrar('${r.id}')" title="Quitar">✕</button></td></tr>`).join('');
+  return `<div class="card">
+    <div class="ctitle">Prever la venta de un día</div>
+    <div class="row">
+      <div class="col sm"><label>Día</label><input type="date" id="mpb-pf" min="${min}" max="${ultimo}"></div>
+      <div class="col sm"><label>Canal</label><select id="mpb-pc">${MPV_CANALES.map(c => `<option value="${c}">${MPV_NOM[c]}</option>`).join('')}</select></div>
+      <div class="col"><label>Pan</label><select id="mpb-pp">${panes.map(p => `<option value="${p.id}"${p.id === _mpbPan ? ' selected' : ''}>${pmEsc(p.nombre)}</option>`).join('')}</select></div>
+      <div class="col sm"><label>Unidades</label><input id="mpb-pq" inputmode="decimal" placeholder="0"></div>
+      <div class="col sm" style="align-self:flex-end"><button class="btn btn-gold btn-sm" onclick="mpbPrevAgregar()">+ Prever</button></div>
+    </div>
+    <div style="font-size:11px;color:var(--cream2);margin-top:6px">Ese día y canal, la previsión reemplaza al estimado repartido. Los pedidos siguen contando si son más que la previsión.</div>
+    ${lista ? `<div class="mps-wrap" style="margin-top:10px"><table class="mps-tbl"><thead><tr><th>Día</th><th>Canal</th><th style="text-align:left">Pan</th><th>Unid.</th><th></th></tr></thead><tbody>${lista}</tbody></table></div>` : ''}
+  </div>`;
+}
+
+async function mpbPrevAgregar() {
+  const v = id => (document.getElementById(id) || {}).value;
+  const fecha = v('mpb-pf'), canal = v('mpb-pc'), pid = v('mpb-pp'), q = v('mpb-pq');
+  const n = mpsNum(q);
+  if (!fecha || fecha.slice(0, 7) !== (_mpbDatos && _mpbDatos.mes)) { pmToast('La fecha debe estar dentro del mes abierto', 'err'); return; }
+  if (fecha < pmHoy()) { pmToast('Esa fecha ya pasó: usá Ventas reales', 'err'); return; }
+  if (!pid) { pmToast('Elegí el pan', 'err'); return; }
+  if (n === null || q === '') { pmToast('Escribí las unidades', 'err'); return; }
+  try {
+    await pmDB.upsert('mps_prevision?on_conflict=fecha,producto_id,canal', [{ fecha, producto_id: pid, canal, cantidad: n }]);
+    _mpbPan = pid;
+    pmToast('Previsión guardada ✓', 'ok');
+    await mpbCargar();
+  } catch (e) { pmToast('No se guardó: ' + e.message, 'err', 5000); }
+}
+
+async function mpbPrevBorrar(id) {
+  try {
+    await pmDB.hardDelete('mps_prevision', id);
+    await mpbCargar();
+  } catch (e) { pmToast('No se pudo borrar: ' + e.message, 'err', 5000); }
 }
