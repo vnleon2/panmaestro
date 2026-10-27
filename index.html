@@ -188,7 +188,8 @@
   <div class="card">
     <div class="ctitle">Nuevo pedido <span id="pp-tot-badge" style="font-size:12px;font-weight:400;color:var(--gold);margin-left:8px"></span></div>
     <div class="row">
-      <div class="col sm"><label>Fecha</label><input type="date" id="pp-fecha" onchange="ppCargarSb()"></div>
+      <div class="col sm"><label>Fecha del pedido</label><input type="date" id="pp-fecha" onchange="ppCargarSb()"></div>
+      <div class="col sm"><label>Entrega (opcional)</label><input type="date" id="pp-entrega" title="Fecha en que el cliente necesita el pan. Si la dejás vacía, se produce el mismo día del pedido."></div>
       <div class="col"><label>Cliente</label><input type="text" id="pp-cli" placeholder="Nombre del cliente" onkeydown="if(event.key==='Enter')ppAdd()"></div>
       <div class="col xs"><label>&nbsp;</label><button class="btn btn-gold" onclick="ppAdd()">+ Agregar</button></div>
     </div>

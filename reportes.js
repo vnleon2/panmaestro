@@ -1137,7 +1137,8 @@ async function repFacturasCliente(mes) {
 }
 
 function repProduccion(fecha) {
-  const peds = G.pedidosPan.filter(p => p.date === fecha);
+  // Igual que la pestaña Producción: pedidos que se entregan ese día.
+  const peds = G.pedidosPan.filter(p => pmFechaProd(p) === fecha);
   const plan = (G.planProduccion && G.planProduccion[fecha]) ? G.planProduccion[fecha] : {};
 
   // Aggregate pedidos de pan regulares
