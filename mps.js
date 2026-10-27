@@ -133,7 +133,7 @@ function mpsBloqueado() {
 // NAVEGACIÓN
 // ═══════════════════════════════════════════════════════════
 function mpsTab(tab, btn) {
-  ['est', 'ven', 'cal'].forEach(t => {
+  ['est', 'ven', 'bal', 'cal'].forEach(t => {
     const el = document.getElementById('mpst-' + t);
     if (el) el.style.display = t === tab ? 'block' : 'none';
   });
@@ -141,6 +141,7 @@ function mpsTab(tab, btn) {
   if (btn) btn.classList.add('on');
   if (tab === 'cal') mpsCalRender();
   if (tab === 'ven' && typeof mpvCargar === 'function') mpvCargar();
+  if (tab === 'bal' && typeof mpbCargar === 'function') mpbCargar();
 }
 
 function mpsMesNav(d) {
@@ -213,6 +214,10 @@ async function mpsCargar() {
   }
   mpsRender();
   mpsCalRender();
+  // Si se cambió de mes estando en otra pestaña, esa pestaña se recalcula.
+  const visible = id => { const el = document.getElementById(id); return el && el.style.display === 'block'; };
+  if (visible('mpst-ven') && typeof mpvCargar === 'function') mpvCargar();
+  if (visible('mpst-bal') && typeof mpbCargar === 'function') mpbCargar();
 }
 
 // Crea el período del mes en Supabase la primera vez que se guarda algo.
