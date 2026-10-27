@@ -1525,6 +1525,7 @@
     <button class="pill on" onclick="mpsTab('est',this)">📝 Estimado del mes</button>
     <button class="pill" onclick="mpsTab('ven',this)">💰 Ventas reales</button>
     <button class="pill" onclick="mpsTab('bal',this)">⚖️ Balance diario</button>
+    <button class="pill" onclick="mpsTab('rep',this)">📑 Reporte del mes</button>
     <button class="pill" onclick="mpsTab('cal',this)">📅 Calendario de entregas</button>
   </div>
 
@@ -1533,6 +1534,9 @@
     <div class="stats" id="mps-stats"></div>
     <div id="mps-hoja"></div>
   </div>
+
+  <!-- REPORTE DEL MES -->
+  <div id="mpst-rep" style="display:none"><div id="mpr-root"></div></div>
 
   <!-- BALANCE DIARIO -->
   <div id="mpst-bal" style="display:none"><div id="mpb-root"></div></div>
@@ -2186,6 +2190,7 @@
 <script src="mps.js?v=20261026f"></script>
 <script src="mps_ventas.js?v=20261026f"></script>
 <script src="mps_balance.js?v=20261026i"></script>
+<script src="mps_reporte.js?v=20261026j"></script>
 <script src="depuracion.js?v=20261018c"></script>
 <script src="costos_core.js?v=20261012b"></script>
 <script src="costos_empaques.js?v=20261012b"></script>

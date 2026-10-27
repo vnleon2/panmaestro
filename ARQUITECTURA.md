@@ -54,6 +54,7 @@ mercadeo.js
 mps.js
 mps_ventas.js
 mps_balance.js
+mps_reporte.js
 plan_libre.js
 pm_app.js      ← bootstrap: navegación de pestañas + login/sesión (debe ir último)
 ```
@@ -89,6 +90,7 @@ práctica **no es perfecto** — hay excepciones documentadas abajo.
 | `mercadeo.js`        | `mkt`                           | Categorías, estilos y atributos de producto — módulo de marketing (ver sección 7) |
 | `mps.js`             | `mps`                           | MPS (plan maestro de producción): hoja de estimado por pan y canal, calendario de entregas (ver sección 11) |
 | `mps_balance.js`     | `mpb`                           | MPS: balance diario de inventario por pan (solo lectura; ver sección 11) |
+| `mps_reporte.js`     | `mpr`                           | MPS: reporte del mes por pan (estimado, venta, producción, inventarios, falta producir); imprime y copia a Excel (solo lectura) |
 | `mps_ventas.js`      | `mpv`                           | MPS: ventas reales por día/pan/canal, cargadas desde pedidos (tabla `mps_venta_real`, ver sección 11) |
 | `plan_libre.js`      | `plan`, `cli`, `cp`              | Plan libre (`plan`); clientes (`cli`); precios especiales por cliente (`cp`) |
 | `pm_core.js`         | `pm`                            | Utilidades compartidas: fechas, dinero, escape HTML, toasts, modales genéricos |
@@ -430,6 +432,12 @@ Producción, que relee Supabase al abrir el día). No usa `libre`: Plan Libre vi
 en el navegador y al guardar borraría lo escrito. Suma a la fila `pedido` del
 día/pan si existe (UPDATE por id) o crea una; nunca baja ni borra. Produce el
 mismo día en que aparece el faltante. Es idempotente: una segunda pasada no falta nada.
+
+**Reporte del mes** (`mps_reporte.js`, solo lectura): una fila por pan con
+estimado (comercial/doméstico/feria/total), venta real a hoy, venta prevista del
+resto del mes, % del estimado, producción planeada y asumida, inventario inicial y
+final, lo que falta producir y kilos netos, con aviso ("Falta producir N" / "Sin
+estimado"). Reutiliza el cálculo del balance; se imprime y se copia a Excel.
 
 **Pendiente (entregas siguientes):** chequeo de capacidad contra Costos
 (`costos_capacidad.js`) y reporte estimado vs real por día de semana.
