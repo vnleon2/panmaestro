@@ -188,7 +188,9 @@ async function mpsCargar() {
       ]);
     }
     if (req !== _mpsReq) return;   // el usuario ya cambió de mes: esta respuesta quedó vieja
-    _mpsProductos = (productos || []).slice()
+    // Un "pan" de 5 g o menos no es un pan sino un cobro (ej. "Entrega Dimarkit moto",
+    // 1 g): no se produce, así que no entra al MPS. Sin peso (null) sí entra, para poder corregirlo.
+    _mpsProductos = (productos || []).filter(p => !(p.peso_g !== null && p.peso_g !== undefined && Number(p.peso_g) <= 5))
       .sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es'));
     _mpsCal = cal || [];
     _mpsExc = exc || [];

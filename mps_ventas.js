@@ -314,7 +314,8 @@ function mpvRender() {
   const opcPan = '<option value="">Pan...</option>' + panes.map(p => `<option value="${p.id}">${pmEsc(p.nombre)}</option>`).join('');
   const opcCan = MPV_CANALES.map(c => `<option value="${c}">${MPV_NOM[c]}</option>`).join('');
 
-  const detalle = _mpvFilas.slice().sort((a, b) => b.fecha.localeCompare(a.fecha) || mpvNombre(a.producto_id).localeCompare(mpvNombre(b.producto_id), 'es'))
+  const conocidos = new Set(panes.map(p => p.id));
+  const detalle = _mpvFilas.filter(r => conocidos.has(r.producto_id)).sort((a, b) => b.fecha.localeCompare(a.fecha) || mpvNombre(a.producto_id).localeCompare(mpvNombre(b.producto_id), 'es'))
     .map(r => `<tr>
       <td>${mpvDiaTxt(r.fecha)}</td><td>${MPV_NOM[r.canal]}</td><td style="text-align:left">${pmEsc(mpvNombre(r.producto_id))}</td>
       <td><input class="mps-in" style="width:70px" value="${r.cantidad}" onchange="mpvEditar('${r.id}',this)"></td>
