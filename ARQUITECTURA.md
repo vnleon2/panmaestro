@@ -420,9 +420,16 @@ producción cargada no arrastra negativos falsos. Inventario negativo en rojo
 un día y canal concretos reemplaza al estimado repartido (ej. "el viernes 4
 hogazas en la feria"); los pedidos siguen contando si superan la previsión.
 Si la tabla no existe el balance funciona igual y avisa. Mover producción se
-sigue haciendo en Producción/Plan Libre (editarla desde el balance = entrega 2c).
+sigue haciendo en Producción/Plan Libre.
 
-**Pendiente (entregas siguientes):** (2c editar producción desde el balance) con inventario final
-(inicial + producción − venta; la producción sale del plan de producción
-existente), venta real de feria, chequeo de capacidad contra Costos
+**Entrega 2c: "Producir lo que falta"** (en `mps_balance.js`, sin tablas nuevas).
+Botón en el balance: calcula por pan cuánto sumar al plan de cada día (desde hoy)
+para que el inventario no baje de cero, muestra vista previa con kilos y, al
+confirmar, ESCRIBE en `plan_produccion` como tipo `pedido` (el de la pantalla
+Producción, que relee Supabase al abrir el día). No usa `libre`: Plan Libre vive
+en el navegador y al guardar borraría lo escrito. Suma a la fila `pedido` del
+día/pan si existe (UPDATE por id) o crea una; nunca baja ni borra. Produce el
+mismo día en que aparece el faltante. Es idempotente: una segunda pasada no falta nada.
+
+**Pendiente (entregas siguientes):** chequeo de capacidad contra Costos
 (`costos_capacidad.js`) y reporte estimado vs real por día de semana.
