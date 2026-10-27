@@ -27,15 +27,25 @@
 //      día y pan. (Supuesto: son listas distintas; si un mismo pan está en las dos
 //      el mismo día, se suman.)
 //
-// Mover la producción de un día NO se hace aquí todavía: se sigue haciendo en
-// Producción o Plan Libre, y este balance lo refleja al recargar. Editarla desde
-// el balance es la entrega 2c (hay que cuidar que Plan Libre no la pise).
+// ENTREGA 2c — "Producir lo que falta": calcula, por pan, cuánto hay que sumar al
+// plan de cada día (desde hoy) para que el inventario no baje de cero, lo muestra
+// en una vista previa y, al confirmar, lo ESCRIBE en plan_produccion como tipo
+// 'pedido' (el tipo de la pantalla Producción, que recarga desde Supabase al abrir
+// el día). NO se usa 'libre': Plan Libre vive en el navegador y no relee Supabase,
+// así que al guardar borraría lo escrito. Se suma a la fila 'pedido' del día/pan si
+// ya existe (UPDATE por id) o se crea una nueva; nunca se borra ni se baja nada.
+// Se produce el mismo día en que aparece el faltante (fecha de entrega = fecha de
+// producción); se puede mover después en Producción.
 
 let _mpbReq = 0;
 let _mpbDatos = null;       // { mes, real, comp, prod } del mes abierto
 let _mpbPan = '';           // pan elegido en el selector
 let _mpbPrevFilas = [];     // filas de mps_prevision del mes
 let _mpbSinPrev = false;    // la tabla mps_prevision no existe todavía
+let _mpbPlanFilas = [];     // filas pedido/libre de plan_produccion del mes (con id)
+let _mpbFalta = null;       // vista previa de 'producir lo que falta' pendiente de confirmar
+let _mpbOcupado = false;
+let _mpbCalc = null;        // último cálculo (para 'producir lo que falta')
 
 // ═══════════════════════════════════════════════════════════
 // FUNCIONES PURAS
@@ -108,11 +118,36 @@ function mpbCalcular(d) {
   return out;
 }
 
+// Qué sumar al plan para que ningún pan baje de cero desde hoy.
+// calc = resultado de mpbCalcular. Devuelve [{ pid, items:[{fecha, add, yaPlan}], total }]
+// (solo panes con faltante). El día se cubre el mismo día en que aparece el faltante.
+function mpbFaltante(calc, productos, hoy) {
+  const out = [];
+  (productos || []).forEach(p => {
+    const c = calc[p.id];
+    if (!c) return;
+    let extra = 0;
+    const items = [];
+    c.dias.forEach(x => {
+      if (x.fecha < hoy) return;
+      const efectivo = x.inv + extra;
+      if (efectivo < 0) {
+        const add = Math.ceil(-efectivo - 1e-9);
+        extra += add;
+        items.push({ fecha: x.fecha, add, yaPlan: x.prod });
+      }
+    });
+    if (items.length) out.push({ pid: p.id, items, total: items.reduce((a, b) => a + b.add, 0) });
+  });
+  return out;
+}
+
 // ═══════════════════════════════════════════════════════════
 // CARGA
 // ═══════════════════════════════════════════════════════════
 async function mpbCargar() {
   const req = ++_mpbReq;
+  _mpbFalta = null;
   const mes = _mpsMes || mpsMesActual();
   const root = document.getElementById('mpb-root');
   if (!root) return;
@@ -134,6 +169,7 @@ async function mpbCargar() {
     const real = {};
     (realRows || []).forEach(r => { real[r.fecha + '|' + r.producto_id + '|' + r.canal] = (real[r.fecha + '|' + r.producto_id + '|' + r.canal] || 0) + (Number(r.cantidad) || 0); });
     const prod = {};
+    _mpbPlanFilas = (plan || []).filter(r => r.tipo === 'pedido' || r.tipo === 'libre');
     (plan || []).forEach(r => {
       if (r.tipo !== 'pedido' && r.tipo !== 'libre') return;
       const k = String(r.fecha).slice(0, 10) + '|' + r.producto_id;
@@ -168,7 +204,7 @@ function mpbRender() {
   const mes = D.mes;
   const hoy = pmHoy();
   const panes = _mpsProductos || [];
-  const calc = mpbCalcular({ mes, hoy, productos: panes, est: _mpsEst, inv: _mpsInv,
+  const calc = _mpbCalc = mpbCalcular({ mes, hoy, productos: panes, est: _mpsEst, inv: _mpsInv,
                              cal: _mpsCal, exc: _mpsExc, real: D.real, comp: D.comp, prod: D.prod, prev: D.prev });
   // Panes con algo que balancear
   const activos = panes.filter(p => {
@@ -227,6 +263,7 @@ function mpbRender() {
         <div class="stat"><div class="stat-lbl">Inventario final</div><div class="stat-val" style="${r.invFin < 0 ? 'color:#b3261e' : ''}">${mpsFmt(r.invFin, 1)}</div></div>
       </div>
     </div>
+    ${mpbCardFalta(panes)}
     ${mpbFormPrev(panes, hoy, mes)}
     <div class="card">
       <div class="mps-wrap"><table class="mps-tbl">
@@ -288,4 +325,78 @@ async function mpbPrevBorrar(id) {
     await pmDB.hardDelete('mps_prevision', id);
     await mpbCargar();
   } catch (e) { pmToast('No se pudo borrar: ' + e.message, 'err', 5000); }
+}
+
+// ═══════════════════════════════════════════════════════════
+// PRODUCIR LO QUE FALTA (entrega 2c)
+// ═══════════════════════════════════════════════════════════
+function mpbCardFalta(panes) {
+  const F = _mpbFalta;
+  if (!F) {
+    return `<div class="card"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-gold btn-sm" onclick="mpbFaltaCalcular()">🔥 Producir lo que falta</button>
+      <span style="font-size:11px;color:var(--cream2)">Calcula qué sumar al plan de producción, día por día, para que ningún pan se quede sin inventario. Antes de guardar te muestra el detalle.</span>
+    </div></div>`;
+  }
+  if (!F.lista.length) {
+    return `<div class="card"><div style="font-size:13px">✔ No falta producir nada: con el plan actual ningún pan baja de cero.</div>
+      <div style="margin-top:8px"><button class="btn btn-out btn-sm" onclick="mpbFaltaCerrar()">Cerrar</button></div></div>`;
+  }
+  let kgTot = 0;
+  const filas = F.lista.map(g => {
+    const p = panes.find(x => x.id === g.pid);
+    const kg = mpsKilos(g.total, p && p.peso_g);
+    kgTot += kg;
+    const dias = g.items.map(i => `${mpvDiaTxt(i.fecha)}: <b>+${mpsFmt(i.add, 0)}</b>${i.yaPlan ? ` <span style="color:var(--cream2)">(ya hay ${mpsFmt(i.yaPlan, 0)})</span>` : ''}`).join(' · ');
+    return `<tr><td style="text-align:left">${pmEsc(p ? p.nombre : '?')}</td><td style="text-align:left;white-space:normal">${dias}</td><td class="mps-n">${mpsFmt(g.total, 0)}</td><td class="mps-n">${p && p.peso_g ? mpsFmt(kg, 1) : '—'}</td></tr>`;
+  }).join('');
+  return `<div class="card" style="border-color:var(--gold)">
+    <div class="ctitle">Lo que falta producir</div>
+    <div class="mps-wrap"><table class="mps-tbl">
+      <thead><tr><th style="text-align:left">Pan</th><th style="text-align:left">Sumar al plan de cada día</th><th>Unid.</th><th>Kg netos</th></tr></thead>
+      <tbody>${filas}</tbody>
+      <tfoot><tr><td colspan="3">Total</td><td class="mps-n">${mpsFmt(kgTot, 1)}</td></tr></tfoot>
+    </table></div>
+    <div style="font-size:11px;color:var(--cream2);margin:8px 0;line-height:1.6">Se suma a lo que ya tenés en Producción (nunca se baja ni se borra nada) y se produce el mismo día en que aparece el faltante. Después podés moverlo en Producción.</div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-gold btn-sm" onclick="mpbFaltaConfirmar()" ${_mpbOcupado ? 'disabled' : ''}>${_mpbOcupado ? 'Guardando...' : '✔ Cargar en el plan de producción'}</button>
+      <button class="btn btn-out btn-sm" onclick="mpbFaltaCerrar()" ${_mpbOcupado ? 'disabled' : ''}>Cerrar</button>
+    </div></div>`;
+}
+
+function mpbFaltaCalcular() {
+  if (!_mpbCalc) return;
+  _mpbFalta = { lista: mpbFaltante(_mpbCalc, _mpsProductos || [], pmHoy()), mes: _mpbDatos && _mpbDatos.mes };
+  mpbRender();
+}
+
+function mpbFaltaCerrar() { _mpbFalta = null; mpbRender(); }
+
+async function mpbFaltaConfirmar() {
+  const F = _mpbFalta;
+  if (!F || !F.lista.length || _mpbOcupado) return;
+  if (!pmDB.disponible()) { pmToast('Sin conexión a Supabase', 'err'); return; }
+  _mpbOcupado = true;
+  mpbRender();
+  let n = 0;
+  try {
+    for (const g of F.lista) {
+      for (const it of g.items) {
+        const fila = _mpbPlanFilas.find(r => r.tipo === 'pedido' && r.producto_id === g.pid && String(r.fecha).slice(0, 10) === it.fecha);
+        if (fila) {
+          await pmDB.update('plan_produccion', fila.id, { cantidad: (Number(fila.cantidad) || 0) + it.add });
+        } else {
+          await pmDB.insert('plan_produccion', { fecha: it.fecha, producto_id: g.pid, cantidad: it.add, tipo: 'pedido', nota: 'MPS' }, false);
+        }
+        n++;
+      }
+    }
+    pmToast(`Plan de producción actualizado: ${n} línea${n === 1 ? '' : 's'} ✓`, 'ok', 4000);
+  } catch (e) {
+    console.warn('[mpbFaltaConfirmar]', e.message);
+    pmToast('Se cargó parte y falló: ' + e.message + '. Podés volver a apretar el botón: solo suma lo que todavía falte.', 'err', 7000);
+  }
+  _mpbOcupado = false;
+  _mpbFalta = null;
+  await mpbCargar();
 }
