@@ -427,6 +427,15 @@ function pmFmtDateShort(d) {
 
 function pmId() { return Date.now() + Math.floor(Math.random()*1000); }
 
+// Fecha en la que un pedido entra al plan de producción.
+// p.date          = fecha en que se TOMÓ el pedido (no cambia nunca)
+// p.fechaEntrega  = fecha en que el cliente lo necesita (opcional)
+// Si el pedido no tiene fecha de entrega, se produce el mismo día en que se
+// tomó (comportamiento de siempre), así los pedidos viejos no cambian.
+function pmFechaProd(p) {
+  return (p && (p.fechaEntrega || p.date)) || '';
+}
+
 
 function pmBadge(st) {
   const idx = (G.estados||[]).indexOf(st);

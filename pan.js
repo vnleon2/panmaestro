@@ -79,7 +79,9 @@ async function pedSincronizarToSb() {
   let ok = 0, err = 0;
   for (const ped of todos) {
     try {
-      const rows = await pmDB.pedidos.crear({ fecha:ped.date, cliente_nom:ped.cli, tipo:ped.tipo, status:ped.status, total:0 });
+      const datosPed = { fecha:ped.date, cliente_nom:ped.cli, tipo:ped.tipo, status:ped.status, total:0 };
+      if (ped.fechaEntrega) datosPed.fecha_entrega = ped.fechaEntrega;
+      const rows = await pmDB.pedidos.crear(datosPed);
       if (rows?.[0]) {
         const sbId = rows[0].id;
         // Buscar y actualizar el objeto local
@@ -107,7 +109,9 @@ async function pedSincronizarToSb() {
 async function ppVerPlanVsPedidos() {
   const fecha   = document.getElementById('pp-fecha').value || pmHoy();
   const plan    = prodGetPlan(fecha);
-  const peds    = G.pedidosPan.filter(p => p.date === fecha);
+  // El plan de un día se compara contra lo que hay que ENTREGAR ese día
+  // (fecha de entrega; si el pedido no la tiene, la fecha en que se tomó).
+  const peds    = G.pedidosPan.filter(p => pmFechaProd(p) === fecha);
   const vistaEl = document.getElementById('pp-vista-extra');
 
   // Pedidos de pan regulares
@@ -195,7 +199,12 @@ function ppAdd() {
   const fecha = document.getElementById('pp-fecha').value || pmHoy();
   const cli = document.getElementById('pp-cli').value.trim();
   if (!cli) { pmToast('Ingresá el nombre del cliente','err'); return; }
+  // Fecha de entrega (opcional). El campo NO se limpia al agregar, porque
+  // normalmente se anotan varios pedidos seguidos para la misma entrega.
+  const entregaEl = document.getElementById('pp-entrega');
+  const fechaEntrega = (entregaEl && entregaEl.value) || '';
   const newPed = { id:pmId(), date:fecha, cli, status:G.estados[0]||'Pedido', lineas:[] };
+  if (fechaEntrega) newPed.fechaEntrega = fechaEntrega;
   G.pedidosPan.push(newPed);
   document.getElementById('pp-cli').value='';
   document.getElementById('pp-cli').focus();
@@ -213,7 +222,9 @@ function ppAdd() {
     // que ppAddLinea() pueda esperarla si el usuario agrega un producto
     // antes de que el pedido termine de crearse en Supabase — ver fix
     // más abajo, en ppAddLinea().
-    newPed._sbCreatePromise = pmDB.pedidos.crear({ fecha, cliente_nom:cli, tipo:'pan', status:newPed.status, total:0 })
+    const datosNuevo = { fecha, cliente_nom:cli, tipo:'pan', status:newPed.status, total:0 };
+    if (fechaEntrega) datosNuevo.fecha_entrega = fechaEntrega;
+    newPed._sbCreatePromise = pmDB.pedidos.crear(datosNuevo)
       .then(rows => { if (rows?.[0]) newPed._sbId = rows[0].id; return rows; })
       .catch(e => { console.warn('[pmDB] ppAdd error:', e.message); throw e; });
   }
@@ -270,11 +281,15 @@ async function ppCargarSb() {
             const c = (_sbCliCache || []).find(x => x.id === sb.cliente_id);
             if (c) { cliCod = c.codigo || cliCod; cliNom = c.nombre || cliNom; }
           }
+          // Fecha de entrega: Supabase manda si la columna existe; si
+          // todavía no (SQL sin correr), se conserva lo que había local.
+          const fechaEntrega = ('fecha_entrega' in sb) ? (sb.fecha_entrega || '') : (local?.fechaEntrega || '');
           sbPeds.push({
             id: local?.id || pmId(),
             date: sb.fecha, cli: sb.cliente_nom,
             status: sb.status, lineas, _sbId: sb.id,
-            cliId, cliCod, cliNom
+            cliId, cliCod, cliNom,
+            ...(fechaEntrega ? { fechaEntrega } : {})
           });
         }
         // Mantener pedidos locales sin _sbId (creados offline) + pedidos de otras fechas
@@ -377,6 +392,7 @@ function ppCard(p) {
         })() : ''}
         <span style="font-size:12px;font-weight:600;color:var(--gold)" id="ct-${p.id}">${totCli} unidad(es)</span>
         ${pmBadge(p.status)}
+        ${p.fechaEntrega ? `<span title="Fecha de entrega" style="font-size:11px;color:var(--blue);background:rgba(37,99,235,.08);border:1px solid rgba(37,99,235,.2);border-radius:8px;padding:1px 7px">📅 Entrega ${pmFmtDate(p.fechaEntrega)}</span>` : ''}
       </div>
       <div style="display:flex;gap:6px;align-items:center" onclick="event.stopPropagation()">
         ${locked?'':`<select title="Método de pago" style="font-size:11px;padding:4px 6px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--cream)" onchange="ppSetMetodoPago(${p.id},this.value)">${pmMetodoPagoOpts(p.metodoPago)}</select>`}
@@ -387,8 +403,12 @@ function ppCard(p) {
         <button class="btn btn-red btn-sm" onclick="ppDel(${p.id})">✕</button>
       </div>
     </div>
-    <div style="padding:4px 16px 8px;background:var(--sf);border-top:1px solid var(--border)">
+    <div style="padding:4px 16px 8px;background:var(--sf);border-top:1px solid var(--border);display:flex;align-items:center;gap:14px;flex-wrap:wrap">
       <button class="btn btn-out btn-sm" onclick="ppVincularCliente(${p.id})" style="font-size:11px">🔗 Vincular cliente</button>
+      <label style="font-size:11px;color:var(--cream2);display:flex;align-items:center;gap:6px">📅 Entrega
+        <input type="date" value="${p.fechaEntrega||''}" ${locked?'disabled':''} onchange="ppSetEntrega(${p.id},this.value)" style="padding:3px 6px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--cream);font-size:11px">
+      </label>
+      ${p.fechaEntrega ? '' : '<span style="font-size:10px;color:var(--cream2)">(sin fecha: se produce el día del pedido)</span>'}
     </div>
     <div id="pb-${p.id}" style="display:none">
       ${subform}
@@ -510,6 +530,68 @@ function ppListo(id) {
   if (body) body.style.display = 'none';
   document.getElementById('pg-pedidos').scrollTo({ top:0, behavior:'smooth' });
   document.getElementById('pp-cli').focus();
+}
+
+// Cambiar la fecha de entrega de un pedido ya creado (vacío = sin fecha de
+// entrega, se produce el día en que se tomó). Local primero, luego Supabase.
+function ppSetEntrega(id, v) {
+  const p = G.pedidosPan.find(x => x.id === id);
+  if (!p) return;
+  if (v) p.fechaEntrega = v; else delete p.fechaEntrega;
+  pmSave('pedidos');
+  ppRender();
+  setTimeout(() => { const b = document.getElementById('pb-' + id); if (b) b.style.display = 'block'; }, 20);
+  pmToast(v ? `Entrega: ${pmFmtDate(v)} ✓` : 'Fecha de entrega quitada ✓');
+  if (pmDB.disponible() && (p._sbId || p._sbCreatePromise)) {
+    (async () => {
+      try {
+        if (!p._sbId && p._sbCreatePromise) await p._sbCreatePromise.catch(()=>{});
+        if (!p._sbId) throw new Error('el pedido todavía no se creó en Supabase');
+        await pmDB.pedidos.editar(p._sbId, { fecha_entrega: v || null });
+      } catch(e) {
+        console.warn('[pmDB] ppSetEntrega error:', e.message);
+        pmToast('⚠️ Fecha de entrega guardada solo local — no se sincronizó a Supabase: ' + e.message, 'err');
+      }
+    })();
+  }
+}
+
+// Trae de Supabase los pedidos de pan cuya fecha de ENTREGA es `fecha` y que
+// todavía no están en este navegador (por ejemplo, los tomó el lunes desde
+// otro dispositivo). Los usa la pestaña Producción para armar el plan del día.
+// No toca los pedidos que ya están locales, salvo para actualizar su fecha de
+// entrega y no duplica ninguno (compara por _sbId).
+async function ppCargarPorEntrega(fecha) {
+  if (!pmDB.disponible()) return;
+  try {
+    const rows = await pmDB.get('pedidos', { tipo: 'pan', fecha_entrega: fecha }, '*');
+    if (!rows || !rows.length) return;
+    await _sbProdEnsureMap();
+    let cambio = false;
+    for (const sb of rows) {
+      const local = G.pedidosPan.find(p => p._sbId === sb.id);
+      if (local) {
+        if (local.fechaEntrega !== sb.fecha_entrega) { local.fechaEntrega = sb.fecha_entrega; cambio = true; }
+        continue;
+      }
+      let lineas = [];
+      try {
+        const lins = await pmDB.get('pedido_lineas', { pedido_id: sb.id }, '*');
+        lineas = (lins||[]).map(l => ({
+          lid: l.id, _sbId: l.id, pid: _sbProdMapInv?.[l.producto_id] || '',
+          cant: l.cantidad||1, inst: l.instruccion||''
+        })).filter(l => l.pid);
+      } catch(e) { console.warn('[ppCargarPorEntrega] lineas:', e.message); }
+      G.pedidosPan.push({
+        id: pmId(), date: sb.fecha, cli: sb.cliente_nom,
+        status: sb.status, lineas, _sbId: sb.id,
+        cliId: sb.cliente_id || null, cliCod: null, cliNom: null,
+        fechaEntrega: sb.fecha_entrega
+      });
+      cambio = true;
+    }
+    if (cambio) pmSave('pedidos');
+  } catch(e) { console.warn('[ppCargarPorEntrega]', e.message); }
 }
 
 // FIX D3: guardar el método de pago elegido para este pedido (se usa

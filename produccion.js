@@ -40,6 +40,9 @@ function prodGetPlan(fecha) {
 async function prodRenderConSb() {
   const fecha = document.getElementById('prod-date').value || pmHoy();
   await prodCargarDesdeSb(fecha);
+  // Pedidos de pan que se entregan este día pero se tomaron otro día
+  // (y quizá en otro dispositivo): se traen de Supabase si faltan aquí.
+  await ppCargarPorEntrega(fecha);
   // Pedidos comerciales del día — ahora viven local en G.pedidosCom
   // (punto 7 del plan de auditoría: comercial.js pasó a local-first).
   const pedsCom = G.pedidosCom.filter(p => p.date === fecha && _docEstaAbierto(p));
@@ -48,7 +51,9 @@ async function prodRenderConSb() {
 
 function prodRender(pedsCom = []) {
   const fecha = document.getElementById('prod-date').value || pmHoy();
-  const peds  = G.pedidosPan.filter(p => p.date === fecha);
+  // La producción de un día sale de los pedidos que se ENTREGAN ese día
+  // (fecha de entrega; si no tienen, la fecha en que se tomaron).
+  const peds  = G.pedidosPan.filter(p => pmFechaProd(p) === fecha);
   const plan  = prodGetPlan(fecha);
 
   // Aggregate pedidos de pan por producto
@@ -179,7 +184,7 @@ function prodActualizar(pid) {
   if (notaEl) plan[pid].nota = notaEl.value;
   // Update total stat
   const allPids = new Set([
-    ...Object.keys(G.pedidosPan.filter(p=>p.date===fecha).reduce((acc,p)=>{p.lineas.forEach(l=>{acc[l.pid]=1});return acc},{})),
+    ...Object.keys(G.pedidosPan.filter(p=>pmFechaProd(p)===fecha).reduce((acc,p)=>{p.lineas.forEach(l=>{acc[l.pid]=1});return acc},{})),
     ...Object.keys(plan)
   ]);
   const totalProd = [...allPids].reduce((s,p2) => s + (plan[p2]?.prod||0), 0);
