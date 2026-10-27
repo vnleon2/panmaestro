@@ -9,7 +9,7 @@
 <meta name="theme-color" content="#2E6B45">
 <title>Dashboard — PanMaestro</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="pm_style.css?v=20261026b">
+<link rel="stylesheet" href="pm_style.css?v=20261026c">
 
 </head>
 <body>
@@ -73,6 +73,7 @@
     <div class="nav-group">
       <button class="nav-toggle" onclick="pmToggleGroup(this)">🔥 Producción ▾</button>
       <div class="group-drop">
+        <button class="ntab" data-tab="pg-mps" onclick="showTab('pg-mps');pmCloseNav()">📊 MPS</button>
         <button class="ntab" data-tab="pg-prod" onclick="showTab('pg-prod');pmCloseNav()">🔥 Producción</button>
         <button class="ntab" data-tab="pg-planlibre" onclick="showTab('pg-planlibre');planLibreRender();pmCloseNav()">📋 Plan Libre</button>
       </div>
@@ -1501,6 +1502,63 @@
   <div id="dep-resultados"></div>
 </div>
 
+<!-- ═══ 📊 MPS ═══ -->
+<div class="page" id="pg-mps">
+  <div class="pg-title">📊 MPS — Plan maestro de producción</div>
+  <div class="pg-sub">Estimado de venta del mes por pan y canal, con kilos netos y calendario de entregas — módulo independiente, no afecta Pedidos ni Producción</div>
+
+  <div class="card">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-out btn-sm" onclick="mpsMesNav(-1)" title="Mes anterior">‹</button>
+      <input type="month" id="mps-mes" onchange="mpsMesCambiado()" style="width:auto">
+      <button class="btn btn-out btn-sm" onclick="mpsMesNav(1)" title="Mes siguiente">›</button>
+      <span id="mps-mes-txt" style="font-family:'Playfair Display',serif;font-size:16px;font-weight:700;color:var(--gold);text-transform:capitalize"></span>
+      <span class="badge" id="mps-estado-badge">Borrador</span>
+      <span id="mps-guardado" style="font-size:11px"></span>
+      <span style="flex:1"></span>
+      <button class="btn btn-out btn-sm" id="mps-btn-copiar" onclick="mpsCopiarAnterior()">📋 Copiar mes anterior</button>
+      <button class="btn btn-gold btn-sm" id="mps-btn-aprobar" onclick="mpsAprobar()">✔ Aprobar mes</button>
+    </div>
+  </div>
+
+  <div class="pills" id="mps-pills">
+    <button class="pill on" onclick="mpsTab('est',this)">📝 Estimado del mes</button>
+    <button class="pill" onclick="mpsTab('cal',this)">📅 Calendario de entregas</button>
+  </div>
+
+  <!-- ESTIMADO -->
+  <div id="mpst-est">
+    <div class="stats" id="mps-stats"></div>
+    <div id="mps-hoja"></div>
+  </div>
+
+  <!-- CALENDARIO -->
+  <div id="mpst-cal" style="display:none">
+    <div class="card">
+      <div class="ctitle">Días de entrega por canal</div>
+      <div style="overflow-x:auto" id="mps-cal"></div>
+      <div style="font-size:11px;color:var(--cream2);margin-top:8px">Marcá los días de la semana en que entrega cada canal. El estimado mensual de cada canal se reparte solo entre esos días.</div>
+    </div>
+    <div class="card">
+      <div class="ctitle">Días sin entrega (feriados, vacaciones)</div>
+      <div class="row">
+        <div class="col sm"><label>Fecha</label><input type="date" id="mps-exc-fecha"></div>
+        <div class="col sm"><label>Canal</label>
+          <select id="mps-exc-canal">
+            <option value="">Todos los canales</option>
+            <option value="comercial">Comercial</option>
+            <option value="domestico">Doméstico</option>
+            <option value="feria">Feria</option>
+          </select>
+        </div>
+        <div class="col"><label>Motivo (opcional)</label><input type="text" id="mps-exc-motivo" placeholder="Feriado, vacaciones..." onkeydown="if(event.key==='Enter')mpsExcAdd()"></div>
+        <div class="col xs"><label>&nbsp;</label><button class="btn btn-gold" onclick="mpsExcAdd()">+ Agregar</button></div>
+      </div>
+      <div style="margin-top:12px" id="mps-exc-list"></div>
+    </div>
+  </div>
+</div>
+
 <!-- ═══ 🎯 Mercadeo ═══ -->
 <div class="page" id="pg-mercadeo">
   <div class="pg-title">🎯 Mercadeo</div>
@@ -2117,6 +2175,7 @@
 <script src="etiquetas_hoja.js?v=20261003a"></script>
 
 <script src="mercadeo.js?v=20261026b"></script>
+<script src="mps.js?v=20261026c"></script>
 <script src="depuracion.js?v=20261018c"></script>
 <script src="costos_core.js?v=20261012b"></script>
 <script src="costos_empaques.js?v=20261012b"></script>

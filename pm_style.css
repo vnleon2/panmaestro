@@ -222,3 +222,18 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 @media(max-width:480px){.stats{grid-template-columns:repeat(2,1fr)}.brand{padding:0 8px}.page{padding:11px 10px}.col.xs{flex:1 1 100%;min-width:0}.col.sm{flex:1 1 100%;min-width:0}}
 
 
+
+/* ── MPS (hoja de estimado y calendario) ── */
+.mps-wrap{overflow:auto;max-height:68vh;border:1px solid #E1E8DD;border-radius:var(--r);background:#fff}
+.mps-tbl{border-collapse:separate;border-spacing:0;width:100%;font-size:13px}
+.mps-tbl th,.mps-tbl td{padding:5px 8px;border-bottom:1px solid #EEF2EB;white-space:nowrap}
+.mps-tbl thead th{position:sticky;top:0;z-index:2;background:#EAF0E6;font-size:11px;text-transform:uppercase;letter-spacing:.5px;text-align:center;color:var(--gold2)}
+.mps-tbl tbody td:first-child,.mps-tbl tfoot td:first-child{position:sticky;left:0;z-index:1;background:#fff;text-align:left;min-width:170px}
+.mps-tbl thead th:first-child{left:0;z-index:3;text-align:left}
+.mps-tbl tfoot td{background:#F4F7F2;font-weight:600;border-top:1px solid var(--border2)}
+.mps-tbl tfoot td:first-child{background:#F4F7F2}
+.mps-in{width:84px;text-align:right;font-family:'DM Mono',monospace;font-size:13px;padding:5px 7px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--gold2)}
+.mps-in:disabled{background:#F4F7F2;color:#7a8a7e}
+.mps-in::placeholder{color:#C3CFC0}
+.mps-n{font-family:'DM Mono',monospace;text-align:right}
+.mps-sub{display:block;font-weight:400;font-size:10px;letter-spacing:0;text-transform:none;color:#5F6F63}
