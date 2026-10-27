@@ -51,6 +51,7 @@ maestros.js
 catalogo.js
 etiquetas.js
 mercadeo.js
+mps.js
 plan_libre.js
 pm_app.js      ← bootstrap: navegación de pestañas + login/sesión (debe ir último)
 ```
@@ -84,6 +85,7 @@ práctica **no es perfecto** — hay excepciones documentadas abajo.
 | `catalogo.js`        | `cat`                           | Fotos de catálogo (Supabase Storage) |
 | `etiquetas.js`       | `et`                            | Impresión de etiquetas de producto (integrada como pestaña propia — antes standalone) |
 | `mercadeo.js`        | `mkt`                           | Categorías, estilos y atributos de producto — módulo de marketing (ver sección 7) |
+| `mps.js`             | `mps`                           | MPS (plan maestro de producción): hoja de estimado por pan y canal, calendario de entregas (ver sección 11) |
 | `plan_libre.js`      | `plan`, `cli`, `cp`              | Plan libre (`plan`); clientes (`cli`); precios especiales por cliente (`cp`) |
 | `pm_core.js`         | `pm`                            | Utilidades compartidas: fechas, dinero, escape HTML, toasts, modales genéricos |
 | `pm_db.js`           | `pmDB.*` (objeto, no prefijo suelto) | Toda la comunicación con Supabase |
@@ -359,3 +361,39 @@ del Punto 7 en adelante):
   2026 (reglas mínimas: variables sin usar, bloques vacíos, `==` vs
   `===` — sin `no-undef` porque el proyecto depende de globals
   compartidos entre archivos sin módulos ES).
+
+---
+
+## 11. Módulo MPS — plan maestro de producción (entrega 1, oct 2026)
+
+Plan mensual de producción a nivel de **producto × canal**, por encima
+del plan del día de Producción. Cadena objetivo: pedidos y estimado →
+**MPS** → plan del día → orden de producción → variaciones. Los pedidos
+no disparan la producción: consumen del estimado (los pedidos son parte
+del estimado, no se suman a él).
+
+**Entrega 1 (esta):** hoja de estimado + calendario de entregas.
+- Hoja tipo Excel (`mps.js`): una fila por pan activo (tipo `pan`), columnas
+  Comercial / Doméstico / Feria (unidades del mes) e inventario inicial;
+  calcula total y kilos netos (unidades × `peso_g` del producto). Navegación
+  con Enter/flechas/Tab y pegado de bloques desde Excel (orden de columnas:
+  Comercial · Doméstico · Feria · Inv. inicial). Guardado por celda, en cola
+  (una escritura a la vez), con `upsert` sobre `on_conflict`.
+- Calendario por canal (`mps_calendario`: comercial mar/sáb, doméstico
+  jue/sáb, feria vie — editable) y excepciones/feriados (`mps_excepciones`).
+  De ahí salen los "días de entrega del mes" de cada canal.
+- Estado del mes: borrador / aprobado (aprobado bloquea la hoja).
+
+**Tablas propias** (`sql_mps.sql`, RLS auth_only, sin tocar tablas
+existentes): `mps_periodos`, `mps_estimado`, `mps_inventario`,
+`mps_calendario`, `mps_excepciones`. Deshacer todo: `drop table` de las 5.
+`dia_semana` usa la convención de JavaScript (0 = domingo … 6 = sábado).
+
+Como Mercadeo, no usa `G`/`pmSave()` ni agrega nada a `pm_db.js`; el
+período del mes se crea en Supabase recién cuando se guarda la primera
+celda.
+
+**Pendiente (entregas siguientes):** balance diario con inventario final
+(inicial + producción − venta; la producción sale del plan de producción
+existente), venta real de feria, chequeo de capacidad contra Costos
+(`costos_capacidad.js`) y reporte estimado vs real por día de semana.
