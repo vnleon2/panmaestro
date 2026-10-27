@@ -1523,6 +1523,7 @@
 
   <div class="pills" id="mps-pills">
     <button class="pill on" onclick="mpsTab('est',this)">📝 Estimado del mes</button>
+    <button class="pill" onclick="mpsTab('ven',this)">💰 Ventas reales</button>
     <button class="pill" onclick="mpsTab('cal',this)">📅 Calendario de entregas</button>
   </div>
 
@@ -1531,6 +1532,9 @@
     <div class="stats" id="mps-stats"></div>
     <div id="mps-hoja"></div>
   </div>
+
+  <!-- VENTAS REALES -->
+  <div id="mpst-ven" style="display:none"><div id="mpv-root"></div></div>
 
   <!-- CALENDARIO -->
   <div id="mpst-cal" style="display:none">
@@ -2175,7 +2179,8 @@
 <script src="etiquetas_hoja.js?v=20261003a"></script>
 
 <script src="mercadeo.js?v=20261026b"></script>
-<script src="mps.js?v=20261026c"></script>
+<script src="mps.js?v=20261026d"></script>
+<script src="mps_ventas.js?v=20261026d"></script>
 <script src="depuracion.js?v=20261018c"></script>
 <script src="costos_core.js?v=20261012b"></script>
 <script src="costos_empaques.js?v=20261012b"></script>

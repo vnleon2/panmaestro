@@ -52,6 +52,7 @@ catalogo.js
 etiquetas.js
 mercadeo.js
 mps.js
+mps_ventas.js
 plan_libre.js
 pm_app.js      ← bootstrap: navegación de pestañas + login/sesión (debe ir último)
 ```
@@ -86,6 +87,7 @@ práctica **no es perfecto** — hay excepciones documentadas abajo.
 | `etiquetas.js`       | `et`                            | Impresión de etiquetas de producto (integrada como pestaña propia — antes standalone) |
 | `mercadeo.js`        | `mkt`                           | Categorías, estilos y atributos de producto — módulo de marketing (ver sección 7) |
 | `mps.js`             | `mps`                           | MPS (plan maestro de producción): hoja de estimado por pan y canal, calendario de entregas (ver sección 11) |
+| `mps_ventas.js`      | `mpv`                           | MPS: ventas reales por día/pan/canal, cargadas desde pedidos (tabla `mps_venta_real`, ver sección 11) |
 | `plan_libre.js`      | `plan`, `cli`, `cp`              | Plan libre (`plan`); clientes (`cli`); precios especiales por cliente (`cp`) |
 | `pm_core.js`         | `pm`                            | Utilidades compartidas: fechas, dinero, escape HTML, toasts, modales genéricos |
 | `pm_db.js`           | `pmDB.*` (objeto, no prefijo suelto) | Toda la comunicación con Supabase |
@@ -392,6 +394,14 @@ existentes): `mps_periodos`, `mps_estimado`, `mps_inventario`,
 Como Mercadeo, no usa `G`/`pmSave()` ni agrega nada a `pm_db.js`; el
 período del mes se crea en Supabase recién cuando se guarda la primera
 celda.
+
+**Entrega 2a: ventas reales** (`mps_ventas.js`, tabla `mps_venta_real`,
+`sql_mps_ventas.sql`). Una fila por día × pan × canal. El botón "Traer ventas
+de pedidos" lee `pedidos` (tipo pan → doméstico, comercial → comercial) y
+`pedido_lineas`, ubica cada pedido en su día de entrega (`fecha_entrega`, si no
+la fecha de toma), cuenta todo pedido no anulado y solo hasta hoy, y muestra
+una vista previa antes de guardar. Filas con origen `manual` (feria,
+correcciones) nunca se pisan. Límite: solo pedidos ya sincronizados a Supabase.
 
 **Pendiente (entregas siguientes):** balance diario con inventario final
 (inicial + producción − venta; la producción sale del plan de producción
