@@ -412,7 +412,10 @@ entrega de cada canal (unidades enteras), pedidos comprometidos, venta real,
 Día cerrado (anterior a hoy o con venta real) usa lo real, 0 si no hay filas;
 día abierto o futuro usa, por canal, el mayor entre estimado y pedidos. La
 producción se lee de `plan_produccion` (filas `pedido` + `libre`, sumadas).
-Inventario negativo en rojo y listado de alertas arriba.
+En días cerrados, si el plan no tiene producción que cubra lo vendido, se asume
+que se produjo lo vendido ("producción asumida", en cursiva): así el pasado sin
+producción cargada no arrastra negativos falsos. Inventario negativo en rojo
+(solo queda en días abiertos/futuros = lo que hay que producir) y listado de alertas arriba.
 **Previsión por día** (`mps_prevision`, `sql_mps_prevision.sql`, opcional): para
 un día y canal concretos reemplaza al estimado repartido (ej. "el viernes 4
 hogazas en la feria"); los pedidos siguen contando si superan la previsión.

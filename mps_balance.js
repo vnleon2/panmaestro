@@ -18,6 +18,11 @@
 //      pedidos comprometidos (los pedidos son parte del estimado, no se suman).
 //   4. Inventario final del día = inventario del día anterior + producción − venta.
 //      El primer día parte del inventario inicial del mes. Negativo = en rojo.
+//      EXCEPCIÓN en días cerrados: si el plan de producción no tiene lo que
+//      alcanzaría para cubrir lo vendido, se ASUME que se produjo lo vendido
+//      (producción "asumida", se marca aparte). Así el pasado sin producción
+//      cargada no deja negativos falsos que se arrastren; los negativos que
+//      quedan son de días abiertos o futuros = lo que de verdad hay que producir.
 //   5. Producción = suma de las filas 'pedido' y 'libre' de plan_produccion de ese
 //      día y pan. (Supuesto: son listas distintas; si un mismo pan está en las dos
 //      el mismo día, se suman.)
@@ -69,7 +74,7 @@ function mpbCalcular(d) {
     });
     let inv = Number((d.inv && d.inv[pid]) || 0);
     const invIni = inv;
-    let tProd = 0, tVenta = 0, tReal = 0, minInv = inv, primerNeg = null;
+    let tProd = 0, tVenta = 0, tReal = 0, tAsum = 0, minInv = inv, primerNeg = null;
     const dias = fechas.map(f => {
       const e = estDia[f] || {};
       const prev = d.prev || {};
@@ -89,14 +94,16 @@ function mpbCalcular(d) {
       if (cerrado) venta = realT;
       else MPS_CANALES.forEach(c => { venta += Math.max(eu[c.id], co[c.id]); });
       const prod = d.prod[f + '|' + pid] || 0;
-      inv = inv + prod - venta;
-      tProd += prod; tVenta += venta; tReal += realT;
+      // Día cerrado sin producción registrada que cubra la venta: se asume que se produjo.
+      const asumida = cerrado ? Math.max(0, venta - (inv + prod)) : 0;
+      inv = inv + prod + asumida - venta;
+      tProd += prod; tAsum += asumida; tVenta += venta; tReal += realT;
       if (inv < minInv) minInv = inv;
       if (inv < 0 && primerNeg === null) primerNeg = f;
       return { fecha: f, entrega: MPS_CANALES.filter(c => (e[c.id] !== undefined)).map(c => c.id),
-               previsto: hayPrev && !cerrado, est: estT, comp: compT, real: realT, cerrado, venta, prod, inv };
+               previsto: hayPrev && !cerrado, est: estT, comp: compT, real: realT, cerrado, venta, prod, asumida, inv };
     });
-    out[pid] = { dias, resumen: { invIni, invFin: inv, prod: tProd, venta: tVenta, real: tReal, minInv, primerNeg } };
+    out[pid] = { dias, resumen: { invIni, invFin: inv, prod: tProd, asumida: tAsum, venta: tVenta, real: tReal, minInv, primerNeg } };
   });
   return out;
 }
@@ -202,7 +209,7 @@ function mpbRender() {
       <td class="mps-n">${x.comp ? mpsFmt(x.comp, 0) : ''}</td>
       <td class="mps-n">${x.cerrado ? mpsFmt(x.real, 0) : ''}</td>
       <td class="mps-n"><b>${x.venta ? mpsFmt(x.venta, 0) : '0'}</b></td>
-      <td class="mps-n">${x.prod ? mpsFmt(x.prod, 0) : ''}</td>
+      <td class="mps-n">${x.prod ? mpsFmt(x.prod, 0) : ''}${x.asumida ? `<span style="color:var(--cream2);font-style:italic" title="Producción asumida: ese día cerrado se vendió más de lo que había en el plan">${x.prod ? ' +' : ''}${mpsFmt(x.asumida, 0)}</span>` : ''}</td>
       <td class="mps-n" style="font-weight:700;${rojo ? 'color:#b3261e;background:#FDECEA' : ''}">${mpsFmt(x.inv, 1)}</td></tr>`;
   }).join('');
 
@@ -214,7 +221,8 @@ function mpbRender() {
       </div>
       <div class="stats" style="margin-top:10px">
         <div class="stat"><div class="stat-lbl">Inventario inicial</div><div class="stat-val">${mpsFmt(r.invIni, 1)}</div></div>
-        <div class="stat"><div class="stat-lbl">Producción</div><div class="stat-val">${mpsFmt(r.prod, 0)}</div></div>
+        <div class="stat"><div class="stat-lbl">Producción planeada</div><div class="stat-val">${mpsFmt(r.prod, 0)}</div></div>
+        ${r.asumida ? `<div class="stat"><div class="stat-lbl">Asumida (días cerrados)</div><div class="stat-val" style="color:var(--cream2)">${mpsFmt(r.asumida, 0)}</div></div>` : ''}
         <div class="stat"><div class="stat-lbl">Venta (real + prevista)</div><div class="stat-val">${mpsFmt(r.venta, 0)}</div></div>
         <div class="stat"><div class="stat-lbl">Inventario final</div><div class="stat-val" style="${r.invFin < 0 ? 'color:#b3261e' : ''}">${mpsFmt(r.invFin, 1)}</div></div>
       </div>
@@ -226,7 +234,7 @@ function mpbRender() {
         <tbody>${filas}</tbody>
       </table></div>
       <div style="font-size:11px;color:var(--cream2);margin-top:8px;line-height:1.6">
-        Entrega: C comercial · D doméstico · F feria · <b>*</b> = previsión del día. Días cerrados (gris) usan la venta real; los abiertos usan el mayor entre el estimado del día y los pedidos de cada canal.
+        Entrega: C comercial · D doméstico · F feria · <b>*</b> = previsión del día. Días cerrados (gris) usan la venta real y, si el plan no tiene producción que la cubra, se asume que se produjo lo vendido (cursiva); los abiertos usan el mayor entre el estimado del día y los pedidos de cada canal.
         La producción sale del plan de producción (Producción y Plan Libre): para moverla, cambiala allí y recargá esta pestaña.
       </div>
     </div>`;
