@@ -53,6 +53,7 @@ etiquetas.js
 mercadeo.js
 mps.js
 mps_ventas.js
+mps_balance.js
 plan_libre.js
 pm_app.js      ← bootstrap: navegación de pestañas + login/sesión (debe ir último)
 ```
@@ -87,6 +88,7 @@ práctica **no es perfecto** — hay excepciones documentadas abajo.
 | `etiquetas.js`       | `et`                            | Impresión de etiquetas de producto (integrada como pestaña propia — antes standalone) |
 | `mercadeo.js`        | `mkt`                           | Categorías, estilos y atributos de producto — módulo de marketing (ver sección 7) |
 | `mps.js`             | `mps`                           | MPS (plan maestro de producción): hoja de estimado por pan y canal, calendario de entregas (ver sección 11) |
+| `mps_balance.js`     | `mpb`                           | MPS: balance diario de inventario por pan (solo lectura; ver sección 11) |
 | `mps_ventas.js`      | `mpv`                           | MPS: ventas reales por día/pan/canal, cargadas desde pedidos (tabla `mps_venta_real`, ver sección 11) |
 | `plan_libre.js`      | `plan`, `cli`, `cp`              | Plan libre (`plan`); clientes (`cli`); precios especiales por cliente (`cp`) |
 | `pm_core.js`         | `pm`                            | Utilidades compartidas: fechas, dinero, escape HTML, toasts, modales genéricos |
@@ -403,7 +405,21 @@ la fecha de toma), cuenta todo pedido no anulado y solo hasta hoy, y muestra
 una vista previa antes de guardar. Filas con origen `manual` (feria,
 correcciones) nunca se pisan. Límite: solo pedidos ya sincronizados a Supabase.
 
-**Pendiente (entregas siguientes):** balance diario con inventario final
+**Entrega 2b: balance diario** (`mps_balance.js`, solo lectura, sin tablas
+nuevas). Por pan y por día del mes: estimado repartido entre los días de
+entrega de cada canal (unidades enteras), pedidos comprometidos, venta real,
+"venta usada", producción e inventario final (= anterior + producción − venta).
+Día cerrado (anterior a hoy o con venta real) usa lo real, 0 si no hay filas;
+día abierto o futuro usa, por canal, el mayor entre estimado y pedidos. La
+producción se lee de `plan_produccion` (filas `pedido` + `libre`, sumadas).
+Inventario negativo en rojo y listado de alertas arriba.
+**Previsión por día** (`mps_prevision`, `sql_mps_prevision.sql`, opcional): para
+un día y canal concretos reemplaza al estimado repartido (ej. "el viernes 4
+hogazas en la feria"); los pedidos siguen contando si superan la previsión.
+Si la tabla no existe el balance funciona igual y avisa. Mover producción se
+sigue haciendo en Producción/Plan Libre (editarla desde el balance = entrega 2c).
+
+**Pendiente (entregas siguientes):** (2c editar producción desde el balance) con inventario final
 (inicial + producción − venta; la producción sale del plan de producción
 existente), venta real de feria, chequeo de capacidad contra Costos
 (`costos_capacidad.js`) y reporte estimado vs real por día de semana.
