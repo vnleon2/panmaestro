@@ -85,7 +85,8 @@ function exExpandir(r, targetMass, visited) {
   (res.lines || []).forEach(l => {
     if (l.isSub || l.isAddon) return;
     const n = _exLimpiar(l.name);
-    if (n && l.g > 0) nodos.push({ tipo: 'ing', n, g: l.g });
+    // cpg = costo estándar por gramo (lo usa ordenes_prod.js para congelar el estándar)
+    if (n && l.g > 0) nodos.push({ tipo: 'ing', n, g: l.g, cpg: l.cost > 0 ? l.cost / l.g : 0 });
   });
 
   (r.subrecs || []).forEach(sub => {
@@ -105,9 +106,10 @@ function exExpandir(r, targetMass, visited) {
       const iA = pmAddonIng(addon);
       const nA = _exLimpiar(iA?.nombre || addon.ingrediente);
       const mA = addon.gPorUnidad * (r.units || 1);
+      const cpgA = iA && iA.price && iA.qty ? iA.price / iA.qty : 0;
       nodos.push({
-        tipo: 'addon', n: _exLimpiar(addon.label || nA), rec: 'ingrediente',
-        g: mA, hijos: [{ tipo: 'ing', n: nA, g: mA }]
+        tipo: 'addon', at: addon.tipo || '', n: _exLimpiar(addon.label || nA), rec: 'ingrediente',
+        g: mA, hijos: [{ tipo: 'ing', n: nA, g: mA, cpg: cpgA }]
       });
       return;
     }
@@ -115,7 +117,7 @@ function exExpandir(r, targetMass, visited) {
     if (!ref || !addon.gPorUnidad || vis.has(ref.code)) return;
     const m = addon.gPorUnidad * (r.units || 1);
     nodos.push({
-      tipo: 'addon', n: _exLimpiar(addon.label || ref.name), rec: ref.code + ' · ' + ref.name,
+      tipo: 'addon', at: addon.tipo || '', n: _exLimpiar(addon.label || ref.name), rec: ref.code + ' · ' + ref.name,
       g: m, hijos: exExpandir(ref, m, vis)
     });
   });
@@ -139,7 +141,7 @@ function exProcesar(nodos, k, kAdd) {
       const hid = mNum ? parseFloat(mNum[1]) : 100;
       const harina = /centeno/i.test(nd.n) ? 'Harina de centeno' : 'Harina';
       return {
-        tipo: 'ino', n: nd.n, g, hid, supuesto: !mNum,
+        tipo: 'ino', n: nd.n, g, hid, supuesto: !mNum, cpg: nd.cpg || 0,
         hijos: [
           { tipo: 'ing', n: harina, g: g * 100 / (100 + hid), via: 'ino' },
           { tipo: 'ing', n: 'Agua',  g: g * hid / (100 + hid), via: 'ino' }
