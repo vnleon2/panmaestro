@@ -74,6 +74,7 @@
       <button class="nav-toggle" onclick="pmToggleGroup(this)">🔥 Producción ▾</button>
       <div class="group-drop">
         <button class="ntab" data-tab="pg-mps" onclick="showTab('pg-mps');pmCloseNav()">📊 MPS</button>
+        <button class="ntab" data-tab="pg-opgen" onclick="showTab('pg-opgen');pmCloseNav()">🧾 Órdenes de producción</button>
         <button class="ntab" data-tab="pg-prod" onclick="showTab('pg-prod');pmCloseNav()">🔥 Producción</button>
         <button class="ntab" data-tab="pg-planlibre" onclick="showTab('pg-planlibre');planLibreRender();pmCloseNav()">📋 Plan Libre</button>
       </div>
@@ -1502,6 +1503,29 @@
   <div id="dep-resultados"></div>
 </div>
 
+<!-- ═══ 🧾 ÓRDENES DE PRODUCCIÓN ═══ -->
+<div class="page" id="pg-opgen">
+  <div class="pg-title">🧾 Órdenes de producción</div>
+  <div class="pg-sub">Escribí la lista de panes a fabricar: el sistema emite una orden por pan, con sus sub-órdenes (masa madre, relleno, cobertura), y las imprimís juntas — módulo independiente, no afecta Producción ni Pedidos</div>
+
+  <div class="pills">
+    <button class="pill on" id="opg-pill-gen" onclick="opgTab('gen')">➕ Generador</button>
+    <button class="pill" id="opg-pill-lst" onclick="opgTab('lst')">📚 Órdenes emitidas</button>
+  </div>
+
+  <!-- GENERADOR -->
+  <div id="opgt-gen">
+    <div class="card" id="opg-lista"></div>
+    <div id="opg-res"></div>
+  </div>
+
+  <!-- ÓRDENES EMITIDAS -->
+  <div id="opgt-lst" style="display:none">
+    <div class="card" id="opg-filtros"></div>
+    <div class="card" id="opg-tabla"></div>
+  </div>
+</div>
+
 <!-- ═══ 📊 MPS ═══ -->
 <div class="page" id="pg-mps">
   <div class="pg-title">📊 MPS — Plan maestro de producción</div>
@@ -2208,12 +2232,13 @@
 <script src="costos_hoja.js?v=20261023a"></script>
 
 <script src="precio_venta.js?v=20261002a"></script>
-<script src="explosion.js?v=20261003b"></script>
+<script src="explosion.js?v=20261028a"></script>
+<script src="ordenes_prod.js?v=20261028a"></script>
 <script src="reporte_control.js?v=20261018a"></script>
 <script src="simulador.js?v=20261018c"></script>
 <script src="plan_libre.js?v=20261026b"></script>
 
-<script src="pm_app.js?v=20261026a"></script>
+<script src="pm_app.js?v=20261028a"></script>
 
 </body>
 </html>
