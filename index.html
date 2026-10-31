@@ -134,6 +134,7 @@
       <button class="nav-toggle" onclick="pmToggleGroup(this)">🧰 Herramientas ▾</button>
       <div class="group-drop">
         <button class="ntab" data-tab="pg-simulador" onclick="showTab('pg-simulador');pmCloseNav()">🔬 Simulador</button>
+        <button class="ntab" data-tab="pg-molde" onclick="showTab('pg-molde');pmCloseNav()">📏 Masa por molde</button>
         <button class="ntab" onclick="pmOpenModule('utilidades.html');pmCloseNav()">🧮 Utilidades<span class="ext-mark">↗</span></button>
         <button class="ntab" onclick="pmOpenModule('labrec.html');pmCloseNav()">🧪 Laboratorio<span class="ext-mark">↗</span></button>
       </div>
@@ -453,6 +454,13 @@
   <div id="sim-ctrl"></div>
   <div id="sim-barra"></div>
   <div id="sim-out"></div>
+</div>
+
+<!-- ═══ 📏 Masa por molde (utilidad de cálculo, no guarda nada) ═══ -->
+<div class="page" id="pg-molde">
+  <div class="pg-title">📏 Masa por molde</div>
+  <div class="pg-sub">¿Cuánta masa necesito para cada molde? Solo calcula — no guarda nada</div>
+  <div id="mol-out"></div>
 </div>
 
 <!-- ═══ 💰 Gastos ═══ -->
@@ -2236,9 +2244,10 @@
 <script src="ordenes_prod.js?v=20261028a"></script>
 <script src="reporte_control.js?v=20261018a"></script>
 <script src="simulador.js?v=20261018c"></script>
+<script src="molde.js?v=20261031a"></script>
 <script src="plan_libre.js?v=20261026b"></script>
 
-<script src="pm_app.js?v=20261028a"></script>
+<script src="pm_app.js?v=20261031a"></script>
 
 </body>
 </html>
