@@ -191,8 +191,8 @@
   <div class="card">
     <div class="ctitle">Nuevo pedido <span id="pp-tot-badge" style="font-size:12px;font-weight:400;color:var(--gold);margin-left:8px"></span></div>
     <div class="row">
-      <div class="col sm"><label>Fecha del pedido</label><input type="date" id="pp-fecha" onchange="ppCargarSb()"></div>
-      <div class="col sm"><label>Entrega (opcional)</label><input type="date" id="pp-entrega" title="Fecha en que el cliente necesita el pan. Si la dejás vacía, se produce el mismo día del pedido."></div>
+      <div class="col sm"><label id="pp-fecha-lbl">Fecha del pedido</label><input type="date" id="pp-fecha" onchange="pvFechaCambio('pan')"></div>
+      <div class="col sm"><label>Entrega (opcional)</label><input type="date" id="pp-entrega" oninput="this.dataset.auto='0'" title="Fecha en que el cliente necesita el pan. Si la dejás vacía, se produce el mismo día del pedido."></div>
       <div class="col"><label>Cliente</label><input type="text" id="pp-cli" placeholder="Nombre del cliente" onkeydown="if(event.key==='Enter')ppAdd()"></div>
       <div class="col xs"><label>&nbsp;</label><button class="btn btn-gold" onclick="ppAdd()">+ Agregar</button></div>
     </div>
@@ -202,6 +202,7 @@
       <button class="btn btn-out btn-sm" onclick="pedSincronizarToSb()" title="Subir pedidos locales a Supabase">☁️ Sync</button>
     </div>
   </div>
+  <div id="pp-vista-bar"></div>
   <div id="pp-vista-extra" style="display:none"></div>
   <div id="pp-list"></div>
 </div>
@@ -245,7 +246,8 @@
   <div class="card">
     <div class="ctitle">Nuevo pedido <span id="pg-tot-badge" style="font-size:12px;font-weight:400;color:var(--gold);margin-left:8px"></span></div>
     <div class="row">
-      <div class="col sm"><label>Fecha</label><input type="date" id="pg-fecha" onchange="pgCargarSb()"></div>
+      <div class="col sm"><label id="pg-fecha-lbl">Fecha</label><input type="date" id="pg-fecha" onchange="pvFechaCambio('galleta')"></div>
+      <div class="col sm"><label>Entrega (opcional)</label><input type="date" id="pg-entrega" oninput="this.dataset.auto='0'" title="Fecha en que el cliente necesita las galletas. Si la dejás vacía, el pedido no tiene fecha de entrega."></div>
       <div class="col"><label>Cliente</label><input type="text" id="pg-cli" placeholder="Nombre del cliente" onkeydown="if(event.key==='Enter')pgAdd()"></div>
       <div class="col xs"><label>&nbsp;</label><button class="btn btn-gold" onclick="pgAdd()">+ Agregar</button></div>
     </div>
@@ -254,6 +256,7 @@
       <button class="btn btn-out btn-sm" onclick="pgVerPlanVsPedidos()">🔥 Plan vs Pedidos</button>
     </div>
   </div>
+  <div id="pg-vista-bar"></div>
   <div id="pg-vista-extra" style="display:none"></div>
   <div id="pg-list"></div>
 </div>
@@ -2180,19 +2183,20 @@
 <!-- pm_db.js debe estar en la misma carpeta que este HTML -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="pm_db.js?v=20261001c"></script>
-<script src="pm_core.js?v=20261026b"></script>
+<script src="pm_core.js?v=20261101a"></script>
 
 <script src="dashboard.js?v=20261001c"></script>
 
-<script src="pan.js?v=20261026b"></script>
+<script src="pan.js?v=20261101a"></script>
 
-<script src="galletas.js?v=20261026b"></script>
+<script src="galletas.js?v=20261101a"></script>
+<script src="pedidos_vista.js?v=20261101a"></script>
 
 <script src="comercial.js?v=20261026b"></script>
 
 <script src="produccion.js?v=20261026b"></script>
 
-<script src="reportes.js?v=20261026b"></script>
+<script src="reportes.js?v=20261101a"></script>
 
 <script src="gastos.js?v=20261001c"></script>
 
@@ -2247,7 +2251,7 @@
 <script src="molde.js?v=20261031a"></script>
 <script src="plan_libre.js?v=20261026b"></script>
 
-<script src="pm_app.js?v=20261031a"></script>
+<script src="pm_app.js?v=20261101a"></script>
 
 </body>
 </html>
