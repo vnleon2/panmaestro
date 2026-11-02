@@ -436,6 +436,40 @@ function pmFechaProd(p) {
   return (p && (p.fechaEntrega || p.date)) || '';
 }
 
+// ── Estado de un pedido: pagado / entregado / cerrado ─────────────────────
+// Regla de Victor (1 nov 2026): un pedido está CERRADO si está pagado O si su
+// status dice "entregado" (aunque no esté pagado: queda por cobrar). Está
+// PENDIENTE (abierto) si no está pagado y tampoco entregado.
+// "Pagado" = el status contiene la palabra "pagado" (Pagado, En recepción
+// pagado, Por entregar prepagado). "Entregado por pagar" NO está pagado.
+function pmEstaPagado(status) {
+  return String(status || '').toLowerCase().includes('pagado');
+}
+function pmEstaEntregado(status) {
+  return String(status || '').toLowerCase().includes('entregado');
+}
+function pmEstaCerrado(p) {
+  const st = p && p.status;
+  return pmEstaPagado(st) || pmEstaEntregado(st);
+}
+
+// Suma (o resta) días a una fecha 'YYYY-MM-DD' sin pasar por UTC.
+function pmSumarDias(iso, n) {
+  const d = new Date(iso + 'T12:00:00');
+  d.setDate(d.getDate() + n);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+// Días de atraso de un pedido abierto: hoy menos su fecha de entrega (si no
+// tiene, la fecha en que se tomó). 0 si está cerrado o todavía no vence.
+function pmDiasAtraso(p) {
+  if (!p || pmEstaCerrado(p)) return 0;
+  const f = pmFechaProd(p);
+  const hoy = pmHoy();
+  if (!f || f >= hoy) return 0;
+  return Math.round((new Date(hoy + 'T12:00:00') - new Date(f + 'T12:00:00')) / 86400000);
+}
+
 
 function pmBadge(st) {
   const idx = (G.estados||[]).indexOf(st);

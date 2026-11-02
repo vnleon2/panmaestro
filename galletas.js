@@ -6,14 +6,14 @@ function pgInstOpts(selected='') {
 
 // ── Resumen del día — galletas ──
 function pgVerResumen() {
-  const fecha   = document.getElementById('pg-fecha').value || pmHoy();
-  const peds    = G.pedidosGalletas.filter(p => p.date === fecha);
+  // Resume lo que se está viendo (por creación o por entrega, con su filtro).
+  const peds    = pvLista('galleta');
   const vistaEl = document.getElementById('pg-vista-extra');
   if (!peds.length) {
     vistaEl.style.display = 'block';
     vistaEl.innerHTML = `<div class="card">
       <button class="btn btn-out btn-sm" onclick="pgCerrarVista()" style="margin-bottom:12px">← Volver a Pedidos</button>
-      <div class="ph"><span class="ph-icon">📋</span>Sin pedidos para este día</div>
+      <div class="ph"><span class="ph-icon">📋</span>Sin pedidos en esta vista</div>
     </div>`;
     return;
   }
@@ -36,7 +36,7 @@ function pgVerResumen() {
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
       <button class="btn btn-out btn-sm" onclick="pgCerrarVista()">← Volver a Pedidos</button>
       <div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:900;color:var(--cream)">📋 Resumen del día</div>
-      <div style="font-size:12px;color:var(--cream2)">${pmFmtDate(fecha)} · ${peds.length} cliente(s) · ${totalUnid} unidades</div>
+      <div style="font-size:12px;color:var(--cream2)">${pvEtiquetaVista('galleta')} · ${peds.length} cliente(s) · ${totalUnid} unidades</div>
     </div>
     <table style="width:100%;border-collapse:collapse;font-size:13px">
       <thead><tr style="border-bottom:2px solid var(--border)">
@@ -59,7 +59,9 @@ function pgVerResumen() {
 function pgVerPlanVsPedidos() {
   const fecha   = document.getElementById('pg-fecha').value || pmHoy();
   const plan    = prodGetPlan(fecha);
-  const peds    = G.pedidosGalletas.filter(p => p.date === fecha);
+  // Igual que Pan: el plan de un día se compara con lo que hay que ENTREGAR
+  // ese día (fecha de entrega; si no tiene, la fecha en que se tomó).
+  const peds    = G.pedidosGalletas.filter(p => pmFechaProd(p) === fecha);
   const vistaEl = document.getElementById('pg-vista-extra');
   const pedPorGall = {};
   peds.forEach(p => (p.lineas||[]).forEach(l => {
@@ -126,15 +128,21 @@ function pgCerrarVista() {
 }
 
 function pgAdd() {
-  const fecha = document.getElementById('pg-fecha').value || pmHoy();
+  const fecha = pvFechaNuevo('galleta');
   const cli = document.getElementById('pg-cli').value.trim();
   if (!cli) { pmToast('Ingresá el nombre del cliente','err'); return; }
+  // Fecha de entrega (opcional). El campo NO se limpia al agregar, porque
+  // normalmente se anotan varios pedidos seguidos para la misma entrega.
+  const entregaEl = document.getElementById('pg-entrega');
+  const fechaEntrega = (entregaEl && entregaEl.value) || '';
   const newPed = { id:pmId(), date:fecha, cli, status:G.estados[0]||'Pedido', lineas:[] };
+  if (fechaEntrega) newPed.fechaEntrega = fechaEntrega;
   G.pedidosGalletas.push(newPed);
   document.getElementById('pg-cli').value='';
   document.getElementById('pg-cli').focus();
   pmSave('pedidos'); pgRender();
   pmToast(`Pedido iniciado para ${cli} ✓`);
+  pvAvisarSiOculto('galleta', newPed);
   setTimeout(() => {
     const sf = document.getElementById('sgf-' + newPed.id);
     if (sf) sf.classList.add('open');
@@ -147,7 +155,9 @@ function pgAdd() {
     // solo el resultado) para que pgAddLinea() pueda esperarla si el
     // usuario agrega una galleta antes de que el pedido termine de
     // crearse en Supabase.
-    newPed._sbCreatePromise = pmDB.pedidos.crear({ fecha, cliente_nom:cli, tipo:'galleta', status:newPed.status, total:0 })
+    const datosNuevo = { fecha, cliente_nom:cli, tipo:'galleta', status:newPed.status, total:0 };
+    if (fechaEntrega) datosNuevo.fecha_entrega = fechaEntrega;
+    newPed._sbCreatePromise = pmDB.pedidos.crear(datosNuevo)
       .then(rows => { if (rows?.[0]) newPed._sbId = rows[0].id; return rows; })
       .catch(e => { console.warn('[pmDB] pgAdd error:', e.message); throw e; });
   }
@@ -160,65 +170,10 @@ function pgAdd() {
 // todavía está en camino.
 let _sbLineasPendientesGalletas = [];
 
-async function pgCargarSb() {
-  if (pmDB.disponible()) {
-    try {
-      if (_sbLineasPendientesGalletas.length) {
-        await Promise.allSettled(_sbLineasPendientesGalletas);
-        _sbLineasPendientesGalletas = [];
-      }
-      const fecha = document.getElementById('pg-fecha').value || pmHoy();
-      await _sbProdEnsureMap();
-      const rows = await pmDB.get('pedidos', { tipo: 'galleta', fecha }, '*');
-      if (rows) {
-        const sbPeds = [];
-        for (const sb of rows) {
-          let lineas = [];
-          try {
-            const lins = await pmDB.get('pedido_lineas', { pedido_id: sb.id }, '*');
-            lineas = (lins||[]).map(l => {
-              const pid = _sbProdMapInv?.[l.producto_id] || '';
-              return { lid: l.id, _sbId: l.id, pid, cant: l.cantidad||1, inst: l.instruccion||'' };
-            }).filter(l => l.pid);
-          } catch(e) { console.warn('[pgCargarSb] lineas:', e.message); }
-          const local = G.pedidosGalletas.find(p => p._sbId === sb.id);
-          // FIX: mismo patrón que ppCargarSb — antes se descartaba el
-          // vínculo con cliente por completo en cada reload.
-          let cliId  = sb.cliente_id || local?.cliId  || null;
-          let cliCod = local?.cliCod || null;
-          let cliNom = local?.cliNom || null;
-          if (sb.cliente_id && sb.cliente_id !== local?.cliId) {
-            if (!_sbCliCache) { try { await _sbCliCargar(); } catch(e) {} }
-            const c = (_sbCliCache || []).find(x => x.id === sb.cliente_id);
-            if (c) { cliCod = c.codigo || cliCod; cliNom = c.nombre || cliNom; }
-          }
-          sbPeds.push({
-            id: local?.id || pmId(),
-            date: sb.fecha, cli: sb.cliente_nom,
-            status: sb.status, lineas, _sbId: sb.id,
-            cliId, cliCod, cliNom
-          });
-        }
-        const otrosFechas = G.pedidosGalletas.filter(p => p.date !== fecha);
-        const offline     = G.pedidosGalletas.filter(p => p.date === fecha && !p._sbId);
-        G.pedidosGalletas = [...otrosFechas, ...sbPeds, ...offline];
-        pmSave('pedidos');
-      }
-    } catch(e) { console.warn('[pgCargarSb]', e.message); }
-  }
-  pgRender();
-}
-
-function pgRender() {
-  const fecha = document.getElementById('pg-fecha').value || pmHoy();
-  const peds = G.pedidosGalletas.filter(p => p.date === fecha);
-  const totalUnid = peds.reduce((s,p) => s + (p.lineas||[]).reduce((a,l)=>a+l.cant,0), 0);
-  const badge = document.getElementById('pg-tot-badge');
-  if (badge) badge.textContent = totalUnid ? `${totalUnid} unidad(es)` : '';
-  const el = document.getElementById('pg-list');
-  if (!peds.length) { el.innerHTML='<div class="ph"><span class="ph-icon">🍪</span>Sin pedidos para este día — agregá uno arriba</div>'; return; }
-  el.innerHTML = peds.map(p => pgCard(p)).join('');
-}
+// pgCargarSb() y pgRender() ahora viven en pedidos_vista.js (vista por
+// creación/entrega + filtro de estado), igual que en Pan.
+async function pgCargarSb() { return pvCargar('galleta'); }
+function pgRender() { pvRender('galleta'); }
 
 function pgCard(p) {
   const locked = p.status === (G.estados[G.estados.length-1]||'Pagado');
@@ -294,6 +249,8 @@ function pgCard(p) {
         })() : ''}
         <span style="font-size:12px;font-weight:600;color:var(--gold)" id="pgct-${p.id}">${totCli} unidad(es)</span>
         ${pmBadge(p.status)}
+        ${pvChips(p)}
+        ${pvChipFechas(p)}
       </div>
       <div style="display:flex;gap:6px;align-items:center" onclick="event.stopPropagation()">
         ${locked?'':`<select title="Método de pago" style="font-size:11px;padding:4px 6px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--cream)" onchange="pgSetMetodoPago(${p.id},this.value)">${pmMetodoPagoOpts(p.metodoPago)}</select>`}
@@ -304,8 +261,12 @@ function pgCard(p) {
         <button class="btn btn-red btn-sm" onclick="pgDel(${p.id})">✕</button>
       </div>
     </div>
-    <div style="padding:4px 16px 8px;background:var(--sf);border-top:1px solid var(--border)">
+    <div style="padding:4px 16px 8px;background:var(--sf);border-top:1px solid var(--border);display:flex;align-items:center;gap:14px;flex-wrap:wrap">
       <button class="btn btn-out btn-sm" onclick="pgVincularCliente(${p.id})" style="font-size:11px">🔗 Vincular cliente</button>
+      <label style="font-size:11px;color:var(--cream2);display:flex;align-items:center;gap:6px">📅 Entrega
+        <input type="date" value="${p.fechaEntrega||''}" ${locked?'disabled':''} onchange="pvSetEntrega('galleta',${p.id},this.value)" style="padding:3px 6px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--cream);font-size:11px">
+      </label>
+      ${p.fechaEntrega ? '' : '<span style="font-size:10px;color:var(--cream2)">(sin fecha de entrega)</span>'}
     </div>
     <div id="pgb-${p.id}" style="display:none">
       ${subform}
@@ -533,12 +494,7 @@ function pgAddLinea(pedId) {
     tbody.appendChild(totTr);
     const ctEl = document.getElementById('pgct-' + pedId);
     if (ctEl) ctEl.textContent = totCli + ' unidad(es)';
-    const badge = document.getElementById('pg-tot-badge');
-    if (badge) {
-      const fecha = document.getElementById('pg-fecha').value || pmHoy();
-      const all = G.pedidosGalletas.filter(p=>p.date===fecha).reduce((s,p)=>s+(p.lineas||[]).reduce((a,l)=>a+l.cant,0),0);
-      badge.textContent = all ? `${all} unidad(es)` : '';
-    }
+    pvActualizarBadge('galleta');
   }
   cantEl.value = 1;
   cantEl.focus();

@@ -6,15 +6,15 @@ function ppInstOpts(selected='') {
 
 // ── Resumen del día — totales por tipo de pan ──
 function ppVerResumen() {
-  const fecha  = document.getElementById('pp-fecha').value || pmHoy();
-  const peds   = G.pedidosPan.filter(p => p.date === fecha);
+  // Resume lo que se está viendo (por creación o por entrega, con su filtro).
+  const peds   = pvLista('pan');
   const vistaEl = document.getElementById('pp-vista-extra');
 
   if (!peds.length) {
     vistaEl.style.display = 'block';
     vistaEl.innerHTML = `<div class="card">
       <button class="btn btn-out btn-sm" onclick="ppCerrarVista()" style="margin-bottom:12px">← Volver a Pedidos</button>
-      <div class="ph"><span class="ph-icon">📋</span>Sin pedidos para este día</div>
+      <div class="ph"><span class="ph-icon">📋</span>Sin pedidos en esta vista</div>
     </div>`;
     return;
   }
@@ -47,7 +47,7 @@ function ppVerResumen() {
         <button class="btn btn-out btn-sm" onclick="ppCerrarVista()">← Volver a Pedidos</button>
       </div>
       <div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:900;color:var(--cream)">📋 Resumen del día</div>
-      <div style="font-size:12px;color:var(--cream2)">${pmFmtDate(fecha)} · ${peds.length} cliente(s) · ${totalUnid} unidades</div>
+      <div style="font-size:12px;color:var(--cream2)">${pvEtiquetaVista('pan')} · ${peds.length} cliente(s) · ${totalUnid} unidades</div>
     </div>
     <table style="width:100%;border-collapse:collapse;font-size:13px">
       <thead><tr style="border-bottom:2px solid var(--border)">
@@ -196,7 +196,7 @@ function ppCerrarVista() {
 }
 
 function ppAdd() {
-  const fecha = document.getElementById('pp-fecha').value || pmHoy();
+  const fecha = pvFechaNuevo('pan');
   const cli = document.getElementById('pp-cli').value.trim();
   if (!cli) { pmToast('Ingresá el nombre del cliente','err'); return; }
   // Fecha de entrega (opcional). El campo NO se limpia al agregar, porque
@@ -210,6 +210,7 @@ function ppAdd() {
   document.getElementById('pp-cli').focus();
   pmSave('pedidos'); ppRender();
   pmToast(`Pedido iniciado para ${cli} ✓`);
+  pvAvisarSiOculto('pan', newPed);
   setTimeout(() => {
     const sf = document.getElementById('sf-' + newPed.id);
     if (sf) sf.classList.add('open');
@@ -242,80 +243,11 @@ function ppAdd() {
 // ppCargarSb() espere a que terminen antes de confiar en Supabase.
 let _sbPedidoLineasPendientes = [];
 
-async function ppCargarSb() {
-  if (pmDB.disponible()) {
-    try {
-      if (_sbPedidoLineasPendientes.length) {
-        await Promise.allSettled(_sbPedidoLineasPendientes);
-        _sbPedidoLineasPendientes = [];
-      }
-      const fecha = document.getElementById('pp-fecha').value || pmHoy();
-      await _sbProdEnsureMap();
-      const rows = await pmDB.get('pedidos', { tipo: 'pan', fecha }, '*');
-      if (rows) {
-        // Construir lista desde SB — fuente primaria
-        const sbPeds = [];
-        for (const sb of rows) {
-          let lineas = [];
-          try {
-            const lins = await pmDB.get('pedido_lineas', { pedido_id: sb.id }, '*');
-            lineas = (lins||[]).map(l => {
-              const pid = _sbProdMapInv?.[l.producto_id] || '';
-              return { lid: l.id, _sbId: l.id, pid, cant: l.cantidad||1, inst: l.instruccion||'' };
-            }).filter(l => l.pid);
-          } catch(e) { console.warn('[ppCargarSb] lineas:', e.message); }
-          // Preservar id local si ya existía
-          const local = G.pedidosPan.find(p => p._sbId === sb.id);
-          // FIX: antes el vínculo con cliente (cliId/cliCod/cliNom) se
-          // descartaba por completo acá, aunque `local` ya lo tuviera —
-          // por eso "se perdía" el vínculo cada vez que se recargaba
-          // desde Supabase (por ejemplo, al salir y volver a la pestaña).
-          // Ahora se usa sb.cliente_id si Supabase ya lo tiene (por
-          // ejemplo, sincronizado desde otro dispositivo), y si no, se
-          // preserva lo que ya había local.
-          let cliId  = sb.cliente_id || local?.cliId  || null;
-          let cliCod = local?.cliCod || null;
-          let cliNom = local?.cliNom || null;
-          if (sb.cliente_id && sb.cliente_id !== local?.cliId) {
-            if (!_sbCliCache) { try { await _sbCliCargar(); } catch(e) {} }
-            const c = (_sbCliCache || []).find(x => x.id === sb.cliente_id);
-            if (c) { cliCod = c.codigo || cliCod; cliNom = c.nombre || cliNom; }
-          }
-          // Fecha de entrega: Supabase manda si la columna existe; si
-          // todavía no (SQL sin correr), se conserva lo que había local.
-          const fechaEntrega = ('fecha_entrega' in sb) ? (sb.fecha_entrega || '') : (local?.fechaEntrega || '');
-          sbPeds.push({
-            id: local?.id || pmId(),
-            date: sb.fecha, cli: sb.cliente_nom,
-            status: sb.status, lineas, _sbId: sb.id,
-            cliId, cliCod, cliNom,
-            ...(fechaEntrega ? { fechaEntrega } : {})
-          });
-        }
-        // Mantener pedidos locales sin _sbId (creados offline) + pedidos de otras fechas
-        const otrosFechas = G.pedidosPan.filter(p => p.date !== fecha);
-        const offline     = G.pedidosPan.filter(p => p.date === fecha && !p._sbId);
-        G.pedidosPan = [...otrosFechas, ...sbPeds, ...offline];
-        pmSave('pedidos');
-      }
-    } catch(e) { console.warn('[ppCargarSb]', e.message); }
-  }
-  ppRender();
-}
-
-function ppRender() {
-  const fecha = document.getElementById('pp-fecha').value || pmHoy();
-  const peds = G.pedidosPan.filter(p => p.date === fecha);
-  const totalUnid = peds.reduce((s,p) => s + (p.lineas||[]).reduce((a,l) => a+l.cant, 0), 0);
-  const badge = document.getElementById('pp-tot-badge');
-  if (badge) badge.textContent = totalUnid ? `${totalUnid} unidad(es)` : '';
-  const el = document.getElementById('pp-list');
-  if (!peds.length) {
-    el.innerHTML = '<div class="ph"><span class="ph-icon">📋</span>Sin pedidos para este día — agregá uno arriba</div>';
-    return;
-  }
-  el.innerHTML = peds.map(p => ppCard(p)).join('');
-}
+// ppCargarSb() y ppRender() ahora viven en pedidos_vista.js (vista por
+// creación/entrega + filtro de estado). Se dejan estos nombres porque el resto
+// del código (y el HTML) los llaman en muchos lugares.
+async function ppCargarSb() { return pvCargar('pan'); }
+function ppRender() { pvRender('pan'); }
 
 function ppCard(p) {
   const locked = p.status === (G.estados[G.estados.length-1] || 'Pagado');
@@ -392,7 +324,8 @@ function ppCard(p) {
         })() : ''}
         <span style="font-size:12px;font-weight:600;color:var(--gold)" id="ct-${p.id}">${totCli} unidad(es)</span>
         ${pmBadge(p.status)}
-        ${p.fechaEntrega ? `<span title="Fecha de entrega" style="font-size:11px;color:var(--blue);background:rgba(37,99,235,.08);border:1px solid rgba(37,99,235,.2);border-radius:8px;padding:1px 7px">📅 Entrega ${pmFmtDate(p.fechaEntrega)}</span>` : ''}
+        ${pvChips(p)}
+        ${pvChipFechas(p)}
       </div>
       <div style="display:flex;gap:6px;align-items:center" onclick="event.stopPropagation()">
         ${locked?'':`<select title="Método de pago" style="font-size:11px;padding:4px 6px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--cream)" onchange="ppSetMetodoPago(${p.id},this.value)">${pmMetodoPagoOpts(p.metodoPago)}</select>`}
@@ -752,12 +685,7 @@ function ppAddLinea(pedId) {
     tbody.appendChild(totTr);
     const ctEl = document.getElementById('ct-' + pedId);
     if (ctEl) ctEl.textContent = totCli + ' unidad(es)';
-    const badge = document.getElementById('pp-tot-badge');
-    if (badge) {
-      const fecha = document.getElementById('pp-fecha').value || pmHoy();
-      const all = G.pedidosPan.filter(p=>p.date===fecha).reduce((s,p)=>s+(p.lineas||[]).reduce((a,l)=>a+l.cant,0),0);
-      badge.textContent = all ? `${all} unidad(es)` : '';
-    }
+    pvActualizarBadge('pan');
   }
   cantEl.value = 1;
   cantEl.focus();

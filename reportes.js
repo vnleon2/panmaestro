@@ -1612,7 +1612,7 @@ async function repMensual(mes) {
 // prepagado" (pagado por adelantado), y deja correctamente como NO pagado
 // a "Entregado por pagar", "Colocado en recepción", "Pedido", etc.
 function _pmEstaPagado(status) {
-  return (status || '').toLowerCase().includes('pagado');
+  return pmEstaPagado(status); // misma regla, ahora compartida en pm_core.js
 }
 
 // Igual que _pmPedidosPagadosDelMes (Reporte Contable), trae los pedidos
