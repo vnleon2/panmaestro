@@ -28,6 +28,8 @@ const PV_CFG = {
     ids: { fecha: 'pp-fecha', lbl: 'pp-fecha-lbl', lista: 'pp-list', badge: 'pp-tot-badge', barra: 'pp-vista-bar', entrega: 'pp-entrega' },
     bodyPrefix: 'pb-',
     card: p => ppCard(p),
+    catalogo: () => G.tiposPan,
+    refrescarCatalogo: () => panCargarSb(),
     total: p => pmTotalPan(p),
     pend: () => _sbPedidoLineasPendientes,
     limpiarPend: () => { _sbPedidoLineasPendientes = []; },
@@ -40,6 +42,8 @@ const PV_CFG = {
     ids: { fecha: 'pg-fecha', lbl: 'pg-fecha-lbl', lista: 'pg-list', badge: 'pg-tot-badge', barra: 'pg-vista-bar', entrega: 'pg-entrega' },
     bodyPrefix: 'pgb-',
     card: p => pgCard(p),
+    catalogo: () => G.tiposGalleta,
+    refrescarCatalogo: () => gallCargarSb(),
     total: p => pmTotalGall(p),
     pend: () => _sbLineasPendientesGalletas,
     limpiarPend: () => { _sbLineasPendientesGalletas = []; },
@@ -388,6 +392,15 @@ async function pvCargar(kind) {
     }
     cfg.setArr(arr);
     pmSave('pedidos');
+    // El catálogo de panes/galletas de este navegador solo se actualizaba al
+    // abrir Maestros o con "Sincronizar todo". Si un pedido trae un producto
+    // creado después (otro aparato, o hace poco), salía con el código en vez
+    // del nombre y con precio ₡0. Aquí se detecta y se refresca el catálogo.
+    const conocidos = new Set((cfg.catalogo() || []).map(x => x.id));
+    const faltan = cfg.arr().some(p => pvCoincide(p, st, r) && (p.lineas || []).some(l => l.pid && !conocidos.has(l.pid)));
+    if (faltan) {
+      try { await cfg.refrescarCatalogo(); } catch (e) { console.warn('[pvCargar] catálogo:', e.message); }
+    }
   } catch (e) {
     console.warn('[pvCargar]', kind, e.message);
   } finally {
