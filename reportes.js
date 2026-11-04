@@ -509,6 +509,7 @@ async function repRender() {
     else if (repCurrentTab === 'precioventa') html = await pvReporteHTML();
     else if (repCurrentTab === 'explosion')   html = await exReporteHTML();
     else if (repCurrentTab === 'control')     html = await rcReporteHTML();
+    else if (repCurrentTab === 'pedfechas')   html = await repPedidosFecha();
     else html = '<div style="padding:20px;color:var(--cream)">Tab: ' + repCurrentTab + ' — no reconocido</div>';
     out.innerHTML = html;
   } catch(e) {
