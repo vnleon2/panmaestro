@@ -8,8 +8,10 @@
 //   · monto de cada línea, total de cada pedido, total de cada día y total del rango
 //
 // Reglas:
-//   · El día que cuenta es la fecha de entrega del pedido; si no tiene, la fecha
-//     en que se tomó (misma regla de pmFechaProd y de la vista «Ver por Entrega»).
+//   · «Ver por» elige qué fecha cuenta:
+//       - Entrega (por defecto): la fecha de entrega del pedido; si no tiene, la
+//         fecha en que se tomó (misma regla de pmFechaProd y de «Ver por Entrega»).
+//       - Fecha del pedido: el día en que se tomó el pedido.
 //   · El monto de cada línea usa el precio guardado en el pedido (precio_applied);
 //     si la línea no lo trae, se usa el precio actual del catálogo.
 //   · Los datos se traen directo de Supabase (no solo de lo cacheado en el
@@ -22,7 +24,12 @@
 // pmMoney, pmEsc, pmFmtDate, pmSumarDias, pmHoy (pm_core.js), repStatBox.
 // ═══════════════════════════════════════════════════════════════════════════
 
-const _rpf = { desde: '', hasta: '', pan: true, galleta: true, cache: null };
+const _rpf = { desde: '', hasta: '', pan: true, galleta: true, modo: 'entrega', cache: null };
+
+function rpfModo(v) {
+  _rpf.modo = v === 'toma' ? 'toma' : 'entrega';
+  repRender();
+}
 
 function _rpfInit() {
   if (_rpf.desde && _rpf.hasta) return;
@@ -66,10 +73,11 @@ function rpfToggle(tipo, el) {
 // Pedidos del tipo con fecha de entrega en el rango; los que no tienen fecha de
 // entrega, por su fecha de toma. Si la columna fecha_entrega todavía no existe
 // en Supabase, se cae a la fecha de toma.
-async function _rpfQuery(tipo, desde, hasta) {
+async function _rpfQuery(tipo, desde, hasta, modo) {
   const base = `*&tipo=eq.${tipo}`;
   const porEntrega = `${base}&or=(and(fecha_entrega.gte.${desde},fecha_entrega.lte.${hasta}),and(fecha_entrega.is.null,fecha.gte.${desde},fecha.lte.${hasta}))`;
   const porToma = `${base}&fecha=gte.${desde}&fecha=lte.${hasta}`;
+  if (modo === 'toma') return (await pmDB.get('pedidos', {}, porToma)) || [];
   try {
     return (await pmDB.get('pedidos', {}, porEntrega)) || [];
   } catch (e) {
@@ -78,7 +86,7 @@ async function _rpfQuery(tipo, desde, hasta) {
   }
 }
 
-async function _rpfPedidosDe(tipo, desde, hasta) {
+async function _rpfPedidosDe(tipo, desde, hasta, modo) {
   const esGall = tipo === 'galleta';
   const nombreFn = esGall ? pmNombreGall : pmNombrePan;
   const precioFn = esGall ? pmPrecioGall : pmPrecioPan;
@@ -90,7 +98,7 @@ async function _rpfPedidosDe(tipo, desde, hasta) {
 
   if (pmDB.disponible()) {
     try {
-      const rows = await _rpfQuery(tipo, desde, hasta);
+      const rows = await _rpfQuery(tipo, desde, hasta, modo);
       await _sbProdEnsureMap();
       const lineasPor = await pvTraerLineas(rows.map(r => r.id));
       for (const sb of rows) {
@@ -102,7 +110,8 @@ async function _rpfPedidosDe(tipo, desde, hasta) {
           const unit = tienePrecio ? (parseFloat(l.precio_applied) || 0) : precioFn(pid);
           return { nombre: pid ? nombreFn(pid) : '(producto no encontrado)', cant, monto: unit * cant };
         });
-        out.push({ tipo, dia: sb.fecha_entrega || sb.fecha || '', cli: sb.cliente_nom || '', lineas });
+        const dia = modo === 'toma' ? (sb.fecha || '') : (sb.fecha_entrega || sb.fecha || '');
+        out.push({ tipo, dia, cli: sb.cliente_nom || '', lineas });
       }
       sbOk = true;
     } catch (e) {
@@ -116,7 +125,7 @@ async function _rpfPedidosDe(tipo, desde, hasta) {
   // Pedidos locales: con Supabase al día, solo los que aún no se sincronizaron;
   // sin Supabase, todos los del rango.
   arrLocal.forEach(p => {
-    const f = pmFechaProd(p);
+    const f = modo === 'toma' ? (p.date || '') : pmFechaProd(p);
     if (!f || f < desde || f > hasta) return;
     if (sbOk && (p._sbId || vistos.has(p._sbId))) return;
     const lineas = (p.lineas || []).map(l => ({
@@ -182,6 +191,10 @@ function _rpfRangoTxt() {
   return _rpf.desde === _rpf.hasta ? pmFmtDate(_rpf.desde) : `${pmFmtDate(_rpf.desde)} al ${pmFmtDate(_rpf.hasta)}`;
 }
 
+function _rpfTitulo() {
+  return _rpf.modo === 'toma' ? 'Pedidos por fecha del pedido' : 'Pedidos por fecha de entrega';
+}
+
 function _rpfTiposTxt() {
   return [_rpf.pan ? 'Pan' : '', _rpf.galleta ? 'Galletas' : ''].filter(Boolean).join(' y ') || 'ningún tipo';
 }
@@ -193,7 +206,7 @@ async function repPedidosFecha() {
   if (_rpf.pan) tipos.push('pan');
   if (_rpf.galleta) tipos.push('galleta');
 
-  const res = await Promise.all(tipos.map(t => _rpfPedidosDe(t, _rpf.desde, _rpf.hasta)));
+  const res = await Promise.all(tipos.map(t => _rpfPedidosDe(t, _rpf.desde, _rpf.hasta, _rpf.modo)));
   const peds = [];
   const avisos = [];
   res.forEach(r => { peds.push(...r.peds); if (r.aviso && !avisos.includes(r.aviso)) avisos.push(r.aviso); });
@@ -206,6 +219,7 @@ async function repPedidosFecha() {
   return `<div class="card" id="rep-pedfechas-inner">
     <div class="no-print">
       <div class="row" style="align-items:flex-end;gap:10px;margin-bottom:10px">
+        <div class="col sm"><label>Ver por</label><select onchange="rpfModo(this.value)"><option value="entrega"${_rpf.modo === 'entrega' ? ' selected' : ''}>Fecha de entrega</option><option value="toma"${_rpf.modo === 'toma' ? ' selected' : ''}>Fecha del pedido</option></select></div>
         <div class="col sm"><label>Desde</label><input type="date" id="rpf-desde" value="${_rpf.desde}" onchange="rpfCambio()"></div>
         <div class="col sm"><label>Hasta</label><input type="date" id="rpf-hasta" value="${_rpf.hasta}" onchange="rpfCambio()"></div>
         <div class="col xs"><label>&nbsp;</label><button class="btn btn-out" onclick="rpfImprimir()">🖨 Imprimir / PDF</button></div>
@@ -218,7 +232,7 @@ async function repPedidosFecha() {
     </div>
     <div class="rep-header" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:14px">
       <div>
-        <div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:900;color:var(--cream)">📅 Pedidos por fecha de entrega</div>
+        <div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:900;color:var(--cream)">📅 ${_rpfTitulo()}</div>
         <div style="font-size:12px;color:var(--cream2);margin-top:2px">${_rpfRangoTxt()} · ${_rpfTiposTxt()}</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -252,7 +266,7 @@ function rpfImprimir() {
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;padding-bottom:12px;border-bottom:3px solid #1a1006;margin-bottom:18px">
       <div>
         <div style="font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#8A5A12">PanMaestro</div>
-        <div style="font-family:'Playfair Display',serif;font-size:24px;font-weight:900">Pedidos por fecha de entrega</div>
+        <div style="font-family:'Playfair Display',serif;font-size:24px;font-weight:900">${_rpfTitulo()}</div>
         <div style="font-size:12px;color:#7a6040;margin-top:2px">${_rpfRangoTxt()} · ${_rpfTiposTxt()}</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
