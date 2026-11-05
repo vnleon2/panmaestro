@@ -67,6 +67,7 @@
         <button class="ntab" data-tab="pg-pedidos" onclick="showTab('pg-pedidos');pmCloseNav()">🍞 Pan</button>
         <button class="ntab" data-tab="pg-galletas" onclick="showTab('pg-galletas');pmCloseNav()">🍪 Galletas</button>
         <button class="ntab" data-tab="pg-com" onclick="showTab('pg-com');pmCloseNav()">🏪 Comercial</button>
+        <button class="ntab" data-tab="pg-promo" onclick="showTab('pg-promo');pmCloseNav()">🎁 Promocional</button>
       </div>
     </div>
 
@@ -465,6 +466,13 @@
   <div class="pg-title">📏 Masa por molde</div>
   <div class="pg-sub">¿Cuánta masa necesito para cada molde? Solo calcula — no guarda nada</div>
   <div id="mol-out"></div>
+</div>
+
+<!-- ═══ 🎁 Pedido comercial promocional ═══ -->
+<div class="page" id="pg-promo">
+  <div class="pg-title">🎁 Pedido comercial promocional</div>
+  <div class="pg-sub">Pedido a comercios con precio pactado y regalías — alimenta la planificación, el costo y el cobro</div>
+  <div id="prm-out"></div>
 </div>
 
 <!-- ═══ 💰 Gastos ═══ -->
@@ -2251,9 +2259,10 @@
 <script src="reporte_control.js?v=20261018a"></script>
 <script src="simulador.js?v=20261018c"></script>
 <script src="molde.js?v=20261031a"></script>
+<script src="promo.js?v=20261105a"></script>
 <script src="plan_libre.js?v=20261026b"></script>
 
-<script src="pm_app.js?v=20261101a"></script>
+<script src="pm_app.js?v=20261105a"></script>
 
 </body>
 </html>
