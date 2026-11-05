@@ -8,6 +8,8 @@
 // DE DÓNDE SALEN LAS VENTAS REALES
 //   · Pedidos de la pestaña Pan       → canal doméstico
 //   · Pedidos de la pestaña Comercial → canal comercial
+//   · Pedidos promocionales confirmados (o más avanzados) → canal comercial,
+//     con la cantidad total entregada, regalía incluida (ver mpvLeerPromo)
 //   · Feria                           → no tiene pedidos: se anota a mano
 //   La tabla `ventas` solo guarda el total en colones (sin panes), por eso se
 //   leen las líneas de los pedidos (producto × cantidad).
@@ -148,6 +150,39 @@ async function mpvLeerPedidos(mes) {
   for (let i = 0; i < ids.length; i += 40) {
     const trozo = ids.slice(i, i + 40);
     const rows = await pmDB.get('pedido_lineas', {}, `*&pedido_id=in.(${trozo.join(',')})`);
+    if (rows) lineas.push(...rows);
+  }
+  // Pedidos promocionales (🎁 Pedidos → Promocional): se suman como comercial.
+  // Si sus tablas aún no existen o fallan, el MPS sigue igual que antes.
+  try {
+    const promo = await mpvLeerPromo(mes);
+    pedidos.push(...promo.pedidos);
+    lineas.push(...promo.lineas);
+  } catch (e) {
+    console.warn('[mpvLeerPedidos] pedidos promocionales no incluidos:', e.message);
+  }
+  return { pedidos, lineas };
+}
+
+// Pedidos promocionales del mes (por fecha de entrega), convertidos a la misma
+// forma que un pedido comercial para que mpvAgrupar y el balance los traten igual.
+//   · Cuentan solo desde "confirmado" en adelante: el borrador no mueve el MPS
+//     y el anulado sale solo (no se lee).
+//   · La cantidad es la entregada TOTAL, regalía incluida: lo regalado también
+//     se produce y sale del inventario.
+async function mpvLeerPromo(mes) {
+  const sig = mpsMesDesplazar(mes, 1);
+  const cab = await pmDB.get('pedido_promo', {},
+    `*&estado=in.(confirmado,producido,entregado,cobrado)&fecha_entrega=gte.${mes}-01&fecha_entrega=lt.${sig}-01`) || [];
+  const pedidos = cab.map(p => ({
+    id: p.id, activo: true, tipo: 'comercial',
+    fecha: p.fecha_pedido, fecha_entrega: p.fecha_entrega,
+    status: 'Promocional · ' + p.estado
+  }));
+  const lineas = [];
+  const ids = pedidos.map(p => p.id);
+  for (let i = 0; i < ids.length; i += 40) {
+    const rows = await pmDB.get('pedido_promo_det', {}, `*&pedido_id=in.(${ids.slice(i, i + 40).join(',')})`);
     if (rows) lineas.push(...rows);
   }
   return { pedidos, lineas };

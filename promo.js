@@ -653,7 +653,7 @@ function prmImprimir() {
 
   const tel = p.telefono_pago || _prm.sinpe || '';
   const html =
-    '<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Pedido ' + pmEsc(p.titulo || '') + '</title>' +
+    '<!doctype html><html lang="es"><head><meta charset="utf-8"><title>' + pmEsc(p.titulo || 'Pedido promocional') + '</title>' +
     '<style>' +
     '@page{size:A4 landscape;margin:12mm}' +
     'body{font-family:Arial,Helvetica,sans-serif;color:#1d2b21;font-size:12px;margin:0}' +
