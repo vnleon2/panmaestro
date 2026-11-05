@@ -749,6 +749,23 @@ function pmCostoReceta(r, targetMass, _visited, _cache) {
   return _result;
 }
 
+// ── ₡/g ÚNICO DE LA RECETA ───────────────────────────────────
+// Fuente única del costo por gramo. El peso base es el peso FINAL de la
+// receta (masa objetivo + rellenos/coberturas = c.mass); la merma ya está
+// en el costo (totalMerma). Todo producto terminado (tipos de pan/galleta,
+// precio de venta, reportes) debe tomar de aquí su ₡/g y multiplicarlo por
+// el peso del producto terminado, para que receta y producto nunca difieran.
+//   cpgMat → ₡/g solo materiales (con merma)
+//   cpg    → ₡/g con mano de obra y gastos generales (modPct/ggPct de la receta)
+function pmCostoPorGramo(r, _cache) {
+  const c = pmCostoReceta(r, undefined, undefined, _cache);
+  if (!c || !c.totalMerma || !c.mass) return null;
+  const modPct = r.modPct !== undefined ? r.modPct : 80;
+  const ggPct  = r.ggPct  !== undefined ? r.ggPct  : 45;
+  const costTotal = c.totalMerma * (1 + (modPct + ggPct) / 100);
+  return { c, mass: c.mass, costTotal, cpgMat: c.totalMerma / c.mass, cpg: costTotal / c.mass };
+}
+
 function pmToast(msg, type='ok', ms=2600) {
   const t = document.getElementById('pm-toast');
   if (!t) { console.warn('[pmToast] elemento #pm-toast no encontrado —', msg); return; }

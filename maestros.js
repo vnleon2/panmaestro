@@ -140,12 +140,9 @@ function panRender() {
     if (p.recetaCod && p.peso) {
       const rec = _sbRecLista().find(r => r.code === p.recetaCod);
       if (rec) {
-        const c = pmCostoReceta(rec);
-        if (c.totalMerma && rec.totalMass) {
-          const modPct = rec.modPct !== undefined ? rec.modPct : 80;
-          const ggPct  = rec.ggPct  !== undefined ? rec.ggPct  : 45;
-          const costTotal = c.totalMerma * (1 + (modPct + ggPct) / 100);
-          cpgRec = costTotal / rec.totalMass;
+        const pg = pmCostoPorGramo(rec);   // ₡/g único de la receta (peso final con relleno)
+        if (pg) {
+          cpgRec = pg.cpg;
           costoTipoPan = cpgRec * p.peso;
           if (p.precio > 0) margenReal = (p.precio - costoTipoPan) / p.precio * 100;
         }
@@ -340,12 +337,9 @@ function _gallCostoDesdeReceta(p) {
   if (!p.recetaCod || !p.peso) return null;
   const rec = _sbRecLista().find(r => r.code === p.recetaCod);
   if (!rec) return null;
-  const c = pmCostoReceta(rec);
-  if (!c.totalMerma || !rec.totalMass) return null;
-  const modPct = rec.modPct !== undefined ? rec.modPct : 80;
-  const ggPct  = rec.ggPct  !== undefined ? rec.ggPct  : 45;
-  const costTotal = c.totalMerma * (1 + (modPct + ggPct) / 100);
-  const cpg = costTotal / rec.totalMass;
+  const pg = pmCostoPorGramo(rec);   // ₡/g único de la receta (peso final con relleno)
+  if (!pg) return null;
+  const cpg = pg.cpg;
   const costoUd = cpg * p.peso;
   const margen = p.precio > 0 ? (p.precio - costoUd) / p.precio * 100 : null;
   // Piezas por tanda = masa vendible de la receta ÷ peso de la pieza
