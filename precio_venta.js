@@ -88,10 +88,10 @@ function _pvSupuestos(r, item) {
 // ── Cálculo (todo en colones enteros, para que la hoja cuadre) ─
 function _pvCalcular(r, item, s) {
   const c = pmCostoReceta(r);
-  if (!c || !c.totalMerma || !r.totalMass) return null;
+  if (!c || !c.totalMerma || !c.mass) return null;
 
   const peso   = item.peso || (r.totalMass / (r.units || 1));
-  const cpgMat = c.totalMerma / r.totalMass;          // ₡/g de materiales, con merma
+  const cpgMat = c.totalMerma / c.mass;               // ₡/g de materiales, con merma, sobre peso final (con relleno)
   const matPz  = cpgMat * peso;                       // materiales por pieza
 
   // Desglose de ingredientes: se reparte matPz según el peso de cada línea en el costo

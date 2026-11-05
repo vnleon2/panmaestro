@@ -31,8 +31,8 @@ function cstRepMateriales(p, ruta, cache) {
   const r = _cstRepReceta(p);
   if (!r) return { ok: false, motivo: `la receta ${p.receta_cod} no existe` };
   const c = pmCostoReceta(r, undefined, undefined, cache);
-  if (!c || !(c.totalMerma > 0) || !(r.totalMass > 0)) return { ok: false, motivo: 'la receta no tiene costo calculable (falta precio o masa total)' };
-  const cpg = c.totalMerma / r.totalMass;
+  if (!c || !(c.totalMerma > 0) || !(c.mass > 0)) return { ok: false, motivo: 'la receta no tiene costo calculable (falta precio o masa total)' };
+  const cpg = c.totalMerma / c.mass;   // ₡/g sobre peso final (con relleno), igual que la receta
   const peso = Number(p.peso_g) > 0 ? Number(p.peso_g) : 0;
   // Criterio: los materiales se calculan siempre sobre el peso del producto terminado; la merma de la receta es el factor de ajuste
   if (!(peso > 0)) return { ok: false, motivo: 'no tiene peso (se indica en Maestros)' };

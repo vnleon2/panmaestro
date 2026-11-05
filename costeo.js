@@ -125,7 +125,9 @@ function recCard(r, _sharedCache) {
   const costTotal   = costMatTotal + costMOD + costGG;
   const units       = r.units || 1;
   const costTotalUd = costTotal / units;
-  const costTotalG  = r.totalMass ? costTotal / r.totalMass : 0;
+  // ₡/g sobre el peso final (masa + relleno/cobertura), igual que el
+  // maestro de tipos de pan/galleta: ver pmCostoPorGramo() en pm_core.js
+  const costTotalG  = c.mass ? costTotal / c.mass : 0;
 
   function tblRow(l) {
     const costCell = l.cost > 0 ? pmMoney(Math.round(l.cost)) : '—';
@@ -245,7 +247,7 @@ function recCard(r, _sharedCache) {
             <td style="padding:5px 8px;text-align:right;font-family:'DM Mono',monospace;color:var(--blue)">${pmMoney(Math.round(costGG))}</td>
           </tr>
           <tr style="background:rgba(200,146,42,.12);font-weight:700;border-top:2px solid var(--gold)">
-            <td style="padding:6px 8px" colspan="3">COSTO TOTAL (${units} ud · ${r.totalMass||0}g)</td>
+            <td style="padding:6px 8px" colspan="3">COSTO TOTAL (${units} ud · ${c.mass.toFixed(0)}g)</td>
             <td style="padding:6px 8px;text-align:right;font-family:'DM Mono',monospace;color:var(--gold2)">${pmMoney(Math.round(costTotal))}</td>
           </tr>
           <tr style="border-top:1px solid var(--border)">
@@ -253,7 +255,7 @@ function recCard(r, _sharedCache) {
             <td style="padding:5px 8px;text-align:right;font-family:'DM Mono',monospace;font-weight:600;color:var(--gold2)">${pmMoney(Math.round(costTotalUd))}</td>
           </tr>
           <tr style="border-top:1px solid var(--border)">
-            <td style="padding:5px 8px;font-size:11px;color:var(--cream2)" colspan="3">₡/g (÷ ${r.totalMass||0}g)</td>
+            <td style="padding:5px 8px;font-size:11px;color:var(--cream2)" colspan="3">₡/g (÷ ${c.mass.toFixed(0)}g)</td>
             <td style="padding:5px 8px;text-align:right;font-family:'DM Mono',monospace;font-size:11px;color:var(--cream2)">${costTotalG.toFixed(2)}</td>
           </tr>
           ${(() => {
@@ -1703,12 +1705,9 @@ function pmPrecioSugerido(r, _cache) {
 // ══════════════════════════════════════════════════════════
 function _repCostoProducto(r, p) {
   if (!p || !p.peso) return null;
-  const c = pmCostoReceta(r);
-  if (!c.totalMerma || !r.totalMass) return null;
-  const modPct = r.modPct !== undefined ? r.modPct : 80;
-  const ggPct  = r.ggPct  !== undefined ? r.ggPct  : 45;
-  const costTotal = c.totalMerma * (1 + (modPct + ggPct) / 100);
-  const cpg = costTotal / r.totalMass;
+  const pg = pmCostoPorGramo(r);    // ₡/g único de la receta (peso final con relleno)
+  if (!pg) return null;
+  const cpg = pg.cpg;
   const costoUd = cpg * p.peso;
   const margen  = p.precio > 0 ? (p.precio - costoUd) / p.precio * 100 : null;
   return { costoUd, margen };
