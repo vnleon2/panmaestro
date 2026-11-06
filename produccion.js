@@ -45,7 +45,10 @@ async function prodRenderConSb() {
   await ppCargarPorEntrega(fecha);
   // Pedidos comerciales del día — ahora viven local en G.pedidosCom
   // (punto 7 del plan de auditoría: comercial.js pasó a local-first).
-  const pedsCom = G.pedidosCom.filter(p => p.date === fecha && _docEstaAbierto(p));
+  // La producción sale de lo que se ENTREGA ese día (si no tienen fecha de
+  // entrega, la del pedido), igual que en pan.
+  await pcCargarPorEntrega(fecha);
+  const pedsCom = G.pedidosCom.filter(p => pmFechaProd(p) === fecha && _docEstaAbierto(p));
   prodRender(pedsCom);
 }
 

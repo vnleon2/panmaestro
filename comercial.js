@@ -45,9 +45,25 @@ async function pcCargarClientes() {
       .join('');
 }
 
+// Próxima fecha de entrega comprometida con los comercios: martes o sábado
+// (el primero que llegue, contando hoy). Es solo la sugerencia inicial del
+// campo "Entrega"; se puede cambiar o borrar.
+function pcProximaEntrega() {
+  const d = new Date(pmHoy() + 'T12:00:00');
+  for (let i = 0; i < 7; i++) {
+    const dow = d.getDay(); // 2 = martes, 6 = sábado
+    if (dow === 2 || dow === 6) break;
+    d.setDate(d.getDate() + 1);
+  }
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
 // ── Crear pedido comercial (local-first) ──
 function pcAdd() {
   const fecha  = document.getElementById('pc-fecha').value || pmHoy();
+  // Entrega (opcional). No se limpia al agregar: normalmente se anotan varios
+  // pedidos seguidos para la misma entrega.
+  const fechaEntrega = (document.getElementById('pc-entrega') || {}).value || '';
   const sel    = document.getElementById('pc-cli-sel');
   const cliId  = sel.value;
   const cliNom = sel.options[sel.selectedIndex]?.dataset?.nom || '';
@@ -58,6 +74,7 @@ function pcAdd() {
     numPed: null,      // se llena al sincronizar — mientras tanto se ve "pendiente"
     lineas: [], _sbId: null
   };
+  if (fechaEntrega) newPed.fechaEntrega = fechaEntrega;
   G.pedidosCom.push(newPed);
   pmSave('comercial'); pcRender();
   sel.value = '';
@@ -74,10 +91,12 @@ async function _pcCrearEnSupabase(ped) {
   try {
     const numPed    = await _corrSiguiente('pedido_comercial');
     const numPedFmt = _corrFmt(numPed, 'PED-');
-    const rows = await pmDB.pedidos.crear({
+    const datos = {
       fecha: ped.date, cliente_nom: ped.cliNom, cliente_id: ped.cliId,
       tipo: 'comercial', status: ped.status, total: 0, numero_pedido: numPedFmt
-    });
+    };
+    if (ped.fechaEntrega) datos.fecha_entrega = ped.fechaEntrega;
+    const rows = await pmDB.pedidos.crear(datos);
     if (rows?.[0]) {
       ped._sbId  = rows[0].id;
       ped.numPed = numPedFmt;
@@ -139,6 +158,7 @@ async function pcCargarSb() {
             numFac: sb.numero_factura || local?.numFac || null,
             lineas, _sbId: sb.id
           });
+          if (sb.fecha_entrega) sbPeds[sbPeds.length - 1].fechaEntrega = sb.fecha_entrega;
         }
         // Mantener pedidos de otras fechas + los que sigan sin _sbId
         // (offline, todavía no se pudieron crear en Supabase)
@@ -157,6 +177,64 @@ async function pcCargarSb() {
 function pcSetMetodoPago(id, v) {
   const p = G.pedidosCom.find(x => String(x.id) === String(id));
   if (p) { p.metodoPago = v; pmSave('comercial'); }
+}
+
+// Cambiar la fecha de entrega de un pedido ya creado (vacío = sin fecha de
+// entrega, cuenta el día en que se tomó). Local primero, luego Supabase.
+function pcSetEntrega(pedId, v) {
+  const p = G.pedidosCom.find(x => String(x.id) === String(pedId));
+  if (!p) return;
+  if (v) p.fechaEntrega = v; else delete p.fechaEntrega;
+  pmSave('comercial'); pcRender();
+  setTimeout(()=>{ const b=document.getElementById('pb-sb-'+pedId); if(b) b.classList.add('open'); },20);
+  pmToast(v ? `Entrega: ${pmFmtDate(v)} ✓` : 'Fecha de entrega quitada ✓');
+  if (!pmDB.disponible()) return;
+  (async () => {
+    try {
+      if (!p._sbId && p._sbCreatePromise) await p._sbCreatePromise.catch(()=>{});
+      if (!p._sbId) throw new Error('el pedido todavía no se creó en Supabase');
+      await pmDB.pedidos.editar(p._sbId, { fecha_entrega: v || null });
+    } catch(e) {
+      console.warn('[pmDB] pcSetEntrega error:', e.message);
+      pmToast('⚠️ Fecha de entrega guardada solo local — no se sincronizó a Supabase: ' + e.message, 'err');
+    }
+  })();
+}
+
+// Trae de Supabase los pedidos comerciales cuya fecha de ENTREGA es `fecha` y
+// que no están en este navegador (los tomó otro día u otro dispositivo). Los
+// usa Producción. No duplica: compara por _sbId.
+async function pcCargarPorEntrega(fecha) {
+  if (!pmDB.disponible()) return;
+  try {
+    const rows = await pmDB.get('pedidos', { tipo: 'comercial', fecha_entrega: fecha }, '*');
+    if (!rows || !rows.length) return;
+    await _sbProdEnsureMap();
+    let cambio = false;
+    for (const sb of rows) {
+      const local = G.pedidosCom.find(p => p._sbId === sb.id);
+      if (local) {
+        if (local.fechaEntrega !== sb.fecha_entrega) { local.fechaEntrega = sb.fecha_entrega; cambio = true; }
+        continue;
+      }
+      let lineas = [];
+      try {
+        const lins = await pmDB.get('pedido_lineas', { pedido_id: sb.id }, '*');
+        lineas = (lins||[]).map(l => ({
+          lid: pmId(), sbId: l.producto_id, pid: _sbProdMapInv?.[l.producto_id] || '',
+          cant: l.cantidad||1, precio: l.precio_applied||0, desc: l.descuento_pct||0, _sbId: l.id
+        }));
+      } catch(e) { console.warn('[pcCargarPorEntrega] lineas:', e.message); }
+      G.pedidosCom.push({
+        id: pmId(), date: sb.fecha, cliId: sb.cliente_id, cliNom: sb.cliente_nom,
+        status: sb.status, metodoPago: 'sinpe', numPed: sb.numero_pedido,
+        numFac: sb.numero_factura || null, lineas, _sbId: sb.id,
+        fechaEntrega: sb.fecha_entrega
+      });
+      cambio = true;
+    }
+    if (cambio) pmSave('comercial');
+  } catch(e) { console.warn('[pcCargarPorEntrega]', e.message); }
 }
 
 // ── Render lista de pedidos comerciales (puro, sin red — igual patrón
@@ -199,11 +277,17 @@ function pcRender() {
           ${numBadge}
           ${lineas.length ? `<span style="font-size:10px;color:var(--cream2);margin-left:6px">(${lineas.length} producto${lineas.length!==1?'s':''})</span>` : ''}
         </div>
-        <div class="ped-meta">${pmFmtDateShort(p.date)}</div>
+        <div class="ped-meta">${pmFmtDateShort(p.date)}${p.fechaEntrega ? ' → 📅 ' + pmFmtDateShort(p.fechaEntrega) : ''}</div>
         ${pmBadge(p.status)}
         <div class="ped-total">${pmMoney(tot)}</div>
       </div>
       <div class="ped-body${lineas.length ? ' open' : ''}" id="pb-sb-${p.id}">
+        <div style="padding:2px 0 8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <label style="font-size:11px;color:var(--cream2);display:flex;align-items:center;gap:6px">📅 Entrega
+            <input type="date" value="${p.fechaEntrega||''}" onchange="pcSetEntrega('${p.id}',this.value)" style="padding:3px 6px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--cream);font-size:11px">
+          </label>
+          ${p.fechaEntrega ? '' : '<span style="font-size:10px;color:var(--cream2)">(sin fecha: cuenta el día del pedido)</span>'}
+        </div>
         ${lineasHtml}
         <div class="row" style="margin-top:10px;gap:6px">
           <select title="Método de pago" onchange="pcSetMetodoPago('${p.id}',this.value)" style="font-size:12px;flex:0 0 auto">${pmMetodoPagoOpts(p.metodoPago)}</select>
