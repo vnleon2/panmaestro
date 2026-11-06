@@ -1153,7 +1153,7 @@ function repProduccion(fecha) {
   });
 
   // Sumar pedidos comerciales del día — ahora viven local en G.pedidosCom
-  const comHoy = G.pedidosCom.filter(p => p.date === fecha && _docEstaAbierto(p));
+  const comHoy = G.pedidosCom.filter(p => pmFechaProd(p) === fecha && _docEstaAbierto(p));
   comHoy.forEach(p => {
     (p.lineas||[]).forEach(l => {
       if (!l.pid) return;
