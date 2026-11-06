@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PanMaestro · Pan artesanal de masa madre en San Joaquín de Flores</title>
+<meta name="description" content="Pan artesanal de masa madre horneado por pedido en San Joaquín de Flores, Heredia. Mira el menú, arma tu pedido y confírmalo por WhatsApp.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --verde:#2E6B45; --verde-o:#1F4A30; --verde-c:#E6EFE6;
+  --crema:#FAF6EE; --papel:#FFFFFF; --corteza:#8A5A2B; --corteza-c:#F1E4D0;
+  --tinta:#2B2A26; --tinta2:#6B675E; --linea:#E4DCCB; --rojo:#B3372A;
+  --r:14px;
+  --serif:'Fraunces',Georgia,'Times New Roman',serif;
+  --sans:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:70px}
+body{margin:0;background:var(--crema);color:var(--tinta);font-family:var(--sans);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased}
+img{max-width:100%;display:block}
+a{color:var(--verde)}
+:focus-visible{outline:3px solid #8FBF9F;outline-offset:2px;border-radius:6px}
+.wrap{max-width:1040px;margin:0 auto;padding:0 20px}
+h1,h2,h3{font-family:var(--serif);line-height:1.15;margin:0}
+.eyebrow{font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--corteza);margin-bottom:10px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:999px;padding:12px 22px;font:600 15px var(--sans);cursor:pointer;text-decoration:none;transition:transform .15s,background .15s}
+.btn:active{transform:scale(.98)}
+.btn-verde{background:var(--verde);color:#fff}.btn-verde:hover{background:var(--verde-o)}
+.btn-linea{background:transparent;color:var(--verde);box-shadow:inset 0 0 0 2px var(--verde)}.btn-linea:hover{background:var(--verde-c)}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+
+/* barra superior */
+header.top{position:sticky;top:0;z-index:20;background:rgba(250,246,238,.94);backdrop-filter:blur(8px);border-bottom:1px solid var(--linea)}
+header.top .wrap{display:flex;align-items:center;justify-content:space-between;height:60px;gap:12px}
+.marca{font-family:var(--serif);font-weight:700;font-size:22px;color:var(--verde-o);text-decoration:none;letter-spacing:-.01em}
+.marca span{color:var(--corteza)}
+nav.menu{display:flex;gap:22px;align-items:center}
+nav.menu a{color:var(--tinta);text-decoration:none;font-size:14px;font-weight:500}
+nav.menu a:hover{color:var(--verde)}
+nav.menu a.btn,nav.menu a.btn:hover{color:#fff}
+@media(max-width:720px){nav.menu a.txt{display:none}}
+
+/* portada */
+.hero{padding:64px 0 56px;background:radial-gradient(900px 400px at 85% -10%,var(--corteza-c),transparent 70%)}
+.hero h1{font-size:clamp(34px,6vw,58px);max-width:15ch;color:var(--verde-o)}
+.hero p.lead{font-size:clamp(17px,2.2vw,20px);color:var(--tinta2);max-width:46ch;margin:18px 0 28px}
+.hero .acciones{display:flex;gap:12px;flex-wrap:wrap}
+.hero .lugar{margin-top:22px;font-size:14px;color:var(--tinta2)}
+.aviso{display:none;margin:0 0 22px;padding:10px 14px;background:var(--corteza-c);border-radius:10px;font-size:14px;max-width:max-content}
+
+/* secciones */
+section{padding:56px 0}
+section h2{font-size:clamp(26px,4vw,38px);color:var(--verde-o);margin-bottom:14px}
+section .sub{color:var(--tinta2);max-width:60ch;margin:0 0 28px}
+.esencia{background:var(--papel);border-block:1px solid var(--linea)}
+.esencia blockquote{margin:0 0 30px;font-family:var(--serif);font-size:clamp(20px,3vw,28px);line-height:1.35;color:var(--tinta);max-width:30em}
+.pilares{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.pilar{padding:18px;border:1px solid var(--linea);border-radius:var(--r);background:var(--crema)}
+.pilar h3{font-size:19px;margin-bottom:6px;color:var(--verde-o)}
+.pilar p{margin:0;font-size:15px;color:var(--tinta2)}
+
+/* productos */
+.filtros{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+.pill{border:1px solid var(--linea);background:var(--papel);color:var(--tinta);border-radius:999px;padding:7px 16px;font:500 14px var(--sans);cursor:pointer}
+.pill.on{background:var(--verde);border-color:var(--verde);color:#fff}
+.grid{display:grid;gap:18px;grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+.prod{background:var(--papel);border:1px solid var(--linea);border-radius:var(--r);overflow:hidden;display:flex;flex-direction:column}
+.prod .foto{aspect-ratio:4/3;background:linear-gradient(135deg,var(--corteza-c),#E7D3B3);display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:56px;color:var(--corteza);overflow:hidden}
+.prod .foto img{width:100%;height:100%;object-fit:cover}
+.prod .cuerpo{padding:16px;display:flex;flex-direction:column;gap:6px;flex:1}
+.prod h3{font-size:20px}
+.prod .meta{font-size:13px;color:var(--tinta2)}
+.prod .desc{font-size:14px;color:var(--tinta2);margin:2px 0 0}
+.prod .pie{margin-top:auto;padding-top:12px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.precio{font-weight:600;font-size:18px;color:var(--verde-o)}
+.prox{font-size:12px;font-weight:600;color:var(--corteza);background:var(--corteza-c);padding:5px 10px;border-radius:999px}
+.cant{display:inline-flex;align-items:center;border:1px solid var(--linea);border-radius:999px;overflow:hidden}
+.cant button{width:36px;height:36px;border:0;background:var(--papel);font-size:20px;cursor:pointer;color:var(--verde)}
+.cant button:hover{background:var(--verde-c)}
+.cant output{min-width:30px;text-align:center;font-weight:600}
+.vacio{padding:30px;border:1px dashed var(--linea);border-radius:var(--r);background:var(--papel);text-align:center;color:var(--tinta2)}
+
+/* pasos */
+.pasos{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));counter-reset:p;padding:0;list-style:none;margin:0}
+.pasos li{counter-increment:p;background:var(--papel);border:1px solid var(--linea);border-radius:var(--r);padding:18px 18px 18px 64px;position:relative}
+.pasos li::before{content:counter(p);position:absolute;left:16px;top:16px;width:34px;height:34px;border-radius:50%;background:var(--verde);color:#fff;font:700 16px var(--serif);display:flex;align-items:center;justify-content:center}
+.pasos b{display:block;margin-bottom:2px}
+.pasos span{font-size:14px;color:var(--tinta2)}
+
+/* pedido */
+.pedido{background:var(--papel);border-block:1px solid var(--linea)}
+.caja{display:grid;gap:28px;grid-template-columns:1.1fr .9fr;align-items:start}
+@media(max-width:820px){.caja{grid-template-columns:1fr}}
+.resumen{background:var(--crema);border:1px solid var(--linea);border-radius:var(--r);padding:18px}
+.resumen h3{font-size:20px;margin-bottom:10px}
+.lin{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--linea);font-size:15px}
+.lin small{color:var(--tinta2)}
+.tot{display:flex;justify-content:space-between;font-weight:600;font-size:18px;padding-top:12px}
+.nota{font-size:13px;color:var(--tinta2);margin:10px 0 0}
+form label{display:block;font-size:14px;font-weight:600;margin:14px 0 5px}
+form input,form select,form textarea{width:100%;padding:11px 13px;border:1px solid #CFC6B1;border-radius:10px;font:16px var(--sans);background:#fff;color:var(--tinta)}
+form textarea{min-height:76px;resize:vertical}
+.hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
+.err{display:none;margin-top:14px;padding:11px 14px;border-radius:10px;background:#FBE9E6;color:var(--rojo);font-size:14px}
+.ok{display:none;text-align:center;padding:10px 0}
+.ok .cod{display:inline-block;margin:10px 0 16px;padding:8px 18px;border-radius:10px;background:var(--verde-c);font:700 22px var(--serif);color:var(--verde-o);letter-spacing:.04em}
+
+/* preguntas */
+details{background:var(--papel);border:1px solid var(--linea);border-radius:12px;padding:0 18px;margin-bottom:10px}
+summary{cursor:pointer;padding:15px 0;font-weight:600;list-style:none;display:flex;justify-content:space-between;gap:10px}
+summary::-webkit-details-marker{display:none}
+summary::after{content:'+';font-size:22px;color:var(--verde);line-height:1}
+details[open] summary::after{content:'–'}
+details p{margin:0 0 16px;color:var(--tinta2);font-size:15px}
+
+footer{padding:40px 0 110px;background:var(--verde-o);color:#DCE8DF;font-size:14px}
+footer a{color:#fff}
+footer .fila{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
+footer .marca{color:#fff}
+
+/* barra de pedido flotante */
+#barra{position:fixed;left:12px;right:12px;bottom:12px;z-index:30;display:none;align-items:center;justify-content:space-between;gap:10px;background:var(--verde-o);color:#fff;border-radius:16px;padding:10px 12px 10px 18px;box-shadow:0 8px 28px rgba(0,0,0,.25);max-width:560px;margin:0 auto}
+#barra b{font-size:16px}
+#barra .btn{background:#fff;color:var(--verde-o);padding:10px 18px}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="marca" href="#inicio">Pan<span>Maestro</span></a>
+    <nav class="menu" aria-label="Principal">
+      <a class="txt" href="#esencia">Esencia</a>
+      <a class="txt" href="#productos">Productos</a>
+      <a class="txt" href="#como">Cómo pedir</a>
+      <a class="txt" href="#preguntas">Preguntas</a>
+      <a class="btn btn-verde" href="#pedido" style="padding:8px 18px;font-size:14px">Hacer pedido</a>
+    </nav>
+  </div>
+</header>
+
+<main id="inicio">
+  <div class="hero">
+    <div class="wrap">
+      <div class="aviso" id="aviso"></div>
+      <div class="eyebrow">Pan artesanal · Masa madre viva</div>
+      <h1>Pan de verdad, horneado con tiempo.</h1>
+      <p class="lead">Fermentaciones largas, manos que conocen el oficio y ingredientes que reconoces. Hacemos pan por pedido, en pequeñas cantidades.</p>
+      <div class="acciones">
+        <a class="btn btn-verde" href="#pedido">Hacer pedido</a>
+        <a class="btn btn-linea" href="#productos">Ver productos</a>
+      </div>
+      <div class="lugar">📍 San Joaquín de Flores, Heredia · Costa Rica</div>
+    </div>
+  </div>
+
+  <section id="esencia" class="esencia">
+    <div class="wrap">
+      <div class="eyebrow">Esencia</div>
+      <blockquote>Horneamos para quienes extrañan el sabor de lo hecho en casa, con masa madre viva, tiempo de sobra y las manos de quien conoce el oficio — sin atajos ni prisa.</blockquote>
+      <div class="pilares">
+        <div class="pilar"><h3>Tiempo</h3><p>Respetamos la fermentación. Un buen pan no se apura.</p></div>
+        <div class="pilar"><h3>Manos</h3><p>Hecho a mano, todos los días, en producción pequeña.</p></div>
+        <div class="pilar"><h3>Ingredientes honestos</h3><p>Sin mezclas industriales ni conservantes: solo ingredientes reconocibles.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="productos">
+    <div class="wrap">
+      <div class="eyebrow">Menú</div>
+      <h2>Lo que horneamos</h2>
+      <p class="sub">Elige tus cantidades y arma tu pedido. Los precios están en colones; el envío se cotiza según tu dirección.</p>
+      <div class="filtros" id="filtros"></div>
+      <div class="grid" id="grid"><div class="vacio">Cargando el menú…</div></div>
+    </div>
+  </section>
+
+  <section id="como" style="background:var(--papel);border-block:1px solid var(--linea)">
+    <div class="wrap">
+      <div class="eyebrow">Cómo pedir</div>
+      <h2>Cuatro pasos</h2>
+      <ol class="pasos" style="margin-top:22px">
+        <li><b>Arma tu pedido</b><span>Elige tus panes y llena el formulario con tus datos.</span></li>
+        <li><b>Confirmamos por WhatsApp</b><span>Te escribimos con el costo de envío y la fecha de entrega.</span></li>
+        <li><b>Pagas</b><span id="paso-pago"></span></li>
+        <li><b>Recibes tu pan</b><span id="paso-entrega"></span></li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="pedido" class="pedido">
+    <div class="wrap">
+      <div class="eyebrow">Tu pedido</div>
+      <h2>Haz tu pedido</h2>
+      <p class="sub">Tu pedido no se cobra aquí: lo confirmamos contigo por WhatsApp antes de hornear.</p>
+      <div class="caja">
+        <div class="resumen">
+          <h3>Resumen</h3>
+          <div id="resumen"></div>
+          <p class="nota">El envío no está incluido: lo cotizamos según tu dirección y te lo confirmamos por WhatsApp.</p>
+        </div>
+
+        <div>
+          <form id="form" novalidate>
+            <div id="formcampos">
+              <label for="f-nombre">Nombre</label>
+              <input id="f-nombre" autocomplete="name" maxlength="80" required>
+              <label for="f-tel">Teléfono (WhatsApp)</label>
+              <input id="f-tel" type="tel" inputmode="tel" autocomplete="tel" placeholder="8888 8888" maxlength="20" required>
+              <label for="f-dir">Dirección de entrega (distrito y señas)</label>
+              <textarea id="f-dir" maxlength="300" autocomplete="street-address"></textarea>
+              <label for="f-fecha">Fecha de entrega preferida</label>
+              <select id="f-fecha"></select>
+              <label for="f-notas">Notas (opcional)</label>
+              <textarea id="f-notas" maxlength="500" placeholder="Rebanado, alergias, hora aproximada…"></textarea>
+              <input class="hp" id="f-web" tabindex="-1" autocomplete="off" aria-hidden="true">
+              <div class="err" id="err" role="alert"></div>
+              <button class="btn btn-verde" id="enviar" type="submit" style="margin-top:18px;width:100%">Enviar pedido</button>
+            </div>
+          </form>
+
+          <div class="ok" id="ok" aria-live="polite">
+            <h3 style="font-size:26px;color:var(--verde-o)">¡Pedido recibido!</h3>
+            <div class="cod" id="ok-cod"></div>
+            <p>Último paso: toca el botón para avisarnos por WhatsApp y confirmar tu pedido, el envío y la fecha.</p>
+            <a class="btn btn-verde" id="ok-wa" target="_blank" rel="noopener" style="width:100%">Confirmar por WhatsApp</a>
+            <p class="nota">Guarda tu código. Si no nos escribes, igual te contactamos.</p>
+            <button class="btn btn-linea" id="ok-nuevo" type="button" style="margin-top:8px">Hacer otro pedido</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="preguntas">
+    <div class="wrap">
+      <div class="eyebrow">Preguntas frecuentes</div>
+      <h2>Lo que más nos preguntan</h2>
+      <div style="margin-top:22px">
+        <details><summary>¿Cómo hago un pedido?</summary><p>Elige tus productos en el menú, llena el formulario y envíalo. Después te confirmamos por WhatsApp.</p></details>
+        <details><summary>¿Qué días entregan?</summary><p id="faq-dias"></p></details>
+        <details><summary>¿Cuánto cuesta el envío?</summary><p>Depende de tu dirección. Te lo cotizamos al confirmar el pedido por WhatsApp.</p></details>
+        <details><summary>¿Cómo pago?</summary><p id="faq-pago"></p></details>
+        <details><summary>¿Puedo cambiar o cancelar mi pedido?</summary><p>Escríbenos por WhatsApp lo antes posible. Como horneamos por pedido, mientras más pronto nos avises, más fácil es ajustarlo.</p></details>
+        <details><summary>¿Qué es la masa madre?</summary><p>Es un cultivo vivo de harina y agua que fermenta el pan de forma natural y lentamente. Da más sabor, buena miga y una corteza especial.</p></details>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap fila">
+    <div>
+      <a class="marca" href="#inicio">Pan<span>Maestro</span></a>
+      <div style="margin-top:6px">San Joaquín de Flores, Heredia · Costa Rica</div>
+    </div>
+    <div>
+      <div><a id="ft-wa" target="_blank" rel="noopener">WhatsApp</a></div>
+      <div><a href="https://www.instagram.com/panmaestro.cr" target="_blank" rel="noopener">Instagram @panmaestro.cr</a></div>
+    </div>
+  </div>
+</footer>
+
+<div id="barra" role="region" aria-label="Tu pedido">
+  <div><b id="barra-n">0 productos</b><br><span id="barra-t" style="font-size:13px;opacity:.85"></span></div>
+  <a class="btn" href="#pedido">Ver mi pedido</a>
+</div>
+
+<script>
+// ═════════════ CONFIGURACIÓN (lo único que normalmente se edita) ═════════════
+const CFG = {
+  SB_URL: 'https://xmhokxmuxfkfypttvkjz.supabase.co',
+  SB_KEY: 'sb_publishable_pmKVIGa_lNxtzRos-iY_0Q_LXEcj77v',   // clave pública (publishable), la misma del resto de PanMaestro
+  WHATSAPP: '50670565587',                 // con código de país, sin + ni espacios
+  DIAS_ENTREGA: [2, 4, 6],                 // 0=domingo … 6=sábado → martes, jueves, sábado
+  DIAS_MINIMO: 2,                          // anticipación mínima (días) para elegir fecha
+  PAGO: 'Pagas por SINPE Móvil; te enviamos el número cuando confirmamos tu pedido.',
+  AVISO: ''                                // texto opcional arriba de la portada (ej. "Próxima horneada: sábado")
+};
+// ════════════════════════════════════════════════════════════════════════════
+
+const $ = id => document.getElementById(id);
+const DIAS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+const MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+const money = n => '₡' + Number(n || 0).toLocaleString('es-CR');
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+let catalogo = [];       // productos publicados
+let carrito = {};        // producto_id -> cantidad
+let filtro = 'todos';
+
+// ── almacenamiento liviano del carrito (si el navegador lo permite) ──
+function guardar() { try { localStorage.setItem('pm_carrito', JSON.stringify(carrito)); } catch (e) {} }
+function recuperar() { try { const c = JSON.parse(localStorage.getItem('pm_carrito') || '{}'); if (c && typeof c === 'object') carrito = c; } catch (e) {} }
+
+// ── llamadas al servidor (solo 2 funciones públicas) ──
+async function rpc(fn, args) {
+  const r = await fetch(CFG.SB_URL + '/rest/v1/rpc/' + fn, {
+    method: 'POST',
+    headers: { 'apikey': CFG.SB_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify(args || {})
+  });
+  const txt = await r.text();
+  let data = null; try { data = txt ? JSON.parse(txt) : null; } catch (e) {}
+  if (!r.ok) throw new Error((data && data.message) || 'No se pudo conectar. Intenta de nuevo.');
+  return data;
+}
+
+// ── fechas de entrega ──
+function proximasFechas(n) {
+  const out = []; const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + CFG.DIAS_MINIMO);
+  for (let i = 0; i < 60 && out.length < n; i++, d.setDate(d.getDate() + 1)) {
+    if (CFG.DIAS_ENTREGA.includes(d.getDay())) {
+      const iso = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      out.push({ iso, texto: DIAS[d.getDay()] + ' ' + d.getDate() + ' de ' + MESES[d.getMonth()] });
+    }
+  }
+  return out;
+}
+function textoDias() {
+  const l = CFG.DIAS_ENTREGA.map(d => DIAS[d]);
+  return l.length > 1 ? l.slice(0, -1).join(', ') + ' y ' + l[l.length - 1] : (l[0] || '');
+}
+
+// ── catálogo ──
+async function cargarCatalogo() {
+  try {
+    catalogo = (await rpc('tienda_catalogo')) || [];
+  } catch (e) {
+    $('grid').innerHTML = '<div class="vacio">No pudimos cargar el menú ahora. Escríbenos por WhatsApp y te lo enviamos.<br><br><a class="btn btn-verde" target="_blank" rel="noopener" href="' + wa('Hola, quiero ver el menú de PanMaestro') + '">Escribir por WhatsApp</a></div>';
+    return;
+  }
+  // limpiar del carrito lo que ya no está disponible
+  const ok = new Set(catalogo.filter(p => !p.proximamente).map(p => p.id));
+  Object.keys(carrito).forEach(id => { if (!ok.has(id)) delete carrito[id]; });
+  pintarFiltros(); pintarProductos(); pintarResumen();
+}
+function pintarFiltros() {
+  const tipos = [...new Set(catalogo.map(p => p.tipo))];
+  const nombre = { pan: 'Panes', galleta: 'Galletas' };
+  if (tipos.length < 2) { $('filtros').innerHTML = ''; return; }
+  $('filtros').innerHTML = ['todos', ...tipos].map(t =>
+    '<button class="pill' + (filtro === t ? ' on' : '') + '" data-f="' + esc(t) + '">' + (t === 'todos' ? 'Todo' : esc(nombre[t] || t)) + '</button>').join('');
+  $('filtros').querySelectorAll('.pill').forEach(b => b.onclick = () => { filtro = b.dataset.f; pintarFiltros(); pintarProductos(); });
+}
+function urlFoto(u) { return /^https:\/\//.test(u || '') ? u : ''; }
+function pintarProductos() {
+  const lista = catalogo.filter(p => filtro === 'todos' || p.tipo === filtro);
+  if (!catalogo.length) {
+    $('grid').innerHTML = '<div class="vacio">Estamos preparando el menú. Escríbenos por WhatsApp para saber qué hay esta semana.<br><br><a class="btn btn-verde" target="_blank" rel="noopener" href="' + wa('Hola, quiero saber qué pan hay esta semana') + '">Escribir por WhatsApp</a></div>';
+    return;
+  }
+  $('grid').innerHTML = lista.map(p => {
+    const foto = urlFoto(p.foto_url);
+    const inicial = esc((p.nombre || '?').trim().charAt(0).toUpperCase());
+    const q = carrito[p.id] || 0;
+    const meta = [p.peso_g ? p.peso_g + ' g' : '', p.tipo === 'galleta' ? 'Galleta' : ''].filter(Boolean).join(' · ');
+    const pie = p.proximamente
+      ? '<span class="precio">' + money(p.precio) + '</span><span class="prox">Próximamente</span>'
+      : '<span class="precio">' + money(p.precio) + '</span>' +
+        '<span class="cant" role="group" aria-label="Cantidad de ' + esc(p.nombre) + '">' +
+        '<button type="button" data-id="' + esc(p.id) + '" data-d="-1" aria-label="Quitar uno">−</button>' +
+        '<output>' + q + '</output>' +
+        '<button type="button" data-id="' + esc(p.id) + '" data-d="1" aria-label="Agregar uno">+</button></span>';
+    return '<article class="prod"><div class="foto">' + (foto ? '<img loading="lazy" alt="' + esc(p.nombre) + '" src="' + esc(foto) + '" onerror="this.remove()">' : inicial) + '</div>' +
+      '<div class="cuerpo"><h3>' + esc(p.nombre) + '</h3>' + (meta ? '<div class="meta">' + esc(meta) + '</div>' : '') +
+      (p.descripcion ? '<p class="desc">' + esc(p.descripcion) + '</p>' : '') +
+      '<div class="pie">' + pie + '</div></div></article>';
+  }).join('');
+  $('grid').querySelectorAll('.cant button').forEach(b => b.onclick = () => cambiar(b.dataset.id, +b.dataset.d));
+}
+function cambiar(id, d) {
+  const n = Math.max(0, Math.min(50, (carrito[id] || 0) + d));
+  if (n) carrito[id] = n; else delete carrito[id];
+  guardar(); pintarProductos(); pintarResumen();
+}
+
+// ── resumen / barra flotante ──
+let _hayItems = false, _enPedido = false;
+function mostrarBarra() { $('barra').style.display = (_hayItems && !_enPedido) ? 'flex' : 'none'; }
+if ('IntersectionObserver' in window) {
+  new IntersectionObserver(es => { _enPedido = es[0].isIntersecting; mostrarBarra(); }, { threshold: 0.15 }).observe(document.getElementById('pedido'));
+}
+function lineas() { return catalogo.filter(p => carrito[p.id]).map(p => ({ p, q: carrito[p.id] })); }
+function totales() { const l = lineas(); return { n: l.reduce((a, x) => a + x.q, 0), t: l.reduce((a, x) => a + x.q * x.p.precio, 0), l }; }
+function pintarResumen() {
+  const { n, t, l } = totales();
+  $('resumen').innerHTML = l.length
+    ? l.map(x => '<div class="lin"><span>' + x.q + ' × ' + esc(x.p.nombre) + (x.p.peso_g ? ' <small>' + x.p.peso_g + ' g</small>' : '') + '</span><span>' + money(x.q * x.p.precio) + '</span></div>').join('') +
+      '<div class="tot"><span>Subtotal</span><span>' + money(t) + '</span></div>'
+    : '<p class="nota" style="margin:0">Aún no has elegido productos. <a href="#productos">Ver el menú</a></p>';
+  _hayItems = n > 0; mostrarBarra();
+  $('barra-n').textContent = n + (n === 1 ? ' producto' : ' productos');
+  $('barra-t').textContent = 'Subtotal ' + money(t);
+  $('enviar').disabled = !n;
+}
+
+// ── enviar pedido ──
+function wa(texto) { return 'https://wa.me/' + CFG.WHATSAPP + '?text=' + encodeURIComponent(texto); }
+function mostrarError(m) { const e = $('err'); e.textContent = m; e.style.display = m ? 'block' : 'none'; }
+
+$('form').addEventListener('submit', async ev => {
+  ev.preventDefault(); mostrarError('');
+  if ($('f-web').value) return;                       // trampa para robots
+  const { l, t } = totales();
+  if (!l.length) return mostrarError('Agrega al menos un producto a tu pedido.');
+  const nombre = $('f-nombre').value.trim(), tel = $('f-tel').value.trim();
+  if (nombre.length < 2) return mostrarError('Escribe tu nombre.');
+  if (tel.replace(/\D/g, '').length < 8) return mostrarError('Escribe un teléfono válido (8 dígitos).');
+  const fecha = $('f-fecha').value || null;
+  $('enviar').disabled = true; $('enviar').textContent = 'Enviando…';
+  try {
+    const r = await rpc('tienda_crear_pedido', {
+      p_nombre: nombre, p_telefono: tel, p_direccion: $('f-dir').value.trim(), p_notas: $('f-notas').value.trim(),
+      p_fecha: fecha, p_lineas: l.map(x => ({ producto_id: x.p.id, cantidad: x.q }))
+    });
+    const resumen = r.lineas.map(x => x.cantidad + ' × ' + x.nombre).join('\n');
+    const f = $('f-fecha').selectedOptions[0];
+    const msg = 'Hola, soy ' + nombre + '. Hice el pedido ' + r.codigo + ' en el sitio de PanMaestro:\n' + resumen +
+      '\nSubtotal: ' + money(r.total) + (fecha && f ? '\nEntrega preferida: ' + f.textContent : '') +
+      ($('f-dir').value.trim() ? '\nDirección: ' + $('f-dir').value.trim() : '') + '\n¿Me confirman el envío y la fecha? Gracias.';
+    $('ok-cod').textContent = r.codigo;
+    $('ok-wa').href = wa(msg);
+    $('formcampos').style.display = 'none'; $('ok').style.display = 'block';
+    carrito = {}; guardar(); pintarProductos(); pintarResumen();
+    $('ok').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  } catch (e) {
+    mostrarError(e.message);
+  } finally {
+    $('enviar').textContent = 'Enviar pedido'; $('enviar').disabled = !totales().n;
+  }
+});
+$('ok-nuevo').onclick = () => { $('ok').style.display = 'none'; $('formcampos').style.display = 'block'; $('f-notas').value = ''; document.getElementById('productos').scrollIntoView(); };
+
+// ── arranque ──
+(function init() {
+  recuperar();
+  const fechas = proximasFechas(6);
+  $('f-fecha').innerHTML = '<option value="">Sin preferencia (me confirman)</option>' + fechas.map(f => '<option value="' + f.iso + '">' + esc(f.texto) + '</option>').join('');
+  $('paso-pago').textContent = CFG.PAGO;
+  $('paso-entrega').textContent = 'Entregamos ' + textoDias() + ', según la fecha que acordemos.';
+  $('faq-dias').textContent = 'Entregamos ' + textoDias() + '. La fecha exacta la acordamos al confirmar tu pedido.';
+  $('faq-pago').textContent = CFG.PAGO;
+  $('ft-wa').href = wa('Hola, quiero hacer una consulta sobre PanMaestro');
+  if (CFG.AVISO) { $('aviso').textContent = CFG.AVISO; $('aviso').style.display = 'block'; }
+  pintarResumen();
+  cargarCatalogo();
+})();
+</script>
+</body>
+</html>
