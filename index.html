@@ -118,6 +118,7 @@
       <div class="group-drop">
         <button class="ntab" data-tab="pg-mercadeo" onclick="showTab('pg-mercadeo');pmCloseNav()">🎯 Categorías, estilos y atributos</button>
         <button class="ntab" data-tab="pg-etiquetas" onclick="showTab('pg-etiquetas');pmCloseNav()">🏷️ Etiquetas</button>
+        <button class="ntab" data-tab="pg-tienda" onclick="showTab('pg-tienda');pmCloseNav()">🛒 Tienda web</button>
       </div>
     </div>
 
@@ -1683,6 +1684,35 @@
 </div>
 
 <!-- ═══ 💲 Costos · Empaques ═══ -->
+<div class="page" id="pg-tienda">
+  <div class="pg-title">🛒 Tienda web</div>
+  <div class="pg-sub">Pedidos que llegan del sitio público (tienda.html) y qué productos se publican — módulo independiente</div>
+
+  <div class="pills" id="tnd-pills">
+    <button class="pill on" onclick="tndTab('ped',this)">📥 Pedidos web</button>
+    <button class="pill" onclick="tndTab('prod',this)">📦 Productos publicados</button>
+  </div>
+
+  <!-- PEDIDOS WEB -->
+  <div id="tndt-ped">
+    <div class="row" style="align-items:center;margin-bottom:8px">
+      <div class="col"><div class="pills" id="tnd-filtros" style="margin:0"></div></div>
+      <div class="col xs"><button class="btn btn-out btn-sm" onclick="tndPedCargar()">↻ Actualizar</button></div>
+    </div>
+    <div id="tnd-lista"></div>
+  </div>
+
+  <!-- PRODUCTOS PUBLICADOS -->
+  <div id="tndt-prod" style="display:none">
+    <div class="card" style="font-size:12px;color:var(--cream2)">
+      Marca <b>Publicar</b> en los productos que quieres mostrar en el sitio. El precio y el peso salen de Maestros; la foto, del módulo Catálogo.
+      <b>Próximamente</b> lo muestra pero no se puede pedir.
+    </div>
+    <div class="sec"><h2 id="tnd-prod-count">Productos</h2></div>
+    <div id="tnd-prods"></div>
+  </div>
+</div>
+
 <div class="page" id="pg-empaques">
   <div class="pg-title">📦 Empaques</div>
   <div class="pg-sub">Maestro de empaques (bolsas, cajas, envases, etiquetas, stickers…) y su asignación por tipo de pan o galleta — módulo de Costos, independiente de Costeo y Maestros</div>
@@ -2234,6 +2264,7 @@
 <script src="etiquetas_hoja.js?v=20261003a"></script>
 
 <script src="mercadeo.js?v=20261026b"></script>
+<script src="tienda_admin.js?v=20261106a"></script>
 <script src="mps.js?v=20261026f"></script>
 <script src="mps_ventas.js?v=20261105a"></script>
 <script src="mps_balance.js?v=20261026i"></script>
