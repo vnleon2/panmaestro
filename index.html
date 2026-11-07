@@ -268,10 +268,10 @@
   <div class="pg-title">Pedidos Comerciales</div>
   <div class="pg-sub">Clientes del maestro — productos según portafolio asignado</div>
   <div class="card">
-    <div class="ctitle" style="margin-bottom:12px">Nuevo pedido comercial</div>
+    <div class="ctitle" style="margin-bottom:12px">Nuevo pedido comercial <span id="pc-tot-badge" style="font-size:12px;font-weight:400;color:var(--gold);margin-left:8px"></span></div>
     <div class="row">
-      <div class="col sm"><label>Fecha del pedido</label><input type="date" id="pc-fecha" onchange="pcCargarSb()"></div>
-      <div class="col sm"><label>Entrega</label><input type="date" id="pc-entrega" title="Fecha en que se entrega al comercio (martes o sábado). Si la dejás vacía, cuenta la fecha del pedido."></div>
+      <div class="col sm"><label id="pc-fecha-lbl">Fecha del pedido</label><input type="date" id="pc-fecha" onchange="pvFechaCambio('com')"></div>
+      <div class="col sm"><label>Entrega</label><input type="date" id="pc-entrega" oninput="this.dataset.auto='0'" title="Fecha en que se entrega al comercio (martes o sábado). Si la dejás vacía, cuenta la fecha del pedido."></div>
       <div class="col">
         <label>Cliente</label>
         <select id="pc-cli-sel" style="width:100%;padding:8px 10px;background:var(--sf);border:1px solid var(--border);border-radius:8px;color:var(--cream);font-size:13px">
@@ -281,6 +281,7 @@
       <div class="col xs"><label>&nbsp;</label><button class="btn btn-gold" onclick="pcAdd()">+ Agregar</button></div>
     </div>
   </div>
+  <div id="pc-vista-bar"></div>
   <div id="pc-list"></div>
 </div>
 
@@ -2236,9 +2237,9 @@
 <script src="pan.js?v=20261101a"></script>
 
 <script src="galletas.js?v=20261101a"></script>
-<script src="pedidos_vista.js?v=20261101b"></script>
+<script src="pedidos_vista.js?v=20261107c"></script>
 
-<script src="comercial.js?v=20261107a"></script>
+<script src="comercial.js?v=20261107b"></script>
 
 <script src="produccion.js?v=20261026b"></script>
 

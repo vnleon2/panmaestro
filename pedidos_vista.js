@@ -12,7 +12,10 @@
 // más botones rápidos (hoy por creación, hoy por entrega, mañana, esta
 // semana, todos los pendientes, todo lo por cobrar).
 //
-// Todo el módulo sirve a las dos pantallas (kind = 'pan' | 'galleta').
+// Todo el módulo sirve a tres pantallas (kind = 'pan' | 'galleta' | 'com').
+// 'com' (Pedidos Comerciales, 7 nov 2026) abre en "Pendientes · todas las
+// fechas" y al elegir un estado pendiente/por cobrar muestra todas las fechas;
+// poner una fecha o tocar Mañana/Esta semana lo acota a ese día o rango.
 // pan.js/galletas.js solo delegan aquí ppCargarSb/ppRender (y pgCargarSb/
 // pgRender), así que el resto del código no cambia de forma de llamarlas.
 //
@@ -48,6 +51,25 @@ const PV_CFG = {
     pend: () => _sbLineasPendientesGalletas,
     limpiarPend: () => { _sbLineasPendientesGalletas = []; },
     lblCreacion: 'Fecha'
+  },
+  com: {
+    tipo: 'comercial', icono: '🏪', lsKey: 'pm_pedvista_com',
+    arr: () => G.pedidosCom,
+    setArr: v => { G.pedidosCom = v; },
+    ids: { fecha: 'pc-fecha', lbl: 'pc-fecha-lbl', lista: 'pc-list', badge: 'pc-tot-badge', barra: 'pc-vista-bar', entrega: 'pc-entrega' },
+    bodyPrefix: 'pb-sb-',
+    card: p => pcCard(p),
+    catalogo: () => [...(G.tiposPan || []), ...(G.tiposGalleta || [])],
+    refrescarCatalogo: async () => { await panCargarSb(); await gallCargarSb(); },
+    total: p => pmTotalCom(p),
+    pend: () => _sbPedComLineasPendientes,
+    limpiarPend: () => { _sbPedComLineasPendientes = []; },
+    lblCreacion: 'Fecha del pedido',
+    saveKey: 'comercial',
+    estadoTodasFechas: true,
+    construir: (sb, lineasSb, local) => pcConstruirDeSb(sb, lineasSb, local),
+    antes: () => pcReintentarPendientes(),
+    ordenar: (a, b) => String(b.numPed || '').localeCompare(String(a.numPed || ''))
   }
 };
 
@@ -57,10 +79,11 @@ const PV_CFG = {
 //   rango  : 'dia' (la fecha del selector) | 'manana' | 'semana' | 'todas'
 const _pvEstado = {
   pan:     { modo: 'creacion', estado: 'todos', rango: 'dia' },
-  galleta: { modo: 'creacion', estado: 'todos', rango: 'dia' }
+  galleta: { modo: 'creacion', estado: 'todos', rango: 'dia' },
+  com:     { modo: 'entrega', estado: 'pendientes', rango: 'todas' }
 };
-const _pvReq = { pan: 0, galleta: 0 };        // descarta respuestas que llegan tarde
-const _pvCargando = { pan: false, galleta: false };
+const _pvReq = { pan: 0, galleta: 0, com: 0 };        // descarta respuestas que llegan tarde
+const _pvCargando = { pan: false, galleta: false, com: false };
 
 // ── Rango de fechas de la vista (null = todas las fechas) ───────────────────
 function pvRango(kind) {
@@ -106,7 +129,8 @@ function pvLista(kind) {
   // Un solo día por creación: se deja el orden de siempre (el de captura).
   // Cualquier otra vista se ordena por fecha para poder agrupar por día.
   const simple = st.modo === 'creacion' && st.rango === 'dia';
-  if (!simple) lista.sort((a, b) => pvFechaClave(a, st).localeCompare(pvFechaClave(b, st)));
+  if (!simple) lista.sort((a, b) => pvFechaClave(a, st).localeCompare(pvFechaClave(b, st)) || (cfg.ordenar ? cfg.ordenar(a, b) : 0));
+  else if (cfg.ordenar) lista.sort(cfg.ordenar);
   return lista;
 }
 
@@ -312,7 +336,8 @@ async function pvTraerLineas(ids) {
   return porPedido;
 }
 
-function pvConstruir(sb, lineasSb, local) {
+function pvConstruir(sb, lineasSb, local, cfg) {
+  if (cfg && cfg.construir) return cfg.construir(sb, lineasSb, local);
   const lineas = (lineasSb || []).map(l => {
     const pid = (typeof _sbProdMapInv !== 'undefined' && _sbProdMapInv) ? (_sbProdMapInv[l.producto_id] || '') : '';
     return { lid: l.id, _sbId: l.id, pid, cant: l.cantidad || 1, inst: l.instruccion || '' };
@@ -350,6 +375,7 @@ async function pvCargar(kind) {
       await Promise.allSettled(cfg.pend());
       cfg.limpiarPend();
     }
+    if (cfg.antes) await cfg.antes();
     await _sbProdEnsureMap();
     const r = pvRango(kind);
     let rows;
@@ -387,11 +413,11 @@ async function pvCargar(kind) {
     if (borrados.size) arr = arr.filter(p => !borrados.has(p));
     for (const sb of todos) {
       const i = arr.findIndex(p => p._sbId === sb.id);
-      const nuevo = pvConstruir(sb, lineasPorPedido[sb.id], i >= 0 ? arr[i] : null);
+      const nuevo = pvConstruir(sb, lineasPorPedido[sb.id], i >= 0 ? arr[i] : null, cfg);
       if (i >= 0) arr[i] = nuevo; else arr.push(nuevo);
     }
     cfg.setArr(arr);
-    pmSave('pedidos');
+    pmSave(cfg.saveKey || 'pedidos');
     // El catálogo de panes/galletas de este navegador solo se actualizaba al
     // abrir Maestros o con "Sincronizar todo". Si un pedido trae un producto
     // creado después (otro aparato, o hace poco), salía con el código en vez
@@ -421,6 +447,8 @@ function pvSetModo(kind, modo) {
 function pvSetEstado(kind, estado) {
   const cfg = PV_CFG[kind], st = _pvEstado[kind];
   st.estado = estado;
+  // Pedidos Comerciales: elegir Pendientes / Por cobrar muestra todas las fechas.
+  if (cfg.estadoTodasFechas && (estado === 'pendientes' || estado === 'cobrar')) st.rango = 'todas';
   // "Todas las fechas" solo tiene sentido para pendientes o por cobrar.
   if (st.rango === 'todas' && estado !== 'pendientes' && estado !== 'cobrar') {
     st.rango = 'dia';
@@ -461,6 +489,7 @@ function pvInit(kind) {
   let modo = 'creacion';
   try { if (localStorage.getItem(cfg.lsKey) === 'entrega') modo = 'entrega'; } catch (e) { /* sin almacenamiento */ }
   st.modo = modo; st.estado = 'todos'; st.rango = 'dia';
+  if (cfg.estadoTodasFechas) { st.estado = 'pendientes'; st.rango = 'todas'; }
   document.getElementById(cfg.ids.fecha).value = pmHoy();
   pvPrefillEntrega(kind);
   pvActualizarEtiquetaFecha(kind);
@@ -493,7 +522,7 @@ function pvSetEntrega(kind, id, v) {
   const p = cfg.arr().find(x => x.id === id);
   if (!p) return;
   if (v) p.fechaEntrega = v; else delete p.fechaEntrega;
-  pmSave('pedidos');
+  pmSave(cfg.saveKey || 'pedidos');
   pvRender(kind);
   setTimeout(() => { const b = document.getElementById(cfg.bodyPrefix + id); if (b) b.style.display = 'block'; }, 20);
   pmToast(v ? `Entrega: ${pmFmtDate(v)} ✓` : 'Fecha de entrega quitada ✓');
