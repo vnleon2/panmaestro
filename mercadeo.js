@@ -25,16 +25,19 @@ let _mktProdAtr = {};          // producto_id -> [ { id (fila producto_atributo)
 
 // ── Sub-navegación (pills) ──────────────────────────────────
 function mktTab(tab, btn) {
-  ['cat', 'est', 'atr', 'prod'].forEach(t => {
+  ['cot', 'cat', 'est', 'atr', 'prod'].forEach(t => {
     const el = document.getElementById('mktt-' + t);
     if (el) el.style.display = t === tab ? 'block' : 'none';
   });
   document.querySelectorAll('#mkt-pills .pill').forEach(p => p.classList.remove('on'));
   if (btn) btn.classList.add('on');
   if (tab === 'prod' && !_mktProductos.length) mktProdCargar();
+  if (tab === 'cot' && typeof cotInit === 'function' && !(_cot && _cot.cab)) cotInit();
 }
 
 async function mktInit() {
+  // La sub-pestaña inicial es el Cotizador (mercadeo.js sigue siendo el dueño del módulo)
+  if (typeof cotInit === 'function' && !(_cot && _cot.cab)) cotInit();
   await Promise.all([mktCatCargar(), mktEstCargar(), mktAtrCargar()]);
 }
 
