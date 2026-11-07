@@ -13,9 +13,9 @@
 // semana, todos los pendientes, todo lo por cobrar).
 //
 // Todo el módulo sirve a tres pantallas (kind = 'pan' | 'galleta' | 'com').
-// 'com' (Pedidos Comerciales, 7 nov 2026) además puede mostrar SIEMPRE los
-// pedidos abiertos (no pagados ni entregados) de cualquier fecha, junto con
-// los del día/rango elegido, para que ninguno se pierda por buscar otra fecha.
+// 'com' (Pedidos Comerciales, 7 nov 2026) abre en "Pendientes · todas las
+// fechas" y al elegir un estado pendiente/por cobrar muestra todas las fechas;
+// poner una fecha o tocar Mañana/Esta semana lo acota a ese día o rango.
 // pan.js/galletas.js solo delegan aquí ppCargarSb/ppRender (y pgCargarSb/
 // pgRender), así que el resto del código no cambia de forma de llamarlas.
 //
@@ -66,7 +66,7 @@ const PV_CFG = {
     limpiarPend: () => { _sbPedComLineasPendientes = []; },
     lblCreacion: 'Fecha del pedido',
     saveKey: 'comercial',
-    siempreAbiertos: true,
+    estadoTodasFechas: true,
     construir: (sb, lineasSb, local) => pcConstruirDeSb(sb, lineasSb, local),
     antes: () => pcReintentarPendientes(),
     ordenar: (a, b) => String(b.numPed || '').localeCompare(String(a.numPed || ''))
@@ -80,8 +80,7 @@ const PV_CFG = {
 const _pvEstado = {
   pan:     { modo: 'creacion', estado: 'todos', rango: 'dia' },
   galleta: { modo: 'creacion', estado: 'todos', rango: 'dia' },
-  // abiertos: además del rango, mostrar todos los pedidos no cerrados (solo com)
-  com:     { modo: 'creacion', estado: 'todos', rango: 'dia', abiertos: true }
+  com:     { modo: 'entrega', estado: 'pendientes', rango: 'todas' }
 };
 const _pvReq = { pan: 0, galleta: 0, com: 0 };        // descarta respuestas que llegan tarde
 const _pvCargando = { pan: false, galleta: false, com: false };
@@ -105,8 +104,6 @@ function pvFechaClave(p, st) {
 
 function pvEnRango(p, st, r) {
   if (!r) return true;
-  // "Siempre abiertos": un pedido no cerrado entra sin importar su fecha.
-  if (st.abiertos && !pmEstaCerrado(p)) return true;
   const f = pvFechaClave(p, st);
   return f >= r.desde && f <= r.hasta;
 }
@@ -131,7 +128,7 @@ function pvLista(kind) {
   const lista = cfg.arr().filter(p => pvCoincide(p, st, r));
   // Un solo día por creación: se deja el orden de siempre (el de captura).
   // Cualquier otra vista se ordena por fecha para poder agrupar por día.
-  const simple = st.modo === 'creacion' && st.rango === 'dia' && !st.abiertos;
+  const simple = st.modo === 'creacion' && st.rango === 'dia';
   if (!simple) lista.sort((a, b) => pvFechaClave(a, st).localeCompare(pvFechaClave(b, st)) || (cfg.ordenar ? cfg.ordenar(a, b) : 0));
   else if (cfg.ordenar) lista.sort(cfg.ordenar);
   return lista;
@@ -152,8 +149,7 @@ function pvEtiquetaVista(kind) {
   else if (st.rango === 'todas')  donde = 'de todas las fechas';
   else donde = `del ${pmFmtDate(r.desde)}`;
   const est = { todos: '', pendientes: ' · pendientes', cerrados: ' · cerrados', cobrar: ' · por cobrar' }[st.estado] || '';
-  const abi = st.abiertos ? ' + todos los abiertos' : '';
-  return `${que} ${donde}${est}${abi}`;
+  return `${que} ${donde}${est}`;
 }
 
 function pvUnidades(lista) {
@@ -209,10 +205,6 @@ function pvRenderBarra(kind, lista) {
     + btn(st.rango === 'todas' && st.estado === 'pendientes', `pvQuick('${kind}','pend')`, '🟡 Todos los pendientes', 'Todo lo que falta pagar y entregar, de cualquier fecha')
     + btn(st.rango === 'todas' && st.estado === 'cobrar', `pvQuick('${kind}','cobrar')`, '💰 Por cobrar', 'Todo lo que falta cobrar, esté entregado o no, de cualquier fecha');
 
-  const toggleAbi = cfg.siempreAbiertos
-    ? btn(st.abiertos, `pvToggleAbiertos('${kind}')`, '📌 Siempre ver abiertos', 'Muestra además TODOS los pedidos no cerrados (ni pagados ni entregados), de cualquier fecha')
-    : '';
-
   const n = lista.length;
   const unid = pvUnidades(lista);
   const total = lista.reduce((s, p) => s + cfg.total(p), 0);
@@ -230,7 +222,7 @@ function pvRenderBarra(kind, lista) {
 
   el.innerHTML = `<div class="card" style="padding:12px 16px">
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">${lbl('Ver por')}${modos}<span style="width:10px"></span>${lbl('Estado')}${estados}</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${lbl('Rápido')}${rapidos}${toggleAbi ? '<span style="width:10px"></span>' + toggleAbi : ''}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${lbl('Rápido')}${rapidos}</div>
       ${resumen}
     </div>`;
 }
@@ -285,7 +277,7 @@ function pvRender(kind) {
     el.innerHTML = `<div class="ph"><span class="ph-icon">${cfg.icono}</span>Sin ${pvEtiquetaVista(kind)}${st.rango === 'dia' && st.estado === 'todos' && st.modo === 'creacion' ? ' — agregá uno arriba' : ''}</div>`;
     return;
   }
-  const multi = st.rango !== 'dia' || !!st.abiertos;
+  const multi = st.rango !== 'dia';
   if (!multi) { el.innerHTML = lista.map(p => cfg.card(p)).join(''); return; }
   // Varios días: se agrupa con un encabezado por fecha.
   const grupos = {};
@@ -322,11 +314,6 @@ function pvQuery(cfg, st, r) {
     else if (st.estado === 'pendientes') q += '&status=not.ilike.*pagado*&status=not.ilike.*entregado*';
   }
   return q;
-}
-
-// Pedidos no cerrados de cualquier fecha (para el modo "siempre abiertos").
-function pvQueryAbiertos(cfg) {
-  return `*&tipo=eq.${cfg.tipo}&status=not.ilike.*pagado*&status=not.ilike.*entregado*`;
 }
 
 async function pvTraerPorId(ids) {
@@ -402,13 +389,6 @@ async function pvCargar(kind) {
       } else throw e;
     }
     if (req !== _pvReq[kind]) return;   // el usuario ya cambió de vista
-    // Siempre abiertos: se suman los no cerrados de cualquier fecha.
-    if (st.abiertos && r) {
-      const ab = await pmDB.get('pedidos', {}, pvQueryAbiertos(cfg));
-      if (req !== _pvReq[kind]) return;
-      const ya = new Set((rows || []).map(x => x.id));
-      rows = (rows || []).concat((ab || []).filter(x => !ya.has(x.id)));
-    }
     const sbRows = rows || [];
     const traidos = new Set(sbRows.map(s => s.id));
 
@@ -467,6 +447,8 @@ function pvSetModo(kind, modo) {
 function pvSetEstado(kind, estado) {
   const cfg = PV_CFG[kind], st = _pvEstado[kind];
   st.estado = estado;
+  // Pedidos Comerciales: elegir Pendientes / Por cobrar muestra todas las fechas.
+  if (cfg.estadoTodasFechas && (estado === 'pendientes' || estado === 'cobrar')) st.rango = 'todas';
   // "Todas las fechas" solo tiene sentido para pendientes o por cobrar.
   if (st.rango === 'todas' && estado !== 'pendientes' && estado !== 'cobrar') {
     st.rango = 'dia';
@@ -494,12 +476,6 @@ function pvQuick(kind, q) {
   pvCargar(kind);
 }
 
-function pvToggleAbiertos(kind) {
-  const st = _pvEstado[kind];
-  st.abiertos = !st.abiertos;
-  pvCargar(kind);
-}
-
 // Cambió el selector de fecha: vuelve a "un solo día".
 function pvFechaCambio(kind) {
   _pvEstado[kind].rango = 'dia';
@@ -513,7 +489,7 @@ function pvInit(kind) {
   let modo = 'creacion';
   try { if (localStorage.getItem(cfg.lsKey) === 'entrega') modo = 'entrega'; } catch (e) { /* sin almacenamiento */ }
   st.modo = modo; st.estado = 'todos'; st.rango = 'dia';
-  st.abiertos = !!cfg.siempreAbiertos;
+  if (cfg.estadoTodasFechas) { st.estado = 'pendientes'; st.rango = 'todas'; }
   document.getElementById(cfg.ids.fecha).value = pmHoy();
   pvPrefillEntrega(kind);
   pvActualizarEtiquetaFecha(kind);
