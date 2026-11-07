@@ -254,6 +254,8 @@ function pcRender() {
   el.innerHTML = [...peds].sort((a,b) => (b.numPed||'').localeCompare(a.numPed||'')).map(p => {
     const lineas = p.lineas || [];
     const tot    = pmTotalCom(p);
+    // Un pedido pagado ya tiene su venta registrada: no se le cambia la cantidad
+    const pagado = typeof _pmEstaPagado === 'function' && _pmEstaPagado(p.status);
     const lineasHtml = lineas.map(l => {
       const prod = getProd(l.pid);
       const subt = (l.precio||0) * (l.cant||1);
@@ -262,7 +264,7 @@ function pcRender() {
           <div class="linea-prod">${pmEsc(prod.nombre)}</div>
           ${l.desc ? `<div class="linea-inst">−${l.desc}% desc.</div>` : ''}
         </div>
-        <div class="linea-cant">${l.cant}</div>
+        <input type="number" class="linea-cant-in" min="1" step="1" value="${l.cant}"${pagado ? ' disabled title="Pedido pagado: la cantidad no se edita"' : ''} onchange="pcSetCant('${p.id}','${l.lid}',this.value)">
         <div class="linea-tot">${pmMoney(subt)}</div>
         <button class="btn btn-red btn-xs" onclick="pcDelLinea('${p.id}','${l.lid}')">✕</button>
       </div>`;
@@ -474,13 +476,13 @@ function lcSave() {
     try {
       rows = await pmDB.pedidos.lineas.agregar({
         pedido_id: p._sbId, producto_id: prodSbId,
-        cantidad: cant, precio_applied: precio, descuento_pct: desc
+        cantidad: linea.cant, precio_applied: precio, descuento_pct: desc
       });
     } catch(e) {
       if (await _pcRecrearSiHuerfano(p, e)) {
         rows = await pmDB.pedidos.lineas.agregar({
           pedido_id: p._sbId, producto_id: prodSbId,
-          cantidad: cant, precio_applied: precio, descuento_pct: desc
+          cantidad: linea.cant, precio_applied: precio, descuento_pct: desc
         });
       } else {
         throw e;
@@ -499,6 +501,41 @@ function lcSave() {
 }
 
 // ── Eliminar línea de pedido (local-first) ──
+// Cambiar la cantidad de una línea ya creada (antes había que borrarla y
+// volverla a crear). Local-first, igual que pcDelLinea: se ve al instante y
+// Supabase se actualiza en segundo plano, esperando primero a que terminen
+// las escrituras pendientes (por si la línea todavía se está creando allá).
+function pcSetCant(pedId, lid, valor) {
+  const p = G.pedidosCom.find(x => String(x.id) === String(pedId));
+  if (!p) return;
+  const l = p.lineas.find(x => String(x.lid) === String(lid));
+  if (!l) return;
+  const reabrir = () => setTimeout(()=>{ const b=document.getElementById('pb-sb-'+pedId); if(b) b.classList.add('open'); },20);
+  if (typeof _pmEstaPagado === 'function' && _pmEstaPagado(p.status)) {
+    pmToast('El pedido está pagado: la cantidad no se edita', 'err'); pcRender(); reabrir(); return;
+  }
+  const cant = parseInt(valor, 10);
+  if (!(cant >= 1)) { pmToast('La cantidad debe ser al menos 1', 'err'); pcRender(); reabrir(); return; }
+  if (cant === Number(l.cant)) return;
+  l.cant = cant;
+  pmSave('comercial'); pcRender(); reabrir();
+
+  if (!pmDB.disponible()) return;
+  const previas = _sbPedComLineasPendientes.slice();
+  const escritura = (async () => {
+    await Promise.allSettled(previas);
+    if (p._sbCreatePromise) await p._sbCreatePromise.catch(()=>{});
+    if (!p._sbId || !l._sbId) return; // nunca llegó a Supabase: lo cubre el insert, que lee l.cant al escribir
+    await pmDB.update('pedido_lineas', l._sbId, { cantidad: l.cant });
+    await pmDB.update('pedidos', p._sbId, { total: pmTotalCom(p) });
+  })().catch(e => {
+    console.warn('[pmDB] pcSetCant error:', e.message);
+    pmToast('⚠️ Cantidad cambiada solo local — no se actualizó en Supabase: ' + e.message, 'err');
+  });
+  _sbPedComLineasPendientes.push(escritura);
+  escritura.finally(() => { _sbPedComLineasPendientes = _sbPedComLineasPendientes.filter(x => x !== escritura); });
+}
+
 function pcDelLinea(pedId, lid) {
   const p = G.pedidosCom.find(x => String(x.id) === String(pedId));
   if (!p) return;
