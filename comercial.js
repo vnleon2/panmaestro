@@ -60,7 +60,9 @@ function pcProximaEntrega() {
 
 // ── Crear pedido comercial (local-first) ──
 function pcAdd() {
-  const fecha  = document.getElementById('pc-fecha').value || pmHoy();
+  // Si se está viendo por entrega, el selector de fecha es el día de entrega:
+  // el pedido nuevo se crea con la fecha de hoy.
+  const fecha  = pvFechaNuevo('com');
   // Entrega (opcional). No se limpia al agregar: normalmente se anotan varios
   // pedidos seguidos para la misma entrega.
   const fechaEntrega = (document.getElementById('pc-entrega') || {}).value || '';
@@ -79,6 +81,7 @@ function pcAdd() {
   pmSave('comercial'); pcRender();
   sel.value = '';
   pmToast('Pedido iniciado ✓');
+  pvAvisarSiOculto('com', newPed);
   if (pmDB.disponible()) {
     newPed._sbCreatePromise = _pcCrearEnSupabase(newPed);
   }
@@ -117,59 +120,47 @@ async function _pcCrearEnSupabase(ped) {
 // cuanto vuelve la señal, sin que Victor tenga que hacer nada. ──
 let _sbPedComLineasPendientes = [];
 
-async function pcCargarSb() {
-  const fecha = document.getElementById('pc-fecha').value || pmHoy();
-  if (pmDB.disponible()) {
-    try {
-      if (_sbPedComLineasPendientes.length) {
-        await Promise.allSettled(_sbPedComLineasPendientes);
-        _sbPedComLineasPendientes = [];
-      }
-      // Reintentar pedidos que quedaron sin crear en Supabase (offline)
-      const pendientes = G.pedidosCom.filter(p => p.date === fecha && !p._sbId && !p._sbCreatePromise);
-      for (const p of pendientes) p._sbCreatePromise = _pcCrearEnSupabase(p).catch(()=>{});
-      if (pendientes.length) await Promise.allSettled(pendientes.map(p => p._sbCreatePromise));
+// La carga y el filtrado de la lista los hace la vista compartida con Pan y
+// Galletas (pedidos_vista.js, kind 'com'): ver por CREACIÓN o por ENTREGA,
+// filtro de estado, atajos (hoy / mañana / semana / pendientes / por cobrar)
+// y, siempre, los pedidos abiertos de cualquier fecha. Aquí solo quedan las
+// piezas propias de comercial que esa vista necesita.
+async function pcCargarSb() { return pvCargar('com'); }
 
-      await _sbProdEnsureMap();
-      const rows = await pmDB.get('pedidos', { tipo: 'comercial', fecha }, '*');
-      if (rows) {
-        const sbPeds = [];
-        for (const sb of rows) {
-          let lineasSb = [];
-          try { lineasSb = await pmDB.get('pedido_lineas', { pedido_id: sb.id }, '*'); } catch(e) {}
-          const local = G.pedidosCom.find(p => p._sbId === sb.id);
-          const lineas = (lineasSb||[]).map(l => {
-            const localLin = local?.lineas?.find(x => x._sbId === l.id);
-            return {
-              lid: localLin?.lid || pmId(),
-              sbId: l.producto_id,
-              pid: _sbProdMapInv?.[l.producto_id] || '',
-              cant: l.cantidad||1,
-              precio: l.precio_applied||0,
-              desc: l.descuento_pct||0,
-              _sbId: l.id
-            };
-          });
-          sbPeds.push({
-            id: local?.id || pmId(),
-            date: sb.fecha, cliId: sb.cliente_id, cliNom: sb.cliente_nom,
-            status: sb.status, metodoPago: local?.metodoPago || 'sinpe',
-            numPed: sb.numero_pedido,
-            numFac: sb.numero_factura || local?.numFac || null,
-            lineas, _sbId: sb.id
-          });
-          if (sb.fecha_entrega) sbPeds[sbPeds.length - 1].fechaEntrega = sb.fecha_entrega;
-        }
-        // Mantener pedidos de otras fechas + los que sigan sin _sbId
-        // (offline, todavía no se pudieron crear en Supabase)
-        const otrosFechas = G.pedidosCom.filter(p => p.date !== fecha);
-        const offline      = G.pedidosCom.filter(p => p.date === fecha && !p._sbId);
-        G.pedidosCom = [...otrosFechas, ...sbPeds, ...offline];
-        pmSave('comercial');
-      }
-    } catch(e) { console.warn('[pcCargarSb]', e.message); }
-  }
-  pcRender();
+// Reintentar pedidos que quedaron sin crear en Supabase (creados offline):
+// se resuelven solos en cuanto vuelve la señal.
+async function pcReintentarPendientes() {
+  const pendientes = G.pedidosCom.filter(p => !p._sbId && !p._sbCreatePromise);
+  for (const p of pendientes) p._sbCreatePromise = _pcCrearEnSupabase(p).catch(()=>{});
+  if (pendientes.length) await Promise.allSettled(pendientes.map(p => p._sbCreatePromise));
+}
+
+// Arma el pedido local a partir de la fila de Supabase y sus líneas, conservando
+// lo que solo vive en este navegador (método de pago, ids locales de líneas).
+function pcConstruirDeSb(sb, lineasSb, local) {
+  const lineas = (lineasSb || []).map(l => {
+    const localLin = local && local.lineas && local.lineas.find(x => x._sbId === l.id);
+    return {
+      lid: (localLin && localLin.lid) || pmId(),
+      sbId: l.producto_id,
+      pid: (typeof _sbProdMapInv !== 'undefined' && _sbProdMapInv && _sbProdMapInv[l.producto_id]) || '',
+      cant: l.cantidad || 1,
+      precio: l.precio_applied || 0,
+      desc: l.descuento_pct || 0,
+      _sbId: l.id
+    };
+  });
+  const obj = Object.assign({}, local || {}, {
+    id: (local && local.id) || pmId(),
+    date: sb.fecha, cliId: sb.cliente_id, cliNom: sb.cliente_nom,
+    status: sb.status, metodoPago: (local && local.metodoPago) || 'sinpe',
+    numPed: sb.numero_pedido,
+    numFac: sb.numero_factura || (local && local.numFac) || null,
+    lineas, _sbId: sb.id
+  });
+  const fe = ('fecha_entrega' in sb) ? (sb.fecha_entrega || '') : ((local && local.fechaEntrega) || '');
+  if (fe) obj.fechaEntrega = fe; else delete obj.fechaEntrega;
+  return obj;
 }
 
 // Método de pago elegido por pedido — se guarda con el pedido local
@@ -239,67 +230,61 @@ async function pcCargarPorEntrega(fecha) {
 
 // ── Render lista de pedidos comerciales (puro, sin red — igual patrón
 // que ppRender()) ──
-function pcRender() {
-  const fecha = document.getElementById('pc-fecha').value || pmHoy();
-  const el = document.getElementById('pc-list');
-  if (!el) return;
-  const peds = G.pedidosCom.filter(p => p.date === fecha);
-  if (!peds.length) {
-    el.innerHTML = '<div class="ph"><span class="ph-icon">🏪</span>Sin pedidos comerciales para este día</div>';
-    return;
-  }
-  const prods = [...(G.tiposPan||[]), ...(G.tiposGalleta||[])];
-  const getProd = (pid) => prods.find(p => p.id === pid) || { nombre: pid || '(producto)', precio: 0 };
+function pcRender() { pvRender('com'); }
 
-  el.innerHTML = [...peds].sort((a,b) => (b.numPed||'').localeCompare(a.numPed||'')).map(p => {
-    const lineas = p.lineas || [];
-    const tot    = pmTotalCom(p);
-    // Un pedido pagado ya tiene su venta registrada: no se le cambia la cantidad
-    const pagado = typeof _pmEstaPagado === 'function' && _pmEstaPagado(p.status);
-    const lineasHtml = lineas.map(l => {
-      const prod = getProd(l.pid);
-      const subt = (l.precio||0) * (l.cant||1);
-      return `<div class="linea">
-        <div class="linea-info">
-          <div class="linea-prod">${pmEsc(prod.nombre)}</div>
-          ${l.desc ? `<div class="linea-inst">−${l.desc}% desc.</div>` : ''}
-        </div>
-        <input type="number" class="linea-cant-in" min="1" step="1" value="${l.cant}"${pagado ? ' disabled title="Pedido pagado: la cantidad no se edita"' : ''} onchange="pcSetCant('${p.id}','${l.lid}',this.value)">
-        <div class="linea-tot">${pmMoney(subt)}</div>
-        <button class="btn btn-red btn-xs" onclick="pcDelLinea('${p.id}','${l.lid}')">✕</button>
-      </div>`;
-    }).join('');
-    const estOpts = G.estados.map(e => `<option value="${e}"${p.status===e?' selected':''}>${e}</option>`).join('');
-    const numBadge = p.numPed
-      ? `<span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--cream2);margin-left:8px">${pmEsc(p.numPed)}</span>`
-      : `<span style="font-size:10px;color:var(--amber);margin-left:8px" title="Todavía sin conexión — el número aparece al sincronizar">⏳ pendiente</span>`;
-    return `<div class="ped-card">
-      <div class="ped-head" onclick="toggleBody('sb-${p.id}')">
-        <div class="ped-cli">${pmEsc(p.cliNom)}
-          ${numBadge}
-          ${lineas.length ? `<span style="font-size:10px;color:var(--cream2);margin-left:6px">(${lineas.length} producto${lineas.length!==1?'s':''})</span>` : ''}
-        </div>
-        <div class="ped-meta">${pmFmtDateShort(p.date)}${p.fechaEntrega ? ' → 📅 ' + pmFmtDateShort(p.fechaEntrega) : ''}</div>
-        ${pmBadge(p.status)}
-        <div class="ped-total">${pmMoney(tot)}</div>
+// Tarjeta de un pedido comercial (la lista y sus encabezados por fecha los
+// arma pvRender en pedidos_vista.js).
+function pcCard(p) {
+  const prods = [...(G.tiposPan||[]), ...(G.tiposGalleta||[])];
+  const getProd = (pid) => prods.find(x => x.id === pid) || { nombre: pid || '(producto)', precio: 0 };
+  const lineas = p.lineas || [];
+  const tot    = pmTotalCom(p);
+  // Un pedido pagado ya tiene su venta registrada: no se le cambia la cantidad
+  const pagado = typeof _pmEstaPagado === 'function' && _pmEstaPagado(p.status);
+  const lineasHtml = lineas.map(l => {
+    const prod = getProd(l.pid);
+    const subt = (l.precio||0) * (l.cant||1);
+    return `<div class="linea">
+      <div class="linea-info">
+        <div class="linea-prod">${pmEsc(prod.nombre)}</div>
+        ${l.desc ? `<div class="linea-inst">−${l.desc}% desc.</div>` : ''}
       </div>
-      <div class="ped-body${lineas.length ? ' open' : ''}" id="pb-sb-${p.id}">
-        <div style="padding:2px 0 8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <label style="font-size:11px;color:var(--cream2);display:flex;align-items:center;gap:6px">📅 Entrega
-            <input type="date" value="${p.fechaEntrega||''}" onchange="pcSetEntrega('${p.id}',this.value)" style="padding:3px 6px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--cream);font-size:11px">
-          </label>
-          ${p.fechaEntrega ? '' : '<span style="font-size:10px;color:var(--cream2)">(sin fecha: cuenta el día del pedido)</span>'}
-        </div>
-        ${lineasHtml}
-        <div class="row" style="margin-top:10px;gap:6px">
-          <select title="Método de pago" onchange="pcSetMetodoPago('${p.id}',this.value)" style="font-size:12px;flex:0 0 auto">${pmMetodoPagoOpts(p.metodoPago)}</select>
-          <select onchange="pcChgSt('${p.id}',this.value)" style="flex:1;font-size:12px">${estOpts}</select>
-          <button class="btn btn-out btn-sm" onclick="pcOpenLinea('${p.id}')">+ Producto</button>
-          <button class="btn btn-red btn-sm" onclick="pcDel('${p.id}')">🗑</button>
-        </div>
-      </div>
+      <input type="number" class="linea-cant-in" min="1" step="1" value="${l.cant}"${pagado ? ' disabled title="Pedido pagado: la cantidad no se edita"' : ''} onchange="pcSetCant('${p.id}','${l.lid}',this.value)">
+      <div class="linea-tot">${pmMoney(subt)}</div>
+      <button class="btn btn-red btn-xs" onclick="pcDelLinea('${p.id}','${l.lid}')">✕</button>
     </div>`;
   }).join('');
+  const estOpts = G.estados.map(e => `<option value="${e}"${p.status===e?' selected':''}>${e}</option>`).join('');
+  const numBadge = p.numPed
+    ? `<span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--cream2);margin-left:8px">${pmEsc(p.numPed)}</span>`
+    : `<span style="font-size:10px;color:var(--amber);margin-left:8px" title="Todavía sin conexión — el número aparece al sincronizar">⏳ pendiente</span>`;
+  return `<div class="ped-card">
+    <div class="ped-head" onclick="toggleBody('sb-${p.id}')">
+      <div class="ped-cli">${pmEsc(p.cliNom)}
+        ${numBadge}
+        ${lineas.length ? `<span style="font-size:10px;color:var(--cream2);margin-left:6px">(${lineas.length} producto${lineas.length!==1?'s':''})</span>` : ''}
+      </div>
+      <div class="ped-meta">${pmFmtDateShort(p.date)}${p.fechaEntrega ? ' → 📅 ' + pmFmtDateShort(p.fechaEntrega) : ''}</div>
+      ${pmBadge(p.status)}
+      <div class="ped-total">${pmMoney(tot)}</div>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:0 16px 8px">${pvChips(p)}</div>
+    <div class="ped-body${lineas.length ? ' open' : ''}" id="pb-sb-${p.id}">
+      <div style="padding:2px 0 8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <label style="font-size:11px;color:var(--cream2);display:flex;align-items:center;gap:6px">📅 Entrega
+          <input type="date" value="${p.fechaEntrega||''}" onchange="pcSetEntrega('${p.id}',this.value)" style="padding:3px 6px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--cream);font-size:11px">
+        </label>
+        ${p.fechaEntrega ? '' : '<span style="font-size:10px;color:var(--cream2)">(sin fecha: cuenta el día del pedido)</span>'}
+      </div>
+      ${lineasHtml}
+      <div class="row" style="margin-top:10px;gap:6px">
+        <select title="Método de pago" onchange="pcSetMetodoPago('${p.id}',this.value)" style="font-size:12px;flex:0 0 auto">${pmMetodoPagoOpts(p.metodoPago)}</select>
+        <select onchange="pcChgSt('${p.id}',this.value)" style="flex:1;font-size:12px">${estOpts}</select>
+        <button class="btn btn-out btn-sm" onclick="pcOpenLinea('${p.id}')">+ Producto</button>
+        <button class="btn btn-red btn-sm" onclick="pcDel('${p.id}')">🗑</button>
+      </div>
+    </div>
+  </div>`;
 }
 
 // ── Cambiar estado pedido (local-first) ──
