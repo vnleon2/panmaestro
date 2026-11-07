@@ -31,6 +31,7 @@ let _cot = {
   lista: [],        // cabeceras
   totales: {},      // cotizacion_id → { total, hayCantidad, lineas }
   cab: null,        // cotización abierta (null = lista)
+  pedidos: [],      // pedidos promocionales generados desde la cotización abierta
   lineas: [],
   dirty: false,
   busca: '',
@@ -62,6 +63,13 @@ function _cotEstadoReal(c) {
   const v = _cotVence(c);
   return v && pmHoy() > v ? 'vencida' : 'vigente';
 }
+// Datos de contacto que salen en la hoja impresa (el logo es ETMK_LOGO, de etiquetas.js)
+const COT_MARCA = {
+  nombre: 'PanMaestro',
+  telefono: '7056 5587',
+  instagram: '@panmaestro.cr',
+  ubicacion: 'San Joaquín de Flores, Heredia, Costa Rica'
+};
 const COT_ESTADO_LBL = { vigente: 'Vigente', vencida: 'Vencida', anulada: 'Anulada' };
 
 function _cotEstilo() {
@@ -238,6 +246,9 @@ async function cotAbrir(id) {
     _cot.cab = Object.assign({}, c);
     _cot.lineas = det.map(d => Object.assign({}, d, { cantidad: d.cantidad === null ? '' : d.cantidad }));
     _cot.dirty = false;
+    _cot.pedidos = [];
+    try { _cot.pedidos = (await pmDB.get('pedido_promo', { cotizacion_id: id })) || []; }
+    catch (e) { /* sql_cotizador_pedido.sql aún no corrido: se ignora */ }
     cotRenderEditor();
   } catch (e) { pmToast('No se pudo abrir: ' + e.message, 'err', 4500); }
 }
@@ -317,6 +328,8 @@ function cotRenderEditor() {
 
   const barra = lock
     ? '<button class="btn btn-gold" onclick="cotImprimir()">🖨 Imprimir</button>' +
+      (_cotHayCantidad() && c.estado !== 'anulada'
+        ? '<button class="btn btn-out" onclick="cotConvertirPedido()">📦 Convertir en pedido</button>' : '') +
       '<button class="btn btn-out" onclick="cotUsarBase()">📋 Usar como base</button>' +
       (c.estado !== 'anulada' ? '<button class="btn btn-red" onclick="cotAnular()">Anular</button>' : '')
     : '<button class="btn btn-out btn-sm" onclick="cotActualizarPrecios()">↻ Actualizar precios del maestro</button>' +
@@ -327,6 +340,7 @@ function cotRenderEditor() {
       '<button class="btn btn-out btn-sm" onclick="cotVolver()">‹ Cotizaciones</button>' +
       '<b id="cot-tipo" style="font-size:15px"></b>' +
       (lock ? '<span class="cot-badge ' + est + '">' + COT_ESTADO_LBL[est] + '</span><span class="cot-hint">' + pmEsc(c.numero) + ' · firma ' + pmEsc(c.codigo_firma) + '</span>' : '') +
+      (lock && _cot.pedidos.length ? '<span class="cot-badge vigente">📦 Pedido: ' + _cot.pedidos.map(x => pmEsc(x.estado)).join(', ') + '</span>' : '') +
       '<span class="sp"></span>' + barra +
     '</div>' +
     '<div class="card">' +
@@ -595,9 +609,18 @@ function cotImprimir() {
     '.firma .cod{font-size:11px;color:#555}' +
     '.firma .cod b{font-family:"Courier New",monospace;font-size:14px;color:#1d2b21;letter-spacing:1px}' +
     '.anul{color:#9B3030;font-weight:700;margin-bottom:6px}' +
+    '.enc{display:flex;align-items:center;gap:14px;border-bottom:2px solid #2E6B45;padding-bottom:8px;margin-bottom:10px}' +
+    '.enc img{width:62px;height:62px;object-fit:contain}' +
+    '.enc .tt{flex:1}' +
+    '.enc .ct{text-align:right;font-size:11px;color:#3d4d41;line-height:1.5}' +
+    '.pie{margin-top:18px;border-top:1px solid #C8D4C3;padding-top:6px;font-size:10px;color:#5F6F63;text-align:center}' +
     '</style></head><body>' +
-    '<h1>PanMaestro — ' + (hay ? 'Cotización' : 'Lista de precios') + '</h1>' +
-    '<div class="sub">N.º ' + pmEsc(c.numero) + '</div>' +
+    '<div class="enc">' +
+      (typeof ETMK_LOGO !== 'undefined' ? '<img src="' + ETMK_LOGO + '" alt="">' : '') +
+      '<div class="tt"><h1>' + pmEsc(COT_MARCA.nombre) + ' — ' + (hay ? 'Cotización' : 'Lista de precios') + '</h1>' +
+      '<div class="sub" style="margin:0">N.º ' + pmEsc(c.numero) + '</div></div>' +
+      '<div class="ct">WhatsApp ' + pmEsc(COT_MARCA.telefono) + '<br>Instagram ' + pmEsc(COT_MARCA.instagram) + '<br>' + pmEsc(COT_MARCA.ubicacion) + '</div>' +
+    '</div>' +
     (est === 'anulada' ? '<div class="anul">COTIZACIÓN ANULADA</div>' : '') +
     '<div class="meta">' +
       '<div><b>Cliente</b>' + pmEsc(c.cliente_nombre) + '</div>' +
@@ -616,6 +639,7 @@ function cotImprimir() {
     (c.notas ? '<div class="notas"><b>Notas:</b> ' + pmEsc(c.notas) + '</div>' : '') +
     '<div class="firma"><div class="l1">' + pmEsc(c.firmante || '') + '<br><span style="color:#5F6F63">Cotiza</span></div>' +
       '<div class="cod">Código de firma<br><b>' + pmEsc(c.codigo_firma || '') + '</b></div></div>' +
+    '<div class="pie">' + pmEsc(COT_MARCA.nombre) + ' · WhatsApp ' + pmEsc(COT_MARCA.telefono) + ' · Instagram ' + pmEsc(COT_MARCA.instagram) + '</div>' +
     '</body></html>';
 
   const w = window.open('', '_blank');
@@ -624,4 +648,83 @@ function cotImprimir() {
   w.document.close();
   w.focus();
   setTimeout(() => { try { w.print(); } catch (e) {} }, 300);
+}
+
+
+// ── Convertir cotización en pedido comercial promocional ───────
+// Crea un pedido en BORRADOR (pestaña Promocional): cada línea con cantidad pasa
+// con el precio al público de la cotización como PVP y el precio neto cotizado
+// como precio pactado. La fecha de entrega y el cliente se confirman aquí.
+function _cotModalPedido(c, resolver) {
+  const hoy = pmHoy();
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+  const cliOpts = '<option value="">— elegir cliente del maestro —</option>' +
+    pmOrdenar(_cot.clientes, 'nombre').map(x =>
+      '<option value="' + x.id + '"' + (x.id === c.cliente_id ? ' selected' : '') + '>' + pmEsc(x.nombre) + (x.codigo ? ' · ' + pmEsc(x.codigo) : '') + '</option>').join('');
+  ov.innerHTML =
+    '<div class="card" style="max-width:420px;width:100%;background:#fff;padding:18px">' +
+      '<div style="font-weight:700;font-size:15px;margin-bottom:10px">📦 Convertir ' + pmEsc(c.numero) + ' en pedido</div>' +
+      '<div class="cot-grid" style="grid-template-columns:1fr">' +
+        '<div><label>Cliente (el pedido necesita uno del maestro)</label><select id="cotm-cli">' + cliOpts + '</select>' +
+          (c.cliente_id ? '' : '<div class="cot-hint" style="margin-top:3px">“' + pmEsc(c.cliente_nombre) + '” no está en el maestro. Elegí uno, o creá el cliente primero en Maestros.</div>') + '</div>' +
+        '<div><label>Fecha de entrega</label><input type="date" id="cotm-fec" value="' + hoy + '" min="' + hoy + '"></div>' +
+      '</div>' +
+      '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px">' +
+        '<button class="btn btn-out" id="cotm-no">Cancelar</button><button class="btn btn-gold" id="cotm-si">Crear pedido</button></div>' +
+    '</div>';
+  document.body.appendChild(ov);
+  const cerrar = v => { ov.remove(); resolver(v); };
+  ov.querySelector('#cotm-no').onclick = () => cerrar(null);
+  ov.querySelector('#cotm-si').onclick = () => {
+    const cli = ov.querySelector('#cotm-cli').value, fec = ov.querySelector('#cotm-fec').value;
+    if (!cli) { pmToast('Elegí el cliente', 'err'); return; }
+    if (!fec) { pmToast('Falta la fecha de entrega', 'err'); return; }
+    cerrar({ cliente_id: cli, fecha_entrega: fec });
+  };
+}
+
+async function cotConvertirPedido() {
+  const c = _cot.cab;
+  if (!c || !c.id) return;
+  if (c.estado === 'anulada') { pmToast('La cotización está anulada', 'err'); return; }
+  const lineas = _cot.lineas.filter(l => _cotN(l.cantidad) > 0);
+  if (!lineas.length) { pmToast('Ninguna línea tiene cantidad', 'err'); return; }
+  if (_cot.pedidos.length && !confirm('Esta cotización ya generó ' + _cot.pedidos.length + ' pedido(s). ¿Crear otro?')) return;
+  if (_cotEstadoReal(c) === 'vencida' && !confirm('La cotización está vencida (' + _cotFecha(_cotVence(c)) + '). ¿Convertirla en pedido igual?')) return;
+
+  const dato = await new Promise(res => _cotModalPedido(c, res));
+  if (!dato) return;
+
+  let ped = null;
+  try {
+    const rows = await pmDB.insert('pedido_promo', {
+      cliente_id: dato.cliente_id, titulo: 'Cotización ' + c.numero,
+      fecha_entrega: dato.fecha_entrega, condiciones: (c.notas || '').trim() || null, cotizacion_id: c.id
+    });
+    ped = rows && rows[0];
+    if (!ped) throw new Error('No se recibió el pedido creado');
+    await pmDB.insert('pedido_promo_det', lineas.map(l => ({
+      pedido_id: ped.id, producto_id: l.producto_id || null, producto_nombre: l.producto_nombre,
+      peso_g: _cotN(l.peso_g) || null, cantidad: _cotN(l.cantidad),
+      pvp: _cotN(l.pvp), precio_pactado: _cotN(l.precio_neto)
+    })));
+  } catch (e) {
+    if (ped && ped.id) { try { await pmDB.hardDelete('pedido_promo', ped.id); } catch (e2) {} }
+    pmToast('No se pudo crear el pedido: ' + e.message + (/cotizacion_id/.test(e.message) ? ' — corré sql_cotizador_pedido.sql' : ''), 'err', 6000);
+    return;
+  }
+  pmToast('Pedido creado en borrador ✓');
+  try { _cot.pedidos = (await pmDB.get('pedido_promo', { cotizacion_id: c.id })) || []; } catch (e) {}
+  cotRenderEditor();
+  if (confirm('Pedido promocional creado en borrador. ¿Abrirlo ahora para revisarlo?')) {
+    showTab('pg-promo');
+    let intentos = 0;
+    const t = setInterval(() => {
+      intentos++;
+      if (typeof _prm !== 'undefined' && _prm.pedidos && _prm.pedidos.some(x => x.id === ped.id)) {
+        clearInterval(t); prmAbrir(ped.id);
+      } else if (intentos > 12) clearInterval(t);
+    }, 300);
+  }
 }
