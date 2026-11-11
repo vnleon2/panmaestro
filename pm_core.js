@@ -574,7 +574,48 @@ function pmTotalGall(ped) {
   return (ped.lineas||[]).reduce((s,l) => s + pmPrecioGall(l.pid) * (l.cant||1), 0);
 }
 
+// ── Pedido comercial: subtotal + envío + IVA = total a cobrar (11 nov 2026) ──
+// El envío es un cargo propio del pedido (ped.envio, en colones, libre por
+// pedido), NO un producto: no tiene receta ni costo y no entra al MPS.
+// El IVA se calcula sobre subtotal + envío. Hoy la tasa es 0 %; cuando haya
+// que cobrarlo basta con cambiar PM_IVA_PCT (o poner G.ivaPct) y todo —
+// tarjeta, hojas, venta registrada— lo recalcula.
+const PM_IVA_PCT = 0;
+function pmIvaPct() {
+  const v = Number(typeof G !== 'undefined' && G && G.ivaPct);
+  return v > 0 ? v : PM_IVA_PCT;
+}
+function pmEnvioCom(ped) {
+  const v = Number(ped && ped.envio);
+  return v > 0 ? v : 0;
+}
+function pmIvaDesde(sub, envio) {
+  return Math.round((sub + envio) * pmIvaPct() / 100);
+}
+function pmTotalDesde(sub, envio) {
+  return sub + envio + pmIvaDesde(sub, envio);
+}
+function pmIvaCom(ped) {
+  return pmIvaDesde(pmSubtotalCom(ped), pmEnvioCom(ped));
+}
+// Total a cobrar del pedido comercial (productos + envío + IVA).
 function pmTotalCom(ped) {
+  return pmTotalDesde(pmSubtotalCom(ped), pmEnvioCom(ped));
+}
+
+// Filas de resumen (subtotal / envío / IVA) para las hojas de pedido: solo
+// aparecen si hay envío o IVA; sin ninguno de los dos la hoja queda como antes.
+function pmFilasEnvioIva(ped, colspan) {
+  const envio = pmEnvioCom(ped), iva = pmIvaCom(ped);
+  if (!envio && !iva) return '';
+  const fila = (t, v) => `<tr><td colspan="${colspan}">${t}</td><td class="r">₡${v.toLocaleString('es-CR')}</td></tr>`;
+  return fila('Subtotal productos', pmSubtotalCom(ped))
+    + (envio ? fila('Envío' + (ped.envioNota ? ' (' + String(ped.envioNota).replace(/[<>&]/g, '') + ')' : ''), envio) : '')
+    + (iva ? fila('IVA ' + pmIvaPct() + '%', iva) : '');
+}
+
+// Suma de las líneas, sin envío ni IVA.
+function pmSubtotalCom(ped) {
   // Punto 7 del plan de auditoría: si la línea ya trae el precio capturado
   // al momento del pedido (l.precio — como hacen ahora los pedidos
   // comerciales local-first), se usa ese directo. Antes esta función
