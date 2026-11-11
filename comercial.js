@@ -160,7 +160,48 @@ function pcConstruirDeSb(sb, lineasSb, local) {
   });
   const fe = ('fecha_entrega' in sb) ? (sb.fecha_entrega || '') : ((local && local.fechaEntrega) || '');
   if (fe) obj.fechaEntrega = fe; else delete obj.fechaEntrega;
+  // Envío: Supabase manda si la columna existe; si no (falta correr el SQL), lo local.
+  if ('envio_monto' in sb) {
+    if (Number(sb.envio_monto) > 0) obj.envio = Number(sb.envio_monto); else delete obj.envio;
+    if (sb.envio_nota) obj.envioNota = sb.envio_nota; else delete obj.envioNota;
+  }
   return obj;
+}
+
+// Envío del pedido (cargo propio, no un producto). campo: 'monto' | 'nota'.
+// Local primero, luego Supabase; el total del pedido se vuelve a guardar.
+function pcSetEnvio(pedId, campo, valor) {
+  const p = G.pedidosCom.find(x => String(x.id) === String(pedId));
+  if (!p) return;
+  const reabrir = () => setTimeout(()=>{ const b=document.getElementById('pb-sb-'+pedId); if(b) b.classList.add('open'); },20);
+  if (campo === 'monto') {
+    // Un pedido pagado ya tiene su venta registrada con el total de ese momento.
+    if (typeof _pmEstaPagado === 'function' && _pmEstaPagado(p.status)) {
+      pmToast('El pedido está pagado: el envío no se edita (reabrilo primero)', 'err'); pcRender(); reabrir(); return;
+    }
+    const txt = String(valor == null ? '' : valor).trim();
+    const n = Math.round(Number(txt));
+    if (txt !== '' && !(n >= 0)) { pmToast('El envío debe ser un monto en colones (0 o más)', 'err'); pcRender(); reabrir(); return; }
+    if (n > 0) p.envio = n; else delete p.envio;
+  } else {
+    const t = String(valor || '').trim();
+    if (t) p.envioNota = t; else delete p.envioNota;
+  }
+  pmSave('comercial'); pcRender(); reabrir();
+  pmToast(campo === 'monto' ? (p.envio ? `Envío ${pmMoney(p.envio)} ✓` : 'Envío quitado ✓') : 'Nota de envío guardada ✓');
+  if (!pmDB.disponible()) return;
+  const previas = _sbPedComLineasPendientes.slice();
+  const escritura = (async () => {
+    await Promise.allSettled(previas);
+    if (!p._sbId && p._sbCreatePromise) await p._sbCreatePromise.catch(()=>{});
+    if (!p._sbId) throw new Error('el pedido todavía no se creó en Supabase');
+    await pmDB.pedidos.editar(p._sbId, { envio_monto: p.envio || 0, envio_nota: p.envioNota || null, total: pmTotalCom(p) });
+  })().catch(e => {
+    console.warn('[pmDB] pcSetEnvio error:', e.message);
+    pmToast('⚠️ Envío guardado solo local — no se sincronizó a Supabase (¿falta correr sql_pedido_envio.sql?): ' + e.message, 'err');
+  });
+  _sbPedComLineasPendientes.push(escritura);
+  escritura.finally(() => { _sbPedComLineasPendientes = _sbPedComLineasPendientes.filter(x => x !== escritura); });
 }
 
 // Método de pago elegido por pedido — se guarda con el pedido local
@@ -220,7 +261,9 @@ async function pcCargarPorEntrega(fecha) {
         id: pmId(), date: sb.fecha, cliId: sb.cliente_id, cliNom: sb.cliente_nom,
         status: sb.status, metodoPago: 'sinpe', numPed: sb.numero_pedido,
         numFac: sb.numero_factura || null, lineas, _sbId: sb.id,
-        fechaEntrega: sb.fecha_entrega
+        fechaEntrega: sb.fecha_entrega,
+        ...(Number(sb.envio_monto) > 0 ? { envio: Number(sb.envio_monto) } : {}),
+        ...(sb.envio_nota ? { envioNota: sb.envio_nota } : {})
       });
       cambio = true;
     }
@@ -277,6 +320,15 @@ function pcCard(p) {
         ${p.fechaEntrega ? '' : '<span style="font-size:10px;color:var(--cream2)">(sin fecha: cuenta el día del pedido)</span>'}
       </div>
       ${lineasHtml}
+      <div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <label style="font-size:11px;color:var(--cream2);display:flex;align-items:center;gap:6px" title="Cargo de envío del pedido (no es un producto)">🚚 Envío ₡
+          <input type="number" min="0" step="1" value="${p.envio || ''}" placeholder="0"${pagado ? ' disabled title="Pedido pagado: el envío no se edita"' : ''} onchange="pcSetEnvio('${p.id}','monto',this.value)" style="width:90px;padding:3px 6px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--cream);font-size:12px">
+        </label>
+        <input type="text" value="${pmEsc(p.envioNota || '')}" placeholder="Nota (opcional)" onchange="pcSetEnvio('${p.id}','nota',this.value)" style="flex:1;min-width:120px;padding:3px 6px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--cream);font-size:11px">
+      </div>
+      ${(pmEnvioCom(p) || pmIvaCom(p)) ? `<div style="margin-top:6px;font-size:11px;color:var(--cream2);text-align:right;line-height:1.6">
+        Productos ${pmMoney(pmSubtotalCom(p))} · Envío ${pmMoney(pmEnvioCom(p))}${pmIvaCom(p) ? ` · IVA ${pmIvaPct()}% ${pmMoney(pmIvaCom(p))}` : ''} · <strong style="color:var(--cream)">Total ${pmMoney(tot)}</strong>
+      </div>` : ''}
       <div class="row" style="margin-top:10px;gap:6px">
         <select title="Método de pago" onchange="pcSetMetodoPago('${p.id}',this.value)" style="font-size:12px;flex:0 0 auto">${pmMetodoPagoOpts(p.metodoPago)}</select>
         <select onchange="pcChgSt('${p.id}',this.value)" style="flex:1;font-size:12px">${estOpts}</select>

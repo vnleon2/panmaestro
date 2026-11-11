@@ -125,7 +125,7 @@ function _docAbrir(peds, tipo) {
 
     const totalRow = esFactura ? (() => {
       const tot = pmTotalCom(p);
-      return `<tr class="total-row">
+      return pmFilasEnvioIva(p, 3) + `<tr class="total-row">
         <td colspan="2">Total</td>
         <td class="r"></td>
         <td class="r">₡${tot.toLocaleString('es-CR')}</td>
@@ -209,6 +209,8 @@ async function _pmPedidosPagadosDelMes(tipo, mes) {
       try {
         const lins = await pmDB.get('pedido_lineas', { pedido_id: sb.id }, '*');
         total = (lins||[]).reduce((s,l) => s + (parseFloat(l.precio_applied)||0) * (l.cantidad||1), 0);
+        // Pedidos comerciales: el envío (y el IVA, si aplica) también se cobra.
+        if (tipo === 'comercial') total = pmTotalDesde(total, Number(sb.envio_monto) > 0 ? Number(sb.envio_monto) : 0);
       } catch(e) { console.warn('[pmDB] lineas de pedido', sb.id, e.message); }
       out.push({ _sbId: sb.id, date: sb.fecha, cli: sb.cliente_nom, status: sb.status, total, refId: null });
       vistos.add(sb.id);
@@ -944,7 +946,7 @@ async function repComImprimir(peds, tipo) {
 
     const totalRow = esFactura ? (() => {
       const tot = pmTotalCom(p);
-      return `<tr class="total-row">
+      return pmFilasEnvioIva(p, 3) + `<tr class="total-row">
         <td colspan="2">Total</td>
         <td class="r"></td>
         <td class="r">₡${tot.toLocaleString('es-CR',{minimumFractionDigits:0})}</td>
@@ -1031,7 +1033,9 @@ async function _repFacXCliRefrescar(cliId) {
         status: sb.status, metodoPago: local?.metodoPago || 'sinpe',
         numPed: sb.numero_pedido,
         numFac: sb.numero_factura || local?.numFac || null,
-        lineas, _sbId: sb.id
+        lineas, _sbId: sb.id,
+        ...(Number(sb.envio_monto) > 0 ? { envio: Number(sb.envio_monto) } : {}),
+        ...(sb.envio_nota ? { envioNota: sb.envio_nota } : {})
       });
     }
     // Reemplazar en G.pedidosCom solo los pedidos de este cliente que ya
@@ -1639,6 +1643,8 @@ async function _pmPedidosNoPagadosGlobal(tipo) {
       try {
         const lins = await pmDB.get('pedido_lineas', { pedido_id: sb.id }, '*');
         total = (lins||[]).reduce((s,l) => s + (parseFloat(l.precio_applied)||0) * (l.cantidad||1), 0);
+        // Pedidos comerciales: el envío (y el IVA, si aplica) también se cobra.
+        if (tipo === 'comercial') total = pmTotalDesde(total, Number(sb.envio_monto) > 0 ? Number(sb.envio_monto) : 0);
       } catch(e) { console.warn('[pmDB] lineas de pedido', sb.id, e.message); }
       out.push({ _sbId: sb.id, date: sb.fecha, cli: sb.cliente_nom, status: sb.status, total, numPed: sb.numero_pedido||null });
       vistos.add(sb.id);
