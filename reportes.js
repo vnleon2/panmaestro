@@ -505,6 +505,7 @@ async function repRender() {
     else if (repCurrentTab === 'ventas')      html = await repVentas(mes);
     else if (repCurrentTab === 'mensual')     html = await repMensual(mes);
     else if (repCurrentTab === 'documentos')  html = await repDocumentosRender();
+    else if (repCurrentTab === 'emision')     html = await emisionRender();
     else if (repCurrentTab === 'contable')    html = await repContable(mes);
     else if (repCurrentTab === 'facxcli')     html = await repFacturasCliente(mes);
     else if (repCurrentTab === 'nopagados')   html = await repNoPagados();
