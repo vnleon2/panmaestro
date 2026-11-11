@@ -412,6 +412,9 @@ function pvConstruir(sb, lineasSb, local, cfg) {
     if (Number(sb.envio_monto) > 0) obj.envio = Number(sb.envio_monto); else delete obj.envio;
     if (sb.envio_nota) obj.envioNota = sb.envio_nota; else delete obj.envioNota;
   }
+  // Número de pedido y de factura (los usa la Emisión de factura): Supabase manda si los trae.
+  if (sb.numero_pedido) obj.numPed = sb.numero_pedido;
+  if (sb.numero_factura) obj.numFac = sb.numero_factura;
   return obj;
 }
 
