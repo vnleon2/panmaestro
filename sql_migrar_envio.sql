@@ -29,54 +29,58 @@ from pedido_lineas l
 join productos_terminados p on p.id = l.producto_id
 where translate(lower(p.nombre), 'íÍ', 'ii') = 'envio';
 
--- ═══ PASO B — MIGRACIÓN (cámbiala solo después del paso A) ════════
-begin;
-
--- B1. Respaldo de las líneas que se van a borrar
-create table if not exists pedido_lineas_envio_bk as
-  select l.*, now() as respaldado_en
-  from pedido_lineas l
-  join productos_terminados p on p.id = l.producto_id
-  where translate(lower(p.nombre), 'íÍ', 'ii') = 'envio';
-alter table pedido_lineas_envio_bk enable row level security;
-drop policy if exists "auth_only" on pedido_lineas_envio_bk;
-create policy "auth_only" on pedido_lineas_envio_bk
-  for all to authenticated using (true) with check (true);
-
--- B2. Totales de los pedidos afectados ANTES del cambio
-create temp table _tot_antes on commit drop as
-  select id, total from pedidos
-  where id in (select pedido_id from pedido_lineas_envio_bk);
-
--- B3. Pasar el valor de cada línea Envío al campo envio_monto del pedido
-update pedidos pe
-set envio_monto = coalesce(pe.envio_monto, 0) + x.monto,
-    updated_at = now()
-from (
-  select pedido_id,
-         round(sum(cantidad * precio_applied * (1 - coalesce(descuento_pct,0)/100.0))) as monto
-  from pedido_lineas_envio_bk
-  group by pedido_id
-) x
-where pe.id = x.pedido_id;
-
--- B4. Borrar las líneas Envío
-delete from pedido_lineas
-where id in (select id from pedido_lineas_envio_bk);
-
--- B5. Verificación: el total no puede haber cambiado en ningún pedido
+-- ═══ PASO B — MIGRACIÓN (solo después del paso A) ════════════════
+-- Un solo bloque: o se aplica todo o no se aplica nada. Seguro de repetir:
+-- solo mueve las líneas Envío que todavía existan.
 do $$
-declare cambiados int;
+declare
+  antes jsonb;
+  cambiados int;
 begin
+  -- respaldo de las líneas que se van a borrar
+  create table if not exists pedido_lineas_envio_bk as
+    select l.*, now() as respaldado_en from pedido_lineas l where false;
+  alter table pedido_lineas_envio_bk enable row level security;
+  drop policy if exists "auth_only" on pedido_lineas_envio_bk;
+  create policy "auth_only" on pedido_lineas_envio_bk
+    for all to authenticated using (true) with check (true);
+
+  insert into pedido_lineas_envio_bk
+    select l.*, now() from pedido_lineas l
+    where l.producto_id in (select id from productos_terminados where translate(lower(nombre), 'íÍ', 'ii') = 'envio')
+      and not exists (select 1 from pedido_lineas_envio_bk b where b.id = l.id);
+
+  -- totales de los pedidos afectados ANTES del cambio
+  select jsonb_object_agg(pe.id::text, pe.total::text) into antes
+  from pedidos pe
+  where pe.id in (select pedido_id from pedido_lineas
+                  where producto_id in (select id from productos_terminados where translate(lower(nombre), 'íÍ', 'ii') = 'envio'));
+
+  -- pasar el valor de las líneas Envío al campo envio_monto del pedido
+  update pedidos pe
+  set envio_monto = coalesce(pe.envio_monto, 0) + x.monto,
+      updated_at = now()
+  from (
+    select pedido_id,
+           round(sum(cantidad * precio_applied * (1 - coalesce(descuento_pct,0)/100.0))) as monto
+    from pedido_lineas
+    where producto_id in (select id from productos_terminados where translate(lower(nombre), 'íÍ', 'ii') = 'envio')
+    group by pedido_id
+  ) x
+  where pe.id = x.pedido_id;
+
+  -- borrar las líneas Envío
+  delete from pedido_lineas
+  where producto_id in (select id from productos_terminados where translate(lower(nombre), 'íÍ', 'ii') = 'envio');
+
+  -- verificación: el total no puede haber cambiado en ningún pedido
   select count(*) into cambiados
-  from pedidos pe join _tot_antes a on a.id = pe.id
-  where pe.total is distinct from a.total;
+  from pedidos pe
+  where antes ? pe.id::text and pe.total::text is distinct from antes->>(pe.id::text);
   if cambiados > 0 then
     raise exception 'Se cambiaría el total de % pedido(s); se revierte todo', cambiados;
   end if;
 end $$;
-
-commit;
 
 -- ═══ PASO C — comprobación final (solo lee) ═══════════════════════
 -- Debe dar 0 líneas; y los pedidos migrados ahora muestran su envío:
