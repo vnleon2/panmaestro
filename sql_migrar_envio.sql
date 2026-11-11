@@ -2,6 +2,7 @@
 -- Migrar el producto "Entrega Dimarkit Moto" (P041) al campo Envío del pedido
 -- (11 nov 2026). Requisito: haber corrido sql_pedido_envio.sql.
 --
+-- Nota: precio_applied ya trae el descuento; el total del pedido es cantidad × precio_applied.
 -- Un solo bloque atómico: o se aplica todo o nada.
 --  1) Se detiene si algún pedido afectado ya tiene envío cargado.
 --  2) Respalda las líneas en pedido_lineas_envio_bk.
@@ -40,7 +41,7 @@ begin
       updated_at  = now()
   from (
     select pedido_id,
-           round(sum(cantidad * precio_applied * (1 - coalesce(descuento_pct,0)/100.0))) as monto
+           round(sum(cantidad * precio_applied)) as monto
     from pedido_lineas where producto_id::text = pid
     group by pedido_id
   ) x
@@ -52,7 +53,7 @@ begin
   from pedidos pe
   where pe.id in (select pedido_id from pedido_lineas_envio_bk where producto_id::text = pid)
     and abs(pe.total - (
-          (select coalesce(round(sum(l.cantidad * l.precio_applied * (1 - coalesce(l.descuento_pct,0)/100.0))), 0)
+          (select coalesce(round(sum(l.cantidad * l.precio_applied)), 0)
            from pedido_lineas l where l.pedido_id = pe.id) + pe.envio_monto)) > 1;
   if descuadre > 0 then
     raise exception 'El total de % pedido(s) no cuadra; se revierte todo', descuadre;
@@ -61,7 +62,7 @@ end $$;
 
 -- comprobación: diferencia debe ser 0 en cada fila
 select pe.id, pe.fecha, pe.status, pe.total, pe.envio_monto, pe.envio_nota,
-       pe.total - (round(coalesce(sum(l.cantidad * l.precio_applied * (1 - coalesce(l.descuento_pct,0)/100.0)), 0)) + pe.envio_monto) as diferencia
+       pe.total - (round(coalesce(sum(l.cantidad * l.precio_applied), 0)) + pe.envio_monto) as diferencia
 from pedidos pe
 left join pedido_lineas l on l.pedido_id = pe.id
 where pe.id in (select pedido_id from pedido_lineas_envio_bk where producto_id::text = 'a99144d8-08a3-4bf2-8040-77735ffe2019')
