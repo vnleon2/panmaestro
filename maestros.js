@@ -78,6 +78,7 @@ function panAdd() {
 
 // ── Carga tipos de pan desde Supabase (fuente primaria) ──
 async function panCargarSb() {
+  await _panRecEnsure();
   if (pmDB.disponible()) {
     try {
       await _sbProdEnsureMap();
@@ -277,6 +278,7 @@ async function panNombreAplicar() {
 
 // ── Carga tipos de galleta desde Supabase (fuente primaria) ──
 async function gallCargarSb() {
+  await _panRecEnsure();
   if (pmDB.disponible()) {
     try {
       await _sbProdEnsureMap();
@@ -335,8 +337,18 @@ function panRender() {
   }).join('') || '<div class="ph"><span class="ph-icon">🍞</span>Sin tipos de pan</div>';
 }
 
+// Las recetas viven en una caché de Supabase (_sbRecCache) que solo se llena
+// al abrir Costeo. Si se abre Maestros primero, la lista salía incompleta
+// (solo las recetas locales). Esto la carga antes de armar los desplegables.
+async function _panRecEnsure() {
+  if (typeof _sbRecCache !== 'undefined' && _sbRecCache === null && pmDB.disponible() && typeof _sbCosteoCargar === 'function') {
+    try { await _sbCosteoCargar(); } catch (e) { console.warn('[_panRecEnsure]', e.message); }
+  }
+}
+
 // ── Poblar dropdown de recetas en formulario de tipos de pan ──
-function panRecetaPopulate() {
+async function panRecetaPopulate() {
+  await _panRecEnsure();
   const sel = document.getElementById('pan-rec');
   if (!sel) return;
   const recetas = pmOrdenar(_sbRecLista().filter(r => r.code && r.code.startsWith('R-')), 'name');
@@ -346,6 +358,7 @@ function panRecetaPopulate() {
 }
 
 async function panEdit(id) {
+  await _panRecEnsure();
   const p = G.tiposPan.find(x => x.id===id);
   if (!p) return;
   document.querySelectorAll('.pan-edit-form').forEach(el => el.remove());
@@ -550,7 +563,8 @@ function gallRender() {
 }
 
 // ── Poblar dropdown de recetas en formulario de tipos de galleta ──
-function gallRecetaPopulate() {
+async function gallRecetaPopulate() {
+  await _panRecEnsure();
   const sel = document.getElementById('gall-rec');
   if (!sel) return;
   const recetas = pmOrdenar(_sbRecLista().filter(r => r.code && r.code.startsWith('R-')), 'name');
@@ -560,6 +574,7 @@ function gallRecetaPopulate() {
 }
 
 async function gallEdit(id) {
+  await _panRecEnsure();
   const p = G.tiposGalleta.find(x => x.id===id);
   if (!p) return;
   document.querySelectorAll('.gall-edit-form').forEach(el => el.remove());
