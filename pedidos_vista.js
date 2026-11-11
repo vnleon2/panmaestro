@@ -34,6 +34,7 @@ const PV_CFG = {
     catalogo: () => G.tiposPan,
     refrescarCatalogo: () => panCargarSb(),
     total: p => pmTotalPan(p),
+    subtotal: p => pmSubtotalPan(p),
     pend: () => _sbPedidoLineasPendientes,
     limpiarPend: () => { _sbPedidoLineasPendientes = []; },
     lblCreacion: 'Fecha del pedido'
@@ -48,6 +49,7 @@ const PV_CFG = {
     catalogo: () => G.tiposGalleta,
     refrescarCatalogo: () => gallCargarSb(),
     total: p => pmTotalGall(p),
+    subtotal: p => pmSubtotalGall(p),
     pend: () => _sbLineasPendientesGalletas,
     limpiarPend: () => { _sbLineasPendientesGalletas = []; },
     lblCreacion: 'Fecha'
@@ -62,6 +64,7 @@ const PV_CFG = {
     catalogo: () => [...(G.tiposPan || []), ...(G.tiposGalleta || [])],
     refrescarCatalogo: async () => { await panCargarSb(); await gallCargarSb(); },
     total: p => pmTotalCom(p),
+    subtotal: p => pmSubtotalCom(p),
     pend: () => _sbPedComLineasPendientes,
     limpiarPend: () => { _sbPedComLineasPendientes = []; },
     lblCreacion: 'Fecha del pedido',
@@ -404,6 +407,11 @@ function pvConstruir(sb, lineasSb, local, cfg) {
     lineas, _sbId: sb.id, cliId, cliCod, cliNom
   });
   if (fechaEntrega) obj.fechaEntrega = fechaEntrega; else delete obj.fechaEntrega;
+  // Envío: Supabase manda si la columna existe; si no (falta el SQL), lo local.
+  if ('envio_monto' in sb) {
+    if (Number(sb.envio_monto) > 0) obj.envio = Number(sb.envio_monto); else delete obj.envio;
+    if (sb.envio_nota) obj.envioNota = sb.envio_nota; else delete obj.envioNota;
+  }
   return obj;
 }
 
@@ -574,6 +582,54 @@ function pvAvisarSiOculto(kind, ped) {
   const st = _pvEstado[kind];
   if (!pvCoincide(ped, st, pvRango(kind))) {
     pmToast('ℹ️ El pedido se creó, pero queda fuera de la vista actual (cambiá "Ver por" o el estado para verlo)');
+  }
+}
+
+// ── Envío de un pedido de Pan / Galletas (cargo propio, no un producto) ──────
+// Fila con monto y nota, más el desglose productos + envío (+ IVA) si aplica.
+// Los comerciales tienen su propia versión en comercial.js (pcSetEnvio).
+function pvEnvioHtml(kind, p, locked) {
+  const cfg = PV_CFG[kind];
+  const envio = pmEnvioCom(p), sub = cfg.subtotal(p), iva = pmIvaDesde(sub, envio);
+  const dis = locked ? ' disabled title="Pedido pagado: el envío no se edita"' : '';
+  return `<label style="font-size:11px;color:var(--cream2);display:flex;align-items:center;gap:6px" title="Cargo de envío del pedido (no es un producto)">🚚 Envío ₡
+      <input type="number" min="0" step="1" value="${p.envio || ''}" placeholder="0"${dis} onchange="pvSetEnvio('${kind}','${p.id}','monto',this.value)" style="width:90px;padding:3px 6px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--cream);font-size:12px">
+    </label>
+    <input type="text" value="${pmEsc(p.envioNota || '')}" placeholder="Nota de envío (opcional)"${dis} onchange="pvSetEnvio('${kind}','${p.id}','nota',this.value)" style="flex:1;min-width:120px;max-width:260px;padding:3px 6px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--cream);font-size:11px">
+    ${(envio || iva) ? `<span style="font-size:11px;color:var(--cream2)">Productos ${pmMoney(sub)} · Envío ${pmMoney(envio)}${iva ? ` · IVA ${pmIvaPct()}% ${pmMoney(iva)}` : ''} · <strong style="color:var(--cream)">Total ${pmMoney(cfg.total(p))}</strong></span>` : ''}`;
+}
+
+function pvSetEnvio(kind, id, campo, valor) {
+  const cfg = PV_CFG[kind];
+  const p = cfg.arr().find(x => String(x.id) === String(id));
+  if (!p) return;
+  const reabrir = () => setTimeout(() => { const b = document.getElementById(cfg.bodyPrefix + id); if (b) b.style.display = 'block'; }, 20);
+  if (campo === 'monto') {
+    // Un pedido pagado ya tiene su venta registrada con el total de ese momento.
+    if (pmEstaPagado(p.status)) { pmToast('El pedido está pagado: el envío no se edita (reabrilo primero)', 'err'); pvRender(kind); reabrir(); return; }
+    const txt = String(valor == null ? '' : valor).trim();
+    const n = Math.round(Number(txt));
+    if (txt !== '' && !(n >= 0)) { pmToast('El envío debe ser un monto en colones (0 o más)', 'err'); pvRender(kind); reabrir(); return; }
+    if (n > 0) p.envio = n; else delete p.envio;
+  } else {
+    const t = String(valor || '').trim();
+    if (t) p.envioNota = t; else delete p.envioNota;
+  }
+  pmSave(cfg.saveKey || 'pedidos');
+  pvRender(kind);
+  reabrir();
+  pmToast(campo === 'monto' ? (p.envio ? `Envío ${pmMoney(p.envio)} ✓` : 'Envío quitado ✓') : 'Nota de envío guardada ✓');
+  if (pmDB.disponible() && (p._sbId || p._sbCreatePromise)) {
+    (async () => {
+      try {
+        if (!p._sbId && p._sbCreatePromise) await p._sbCreatePromise.catch(() => {});
+        if (!p._sbId) throw new Error('el pedido todavía no se creó en Supabase');
+        await pmDB.pedidos.editar(p._sbId, { envio_monto: p.envio || 0, envio_nota: p.envioNota || null });
+      } catch (e) {
+        console.warn('[pmDB] pvSetEnvio error:', e.message);
+        pmToast('⚠️ Envío guardado solo local — no se sincronizó a Supabase (¿falta correr sql_pedido_envio.sql?): ' + e.message, 'err');
+      }
+    })();
   }
 }
 
