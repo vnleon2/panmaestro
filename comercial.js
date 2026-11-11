@@ -294,6 +294,11 @@ async function pcChgSt(pedId, st) {
   const prevSt = p.status;
   p.status = st; pmSave('comercial'); pcRender();
   setTimeout(()=>{ const b=document.getElementById('pb-sb-'+pedId); if(b) b.classList.add('open'); },20);
+  // Si el cambio lo saca de la vista actual (p. ej. se cerró estando en
+  // Pendientes), se avisa dónde encontrarlo para poder reabrirlo.
+  if (typeof pvCoincide === 'function' && !pvCoincide(p, _pvEstado.com, pvRango('com'))) {
+    pmToast(`ℹ️ ${p.numPed || 'El pedido'} pasó a "${st}" y ya no sale en esta vista — buscalo por número o en Cerrados / Pagados`);
+  }
   if (!pmDB.disponible()) return;
 
   const escritura = (async () => {

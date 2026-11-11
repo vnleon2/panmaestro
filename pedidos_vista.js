@@ -67,6 +67,12 @@ const PV_CFG = {
     lblCreacion: 'Fecha del pedido',
     saveKey: 'comercial',
     estadoTodasFechas: true,
+    // 11 nov 2026: en Comerciales, "todas las fechas" sirve con CUALQUIER estado
+    // (Cerrados, Pagados, Todos) y hay buscador por # de pedido / cliente. Antes,
+    // al elegir Cerrados o Todos se volvía al día del selector y un pedido cerrado
+    // por error desaparecía de la lista sin forma de verlo ni reabrirlo.
+    todasCualquierEstado: true,
+    busqueda: true,
     construir: (sb, lineasSb, local) => pcConstruirDeSb(sb, lineasSb, local),
     antes: () => pcReintentarPendientes(),
     ordenar: (a, b) => String(b.numPed || '').localeCompare(String(a.numPed || ''))
@@ -76,11 +82,12 @@ const PV_CFG = {
 // Estado de la vista de cada pantalla (en memoria; solo "Ver por" se recuerda).
 //   modo   : 'creacion' | 'entrega'
 //   estado : 'todos' | 'pendientes' | 'cerrados' | 'cobrar'
-//   rango  : 'dia' (la fecha del selector) | 'manana' | 'semana' | 'todas'
+//   rango  : 'dia' (la fecha del selector) | 'manana' | 'semana' | 'ult7' | 'todas'
+//   busq   : texto buscado (# de pedido o cliente); si hay, ignora fechas y estado
 const _pvEstado = {
-  pan:     { modo: 'creacion', estado: 'todos', rango: 'dia' },
-  galleta: { modo: 'creacion', estado: 'todos', rango: 'dia' },
-  com:     { modo: 'entrega', estado: 'pendientes', rango: 'todas' }
+  pan:     { modo: 'creacion', estado: 'todos', rango: 'dia', busq: '' },
+  galleta: { modo: 'creacion', estado: 'todos', rango: 'dia', busq: '' },
+  com:     { modo: 'entrega', estado: 'pendientes', rango: 'todas', busq: '' }
 };
 const _pvReq = { pan: 0, galleta: 0, com: 0 };        // descarta respuestas que llegan tarde
 const _pvCargando = { pan: false, galleta: false, com: false };
@@ -89,6 +96,8 @@ const _pvCargando = { pan: false, galleta: false, com: false };
 function pvRango(kind) {
   const st = _pvEstado[kind], cfg = PV_CFG[kind];
   const hoy = pmHoy();
+  if (st.busq) return null;                      // buscando: en todas las fechas
+  if (st.rango === 'ult7')   return { desde: pmSumarDias(hoy, -6), hasta: hoy };
   if (st.rango === 'manana') { const d = pmSumarDias(hoy, 1); return { desde: d, hasta: d }; }
   if (st.rango === 'semana') return { desde: hoy, hasta: pmSumarDias(hoy, 6) };
   if (st.rango === 'todas')  return null;
@@ -112,12 +121,21 @@ function pvPasaEstado(p, estado) {
   switch (estado) {
     case 'pendientes': return !pmEstaCerrado(p);
     case 'cerrados':   return pmEstaCerrado(p);
+    case 'pagados':    return pmEstaPagado(p.status);
     case 'cobrar':     return !pmEstaPagado(p.status);
     default:           return true;
   }
 }
 
+// Texto buscado dentro del # de pedido o del cliente (sin importar mayúsculas).
+function pvPasaBusq(p, q) {
+  const t = String(q || '').trim().toLowerCase();
+  if (!t) return true;
+  return [p.numPed, p.cliNom, p.cli].map(x => String(x || '').toLowerCase()).join(' ').includes(t);
+}
+
 function pvCoincide(p, st, r) {
+  if (st.busq) return pvPasaBusq(p, st.busq);
   return pvEnRango(p, st, r) && pvPasaEstado(p, st.estado);
 }
 
@@ -128,7 +146,7 @@ function pvLista(kind) {
   const lista = cfg.arr().filter(p => pvCoincide(p, st, r));
   // Un solo día por creación: se deja el orden de siempre (el de captura).
   // Cualquier otra vista se ordena por fecha para poder agrupar por día.
-  const simple = st.modo === 'creacion' && st.rango === 'dia';
+  const simple = st.modo === 'creacion' && st.rango === 'dia' && !st.busq;
   if (!simple) lista.sort((a, b) => pvFechaClave(a, st).localeCompare(pvFechaClave(b, st)) || (cfg.ordenar ? cfg.ordenar(a, b) : 0));
   else if (cfg.ordenar) lista.sort(cfg.ordenar);
   return lista;
@@ -136,7 +154,7 @@ function pvLista(kind) {
 
 // ── Textos ──────────────────────────────────────────────────────────────────
 const _PV_ESTADOS = [
-  ['todos', 'Todos'], ['pendientes', '🟡 Pendientes'], ['cerrados', '✅ Cerrados'], ['cobrar', '💰 Por cobrar']
+  ['todos', 'Todos'], ['pendientes', '🟡 Pendientes'], ['cerrados', '✅ Cerrados'], ['pagados', '💰 Pagados'], ['cobrar', '🔴 Por cobrar']
 ];
 
 function pvEtiquetaVista(kind) {
@@ -144,11 +162,13 @@ function pvEtiquetaVista(kind) {
   const r = pvRango(kind);
   const que = st.modo === 'entrega' ? 'entregas' : 'pedidos tomados';
   let donde;
-  if (st.rango === 'manana')      donde = `de mañana (${pmFmtDate(r.desde)})`;
+  if (st.busq)                    donde = `de todas las fechas que contienen «${st.busq}»`;
+  else if (st.rango === 'ult7')   donde = `de los últimos 7 días (${pmFmtDateShort(r.desde)} al ${pmFmtDateShort(r.hasta)})`;
+  else if (st.rango === 'manana')      donde = `de mañana (${pmFmtDate(r.desde)})`;
   else if (st.rango === 'semana') donde = `de esta semana (${pmFmtDateShort(r.desde)} al ${pmFmtDateShort(r.hasta)})`;
   else if (st.rango === 'todas')  donde = 'de todas las fechas';
   else donde = `del ${pmFmtDate(r.desde)}`;
-  const est = { todos: '', pendientes: ' · pendientes', cerrados: ' · cerrados', cobrar: ' · por cobrar' }[st.estado] || '';
+  const est = st.busq ? '' : ({ todos: '', pendientes: ' · pendientes', cerrados: ' · cerrados', pagados: ' · pagados', cobrar: ' · por cobrar' }[st.estado] || '');
   return `${que} ${donde}${est}`;
 }
 
@@ -201,7 +221,11 @@ function pvRenderBarra(kind, lista) {
       btn(st.modo === 'creacion' && st.rango === 'dia' && f === hoy, `pvQuick('${kind}','hoy_cre')`, 'Hoy · creación')
     + btn(st.modo === 'entrega'  && st.rango === 'dia' && f === hoy, `pvQuick('${kind}','hoy_ent')`, 'Hoy · entrega')
     + btn(st.rango === 'manana', `pvQuick('${kind}','manana')`, 'Mañana')
-    + btn(st.rango === 'semana', `pvQuick('${kind}','semana')`, 'Esta semana')
+    + btn(st.rango === 'semana', `pvQuick('${kind}','semana')`, 'Esta semana', 'Los próximos 7 días, por fecha de entrega')
+    + (cfg.todasCualquierEstado
+      ? btn(st.rango === 'ult7' && !st.busq, `pvQuick('${kind}','ult7')`, 'Últimos 7 días', 'Desde hace 6 días hasta hoy, con el estado elegido')
+      + btn(st.rango === 'todas' && !st.busq, `pvQuick('${kind}','todas')`, '📚 Todas las fechas', 'Sin límite de fecha, con el estado elegido')
+      : '')
     + btn(st.rango === 'todas' && st.estado === 'pendientes', `pvQuick('${kind}','pend')`, '🟡 Todos los pendientes', 'Todo lo que falta pagar y entregar, de cualquier fecha')
     + btn(st.rango === 'todas' && st.estado === 'cobrar', `pvQuick('${kind}','cobrar')`, '💰 Por cobrar', 'Todo lo que falta cobrar, esté entregado o no, de cualquier fecha');
 
@@ -220,11 +244,23 @@ function pvRenderBarra(kind, lista) {
       ${atrasados ? ` · <span style="color:var(--red)">⚠️ ${atrasados} atrasado(s)</span>` : ''}
     </div>`;
 
+  // El buscador vive dentro de la barra, que se vuelve a pintar al cargar:
+  // se guarda y se devuelve el foco para no cortar lo que se está escribiendo.
+  const act = document.activeElement;
+  const foco = act && act.id === 'pv-busq-' + kind ? { a: act.selectionStart, b: act.selectionEnd } : null;
   el.innerHTML = `<div class="card" style="padding:12px 16px">
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">${lbl('Ver por')}${modos}<span style="width:10px"></span>${lbl('Estado')}${estados}</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${lbl('Rápido')}${rapidos}</div>
+      ${cfg.busqueda ? `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px">${lbl('Buscar')}
+        <input id="pv-busq-${kind}" type="search" value="${pmEsc(st.busq)}" placeholder="# de pedido o cliente (ej. 25)" oninput="pvSetBusq('${kind}',this.value)"
+          title="Busca en todas las fechas y todos los estados (también cerrados y pagados)"
+          style="flex:1;min-width:180px;max-width:320px;padding:5px 10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--cream);font-size:12px"></div>` : ''}
       ${resumen}
     </div>`;
+  if (foco) {
+    const inp = document.getElementById('pv-busq-' + kind);
+    if (inp) { inp.focus(); try { inp.setSelectionRange(foco.a, foco.b); } catch (e) { /* sin selección */ } }
+  }
 }
 
 function pvActualizarEtiquetaFecha(kind) {
@@ -277,7 +313,7 @@ function pvRender(kind) {
     el.innerHTML = `<div class="ph"><span class="ph-icon">${cfg.icono}</span>Sin ${pvEtiquetaVista(kind)}${st.rango === 'dia' && st.estado === 'todos' && st.modo === 'creacion' ? ' — agregá uno arriba' : ''}</div>`;
     return;
   }
-  const multi = st.rango !== 'dia';
+  const multi = st.rango !== 'dia' || !!st.busq;
   if (!multi) { el.innerHTML = lista.map(p => cfg.card(p)).join(''); return; }
   // Varios días: se agrupa con un encabezado por fecha.
   const grupos = {};
@@ -299,6 +335,13 @@ function pvRender(kind) {
 // ── Cargar desde Supabase ───────────────────────────────────────────────────
 function pvQuery(cfg, st, r) {
   let q = `*&tipo=eq.${cfg.tipo}`;
+  if (st.busq) {
+    // Buscando: todas las fechas y todos los estados (así aparece también un
+    // pedido cerrado o pagado). Se quitan los signos que rompen el filtro.
+    const t = encodeURIComponent(String(st.busq).trim().replace(/[,()*%]/g, ' ').replace(/\s+/g, ' ').trim());
+    if (t) q += `&or=(numero_pedido.ilike.*${t}*,cliente_nom.ilike.*${t}*)`;
+    return q;
+  }
   if (r) {
     if (st.modo === 'entrega') {
       // Fecha de entrega en el rango; los que no tienen, por su fecha de toma.
@@ -312,6 +355,8 @@ function pvQuery(cfg, st, r) {
     // la caché local de ese día queda completa (la usan otros reportes).
     if (st.estado === 'cobrar') q += '&status=not.ilike.*pagado*';
     else if (st.estado === 'pendientes') q += '&status=not.ilike.*pagado*&status=not.ilike.*entregado*';
+    else if (st.estado === 'cerrados') q += '&or=(status.ilike.*pagado*,status.ilike.*entregado*)';
+    else if (st.estado === 'pagados') q += '&status=ilike.*pagado*';
   }
   return q;
 }
@@ -447,10 +492,12 @@ function pvSetModo(kind, modo) {
 function pvSetEstado(kind, estado) {
   const cfg = PV_CFG[kind], st = _pvEstado[kind];
   st.estado = estado;
+  st.busq = '';
   // Pedidos Comerciales: elegir Pendientes / Por cobrar muestra todas las fechas.
   if (cfg.estadoTodasFechas && (estado === 'pendientes' || estado === 'cobrar')) st.rango = 'todas';
-  // "Todas las fechas" solo tiene sentido para pendientes o por cobrar.
-  if (st.rango === 'todas' && estado !== 'pendientes' && estado !== 'cobrar') {
+  // Pan y Galletas: "todas las fechas" solo tiene sentido para pendientes o por
+  // cobrar. Comerciales lo admite con cualquier estado (Cerrados, Pagados, Todos).
+  if (!cfg.todasCualquierEstado && st.rango === 'todas' && estado !== 'pendientes' && estado !== 'cobrar') {
     st.rango = 'dia';
     const el = document.getElementById(cfg.ids.fecha);
     if (el && !el.value) el.value = pmHoy();
@@ -469,7 +516,10 @@ function pvQuick(kind, q) {
     case 'semana':  st.modo = 'entrega';  st.rango = 'semana'; break;
     case 'pend':    st.modo = 'entrega';  st.rango = 'todas'; st.estado = 'pendientes'; break;
     case 'cobrar':  st.modo = 'creacion'; st.rango = 'todas'; st.estado = 'cobrar'; break;
+    case 'ult7':    st.rango = 'ult7'; break;      // conserva "Ver por" y estado
+    case 'todas':   st.rango = 'todas'; break;     // conserva "Ver por" y estado
   }
+  st.busq = '';
   if (!fechaEl.value) fechaEl.value = pmHoy();
   pvPrefillEntrega(kind);
   pvActualizarEtiquetaFecha(kind);
@@ -479,8 +529,19 @@ function pvQuick(kind, q) {
 // Cambió el selector de fecha: vuelve a "un solo día".
 function pvFechaCambio(kind) {
   _pvEstado[kind].rango = 'dia';
+  _pvEstado[kind].busq = '';
   pvPrefillEntrega(kind);
   pvCargar(kind);
+}
+
+// Buscador (# de pedido o cliente): espera a que se deje de escribir y busca en
+// todas las fechas y estados, para poder encontrar y reabrir un pedido cerrado.
+const _pvBusqTimer = {};
+function pvSetBusq(kind, v) {
+  _pvEstado[kind].busq = String(v || '').trim();
+  pvRender(kind);                       // filtra al instante lo que ya hay en el navegador
+  clearTimeout(_pvBusqTimer[kind]);
+  _pvBusqTimer[kind] = setTimeout(() => pvCargar(kind), 350);
 }
 
 // Al abrir la pestaña: hoy, todos los estados y el último "Ver por" usado.
@@ -488,7 +549,7 @@ function pvInit(kind) {
   const cfg = PV_CFG[kind], st = _pvEstado[kind];
   let modo = 'creacion';
   try { if (localStorage.getItem(cfg.lsKey) === 'entrega') modo = 'entrega'; } catch (e) { /* sin almacenamiento */ }
-  st.modo = modo; st.estado = 'todos'; st.rango = 'dia';
+  st.modo = modo; st.estado = 'todos'; st.rango = 'dia'; st.busq = '';
   if (cfg.estadoTodasFechas) { st.estado = 'pendientes'; st.rango = 'todas'; }
   document.getElementById(cfg.ids.fecha).value = pmHoy();
   pvPrefillEntrega(kind);
