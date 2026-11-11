@@ -236,7 +236,9 @@ function ethEtiqueta(doc, d, x, y, dibujar) {
   if (d.gluten) { yGluten = yUltCont + 5; yFin = yGluten + 13; }
   const yLinea2 = yFin + 8;
   const yProceso = yLinea2 + 13;
-  const alto = yProceso + 8 + PAD * 0.6 - y;
+  const yIG = yProceso + 11;
+  const yWA = yIG + 8.5;
+  const alto = yWA + 6 + PAD * 0.6 - y;
 
   if (!dibujar) return alto;
 
@@ -276,6 +278,11 @@ function ethEtiqueta(doc, d, x, y, dibujar) {
   doc.setLineWidth(0.4); doc.line(x + PAD, yLinea2, x + LW - PAD, yLinea2);
   doc.setFont('times', 'italic'); doc.setFontSize(10);
   doc.text('Proceso artesanal', cx, yProceso, { align: 'center' });
+  // contacto fijo en todas las etiquetas (Instagram y WhatsApp de PanMaestro)
+  const ctc = (typeof etContactoLineas === 'function') ? etContactoLineas() : ['Instagram @panmaestro.cr', 'WhatsApp 7056 5587'];
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7);
+  doc.text(ctc[0], cx, yIG, { align: 'center' });
+  doc.text(ctc[1], cx, yWA, { align: 'center' });
   return alto;
 }
 
@@ -289,7 +296,7 @@ function ethGenerar() {
   if (!contenido) { pmToast('Escribí el contenido de la etiqueta', 'err'); return; }
 
   const d = {
-    marca: String((typeof ETMK_DATOS !== 'undefined' && ETMK_DATOS.nombre) || "Victor's Bakery").toUpperCase(),
+    marca: String((typeof ETMK_DATOS !== 'undefined' && ETMK_DATOS.nombre) || 'PanMaestro').toUpperCase(),
     nombre: _ethActual.nombre,
     pesoTxt: pesoVal > 0 ? pesoVal + ' g' : '',
     contenido,

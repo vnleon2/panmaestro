@@ -211,6 +211,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 .et-badge.off{border-color:var(--border);color:var(--cream2)}
 .et-label{width:7cm;height:4cm;border:2px solid var(--cream);border-radius:8px;padding:0.3cm;display:flex;flex-direction:column;justify-content:space-between;background:#FFFFFF}
 .et-nombre{font-size:22px;font-weight:600;line-height:1.15;color:var(--cream)}
+.et-contacto{font-size:7.5px;color:#333;text-align:center;white-space:nowrap}
 .et-fila{display:flex;gap:0.25cm;align-items:center;flex-wrap:wrap}
 .et-campo{border:1px solid var(--cream);border-radius:4px;padding:0.12cm 0.25cm;flex:1}
 .et-campo .et-k{font-size:9px;color:var(--cream2)}
