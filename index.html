@@ -812,9 +812,13 @@
       </div>
     </div>
     <div class="sec"><h2 id="pan-count">Tipos de pan</h2>
+      <select id="pan-clase" onchange="panRender()" title="Filtrar por clase" style="font-size:12px;padding:4px 7px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream)"><option value="">Todas las clases</option></select>
+      <button class="btn btn-out btn-xs" onclick="panReporte()" title="Imprimir el listado según el filtro actual">🖨 Reporte</button>
+      <button class="btn btn-out btn-xs" onclick="panNombreToggle()" title="Poner mayúscula inicial en cada palabra del nombre">Aa Nombre</button>
       <button class="btn btn-out btn-xs" onclick="mexExportarProductos()" title="Descargar tipos de pan y galleta en JSON">⬇ JSON</button>
       <div class="srch" style="width:160px"><input type="text" id="pan-search" placeholder="Buscar..." oninput="panRender()"></div>
     </div>
+    <div id="pan-nombre-panel" style="display:none"></div>
     <div id="pan-list"></div>
   </div>
 
@@ -2260,7 +2264,7 @@
 
 <script src="hidratacion.js?v=20261001c"></script>
 
-<script src="maestros.js?v=20261026b"></script>
+<script src="maestros.js?v=20261111a"></script>
 <script src="maestros_export.js?v=20261024a"></script>
 <script src="ing_import.js?v=20261005a"></script>
 

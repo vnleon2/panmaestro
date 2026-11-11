@@ -99,9 +99,179 @@ async function panCargarSb() {
         G.tiposPan = [...sbPanes, ...offline];
         pmSave('sistema');
       }
+      await panClasesCargar(rows);
     } catch(e) { console.warn('[panCargarSb]', e.message); }
   }
   panRender();
+}
+
+// ── CLASE del tipo de pan ──────────────────────────────────
+// La clase sale de lo que ya existe, sin columnas nuevas: la categoría de
+// Mercadeo (Masas saladas, Galletas, Otros…, tabla producto_categoria) y la
+// marca es_masa_madre de productos_terminados. Solo se LEE.
+let _panClase = {};   // código de pan → { cat: 'Masas saladas' | '', mm: true/false }
+async function panClasesCargar(rows) {
+  try {
+    const [cats, rel] = await Promise.all([pmDB.get('categorias', { activo: true }), pmDB.get('producto_categoria')]);
+    const catPorId = {};
+    (cats || []).forEach(c => { catPorId[c.id] = c; });
+    const catDeProd = {};
+    (rel || []).forEach(r => { catDeProd[r.producto_id] = r.categoria_id; });
+    _panClase = {};
+    (rows || []).forEach(r => {
+      const c = catPorId[catDeProd[r.id]];
+      _panClase[r.codigo] = { cat: c ? c.nombre : '', mm: !!r.es_masa_madre };
+    });
+    // opciones del filtro, en el orden de las categorías de Mercadeo
+    const sel = document.getElementById('pan-clase');
+    if (sel) {
+      const actual = sel.value;
+      const ordenadas = (cats || []).slice().sort((a, b) => (a.orden || 0) - (b.orden || 0));
+      sel.innerHTML = '<option value="">Todas las clases</option><option value="__mm">Masa madre</option>' +
+        ordenadas.map(c => `<option value="${pmEsc(c.nombre)}">${pmEsc(c.nombre)}</option>`).join('') +
+        '<option value="__sin">Sin clase</option>';
+      if ([...sel.options].some(o => o.value === actual)) sel.value = actual;
+    }
+  } catch (e) { console.warn('[panClasesCargar]', e.message); }
+}
+
+function _panClaseTexto(id) {
+  const c = _panClase[id];
+  if (!c) return 'Sin clase';
+  return [c.cat, c.mm ? 'Masa madre' : ''].filter(Boolean).join(' · ') || 'Sin clase';
+}
+
+// Lista filtrada (búsqueda + clase), ordenada por código
+function _panListaFiltrada() {
+  const q = (document.getElementById('pan-search')?.value||'').toLowerCase();
+  const fc = document.getElementById('pan-clase')?.value || '';
+  return G.tiposPan.filter(p => {
+    if (q && !p.nombre.toLowerCase().includes(q) && !p.id.toLowerCase().includes(q)) return false;
+    if (!fc) return true;
+    const c = _panClase[p.id] || { cat: '', mm: false };
+    if (fc === '__mm') return c.mm;
+    if (fc === '__sin') return !c.cat && !c.mm;
+    return c.cat === fc;
+  }).sort((a,b) => (a.id||'').localeCompare(b.id||''));
+}
+
+// Costo de la receta vinculada → { cpg, costo, margen } (null si no hay)
+function _panCostoFila(p) {
+  let cpg = null, costo = null, margen = null;
+  if (p.recetaCod && p.peso) {
+    const rec = _sbRecLista().find(r => r.code === p.recetaCod);
+    if (rec) {
+      const pg = pmCostoPorGramo(rec);
+      if (pg) {
+        cpg = pg.cpg;
+        costo = cpg * p.peso;
+        if (p.precio > 0) margen = (p.precio - costo) / p.precio * 100;
+      }
+    }
+  }
+  return { cpg, costo, margen };
+}
+
+// ── Reporte imprimible del maestro (respeta búsqueda y clase) ──
+function panReporte() {
+  const list = _panListaFiltrada();
+  if (!list.length) { pmToast('No hay tipos de pan para listar con ese filtro', 'err'); return; }
+  const sel = document.getElementById('pan-clase');
+  const filtro = sel && sel.value ? sel.options[sel.selectedIndex].text : 'Todas las clases';
+  const filas = list.map(p => {
+    const k = _panCostoFila(p);
+    return `<tr><td>${pmEsc(p.id)}</td><td>${pmEsc(p.nombre)}</td><td>${pmEsc(_panClaseTexto(p.id))}</td>
+      <td class="n">${p.peso ? pmEsc(p.peso) + ' g' : '—'}</td><td class="n">${pmEsc(pmMoney(p.precio))}</td>
+      <td>${pmEsc(p.recetaCod || '—')}</td><td class="n">${k.costo !== null ? pmEsc(pmMoney(Math.round(k.costo))) : '—'}</td>
+      <td class="n">${k.margen !== null ? k.margen.toFixed(1) + '%' : '—'}</td></tr>`;
+  }).join('');
+  const w = window.open('', '_blank');
+  if (!w) { pmToast('El navegador bloqueó la ventana de impresión', 'err'); return; }
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Maestro de tipos de pan</title>
+    <style>body{font-family:Arial,sans-serif;font-size:11px;margin:16px}h1{font-size:15px;margin:0 0 4px}
+    p{margin:0 0 10px;color:#555}table{border-collapse:collapse;width:100%}
+    th,td{border:1px solid #bbb;padding:3px 6px;text-align:left;vertical-align:top}th{background:#eee}
+    td.n{text-align:right;white-space:nowrap}</style></head>
+    <body><h1>Maestro de tipos de pan — ${pmEsc(filtro)}</h1><p>${pmEsc(pmHoy())} · ${list.length} tipos</p>
+    <table><thead><tr><th>Código</th><th>Nombre</th><th>Clase</th><th>Peso</th><th>Precio</th><th>Receta</th><th>Costo</th><th>Margen</th></tr></thead>
+    <tbody>${filas}</tbody></table>
+    <script>window.onload=function(){window.print();}<\/script></body></html>`);
+  w.document.close();
+}
+
+// ── Programa "Nombre": mayúscula inicial en cada palabra ──
+// Usa depTitulo() (depuracion.js): "pan de AJO 80G" → "Pan de Ajo 80g"
+// (de/del/la/y… quedan en minúscula, medidas como 80g). Solo propone:
+// el cambio ocurre únicamente en las filas que marques y confirmes.
+function panNombreToggle() {
+  const panel = document.getElementById('pan-nombre-panel');
+  if (!panel) return;
+  if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
+  panel.style.display = 'block';
+  panNombreRender();
+}
+
+function _panNombreSugeridos() {
+  return G.tiposPan.map(p => ({ id: p.id, actual: p.nombre || '', sug: depTitulo(p.nombre || '') }))
+    .filter(x => x.sug && x.sug !== x.actual)
+    .sort((a,b) => a.id.localeCompare(b.id));
+}
+
+function panNombreRender() {
+  const panel = document.getElementById('pan-nombre-panel');
+  if (!panel) return;
+  if (typeof depTitulo !== 'function') { panel.innerHTML = '<div class="card">⚠️ No se cargó depuracion.js</div>'; return; }
+  const lista = _panNombreSugeridos();
+  let html = `<div class="card"><div class="ctitle">Aa Nombre — ${lista.length} por corregir</div>
+    <div style="font-size:12px;color:var(--cream2);line-height:1.5">Marca los que quieras cambiar y presiona Aplicar. Ojo: el bot de pedidos por WhatsApp reconoce el producto por su nombre, y los pedidos viejos conservan el nombre anterior.</div>`;
+  if (!lista.length) {
+    html += '<div style="margin-top:8px;font-size:13px">✅ Todos los nombres ya tienen mayúscula inicial en cada palabra.</div></div>';
+    panel.innerHTML = html; return;
+  }
+  html += `<div style="margin:8px 0;display:flex;gap:6px">
+      <button class="btn btn-out btn-xs" onclick="panNombreMarcar(true)">Marcar todos</button>
+      <button class="btn btn-out btn-xs" onclick="panNombreMarcar(false)">Desmarcar</button>
+      <button class="btn btn-gold btn-xs" onclick="panNombreAplicar()">Aplicar a los marcados</button>
+    </div>`;
+  html += lista.map(x => `<label class="item-row" style="cursor:pointer;gap:10px">
+      <input type="checkbox" class="pan-nom-chk" value="${pmEsc(x.id)}">
+      <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--gold3);min-width:44px">${pmEsc(x.id)}</span>
+      <span style="flex:1;font-size:12px;color:var(--cream2)">${pmEsc(x.actual)}</span>
+      <span style="flex:1;font-size:13px;font-weight:600">${pmEsc(x.sug)}</span>
+    </label>`).join('');
+  html += '</div>';
+  panel.innerHTML = html;
+}
+
+function panNombreMarcar(v) {
+  document.querySelectorAll('.pan-nom-chk').forEach(c => { c.checked = v; });
+}
+
+async function panNombreAplicar() {
+  const ids = [...document.querySelectorAll('.pan-nom-chk:checked')].map(c => c.value);
+  if (!ids.length) { pmToast('Marca al menos un nombre', 'err'); return; }
+  if (!confirm('¿Cambiar el nombre de ' + ids.length + ' tipo(s) de pan?')) return;
+  const sug = {};
+  _panNombreSugeridos().forEach(x => { sug[x.id] = x.sug; });
+  let fallos = 0;
+  const hayNube = pmDB.disponible();
+  if (hayNube) await _sbProdEnsureMap();
+  for (const id of ids) {
+    const p = G.tiposPan.find(x => x.id === id);
+    if (!p || !sug[id]) continue;
+    p.nombre = sug[id];
+    if (hayNube) {
+      const uuid = _sbProdMap?.[id];
+      if (uuid) {
+        try { await pmDB.productos.editar(uuid, { nombre: p.nombre }); }
+        catch (e) { fallos++; console.warn('[panNombreAplicar]', id, e.message); }
+      }
+    }
+  }
+  pmSave('sistema');
+  panRender();
+  panNombreRender();
+  pmToast(fallos ? `⚠️ Cambiados en pantalla; ${fallos} no se sincronizaron a Supabase` : 'Nombres actualizados ✓', fallos ? 'err' : undefined);
 }
 
 // ── Carga tipos de galleta desde Supabase (fuente primaria) ──
@@ -131,23 +301,11 @@ async function gallCargarSb() {
 }
 
 function panRender() {
-  const q = (document.getElementById('pan-search')?.value||'').toLowerCase();
-  const list = G.tiposPan.filter(p => !q || p.nombre.toLowerCase().includes(q) || p.id.toLowerCase().includes(q)).sort((a,b) => (a.id||'').localeCompare(b.id||''));
+  const list = _panListaFiltrada();
   document.getElementById('pan-count').textContent = `Tipos de pan (${list.length})`;
   document.getElementById('pan-list').innerHTML = list.map(p => {
     // Calcular costo desde receta vinculada
-    let cpgRec = null, costoTipoPan = null, margenReal = null;
-    if (p.recetaCod && p.peso) {
-      const rec = _sbRecLista().find(r => r.code === p.recetaCod);
-      if (rec) {
-        const pg = pmCostoPorGramo(rec);   // ₡/g único de la receta (peso final con relleno)
-        if (pg) {
-          cpgRec = pg.cpg;
-          costoTipoPan = cpgRec * p.peso;
-          if (p.precio > 0) margenReal = (p.precio - costoTipoPan) / p.precio * 100;
-        }
-      }
-    }
+    const { cpg: cpgRec, costo: costoTipoPan, margen: margenReal } = _panCostoFila(p);
     const cpgCell = cpgRec !== null
       ? `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--cream2)">₡${cpgRec.toFixed(2)}/g</div>`
       : `<div style="font-size:10px;color:var(--cream2);opacity:.4">—</div>`;
@@ -162,6 +320,7 @@ function panRender() {
     <div class="item-row" id="pan-row-${p.id}">
       <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--gold3);min-width:44px">${p.id}</div>
       <div class="item-name">${p.nombre}</div>
+      <div style="font-size:10px;color:var(--cream2);white-space:nowrap">${pmEsc(_panClaseTexto(p.id))}</div>
       <div class="item-meta">${pmMoney(p.precio)} · ${p.peso}g</div>
       ${p.recetaCod ? `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--blue);background:rgba(74,128,192,.12);padding:2px 7px;border-radius:10px;border:1px solid rgba(74,128,192,.3)">${p.recetaCod}</div>` : `<div style="font-size:10px;color:var(--cream2);opacity:.4">—</div>`}
       ${cpgCell}
