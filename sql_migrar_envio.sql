@@ -1,94 +1,69 @@
 -- ════════════════════════════════════════════════════════════════
--- Migrar el "tipo de pan Envío" al campo Envío del pedido (11 nov 2026)
+-- Migrar el producto "Entrega Dimarkit Moto" (P041) al campo Envío del pedido
+-- (11 nov 2026). Requisito: haber corrido sql_pedido_envio.sql.
 --
--- Requisito: ya corriste sql_pedido_envio.sql (columnas envio_monto / envio_nota).
---
--- QUÉ HACE: por cada línea de pedido que usa el producto "Envío":
---   1) suma su valor (cantidad × precio × (1 − descuento)) a pedidos.envio_monto
---   2) borra la línea
---   3) deja pedidos.total EXACTAMENTE igual que antes (si algún total cambiara,
---      todo se revierte solo y no se guarda nada)
--- Las líneas borradas quedan respaldadas en pedido_lineas_envio_bk.
--- Los pedidos pagados / ventas no se tocan en monto: solo cambia dónde se guarda el envío.
---
--- ORDEN: corre primero el PASO A (solo lee). Si lo que muestra es lo esperado,
--- corre el PASO B. Después elimina el producto "Envío" en Maestros → Tipos de pan.
+-- Un solo bloque atómico: o se aplica todo o nada.
+--  1) Se detiene si algún pedido afectado ya tiene envío cargado.
+--  2) Respalda las líneas en pedido_lineas_envio_bk.
+--  3) Pasa el valor de cada línea a pedidos.envio_monto (nota: Entrega Dimarkit Moto).
+--  4) Borra las líneas.
+--  5) Verifica que productos + envío = total en cada pedido; si no, revierte.
+-- Después: eliminar el tipo de pan P041 desde Maestros → Tipos de pan.
 -- ════════════════════════════════════════════════════════════════
-
--- ═══ PASO A — SOLO LEE (no cambia nada) ═══════════════════════════
--- A1. Productos candidatos (debe salir solo "Envío"; si sale otro, avísame)
-select id, codigo, nombre, tipo, activo
-from productos_terminados
-where translate(lower(nombre), 'íÍ', 'ii') like '%envio%';
-
--- A2. Cuántas líneas y pedidos se verían afectados, y cuánto suman
-select count(*) as lineas,
-       count(distinct l.pedido_id) as pedidos,
-       sum(l.cantidad * l.precio_applied * (1 - coalesce(l.descuento_pct,0)/100.0)) as monto_total
-from pedido_lineas l
-join productos_terminados p on p.id = l.producto_id
-where translate(lower(p.nombre), 'íÍ', 'ii') = 'envio';
-
--- ═══ PASO B — MIGRACIÓN (solo después del paso A) ════════════════
--- Un solo bloque: o se aplica todo o no se aplica nada. Seguro de repetir:
--- solo mueve las líneas Envío que todavía existan.
 do $$
 declare
-  antes jsonb;
-  cambiados int;
+  pid constant text := 'a99144d8-08a3-4bf2-8040-77735ffe2019';  -- P041 Entrega Dimarkit Moto
+  ya_tienen int;
+  descuadre int;
 begin
-  -- respaldo de las líneas que se van a borrar
+  select count(*) into ya_tienen
+  from pedidos where id in (select pedido_id from pedido_lineas where producto_id::text = pid)
+    and coalesce(envio_monto, 0) > 0;
+  if ya_tienen > 0 then
+    raise exception 'Hay % pedido(s) que ya tienen envío cargado; no se cambia nada', ya_tienen;
+  end if;
+
   create table if not exists pedido_lineas_envio_bk as
     select l.*, now() as respaldado_en from pedido_lineas l where false;
   alter table pedido_lineas_envio_bk enable row level security;
   drop policy if exists "auth_only" on pedido_lineas_envio_bk;
   create policy "auth_only" on pedido_lineas_envio_bk
     for all to authenticated using (true) with check (true);
-
   insert into pedido_lineas_envio_bk
     select l.*, now() from pedido_lineas l
-    where l.producto_id in (select id from productos_terminados where translate(lower(nombre), 'íÍ', 'ii') = 'envio')
+    where l.producto_id::text = pid
       and not exists (select 1 from pedido_lineas_envio_bk b where b.id = l.id);
 
-  -- totales de los pedidos afectados ANTES del cambio
-  select jsonb_object_agg(pe.id::text, pe.total::text) into antes
-  from pedidos pe
-  where pe.id in (select pedido_id from pedido_lineas
-                  where producto_id in (select id from productos_terminados where translate(lower(nombre), 'íÍ', 'ii') = 'envio'));
-
-  -- pasar el valor de las líneas Envío al campo envio_monto del pedido
   update pedidos pe
-  set envio_monto = coalesce(pe.envio_monto, 0) + x.monto,
-      updated_at = now()
+  set envio_monto = x.monto,
+      envio_nota  = coalesce(pe.envio_nota, 'Entrega Dimarkit Moto'),
+      updated_at  = now()
   from (
     select pedido_id,
            round(sum(cantidad * precio_applied * (1 - coalesce(descuento_pct,0)/100.0))) as monto
-    from pedido_lineas
-    where producto_id in (select id from productos_terminados where translate(lower(nombre), 'íÍ', 'ii') = 'envio')
+    from pedido_lineas where producto_id::text = pid
     group by pedido_id
   ) x
   where pe.id = x.pedido_id;
 
-  -- borrar las líneas Envío
-  delete from pedido_lineas
-  where producto_id in (select id from productos_terminados where translate(lower(nombre), 'íÍ', 'ii') = 'envio');
+  delete from pedido_lineas where producto_id::text = pid;
 
-  -- verificación: el total no puede haber cambiado en ningún pedido
-  select count(*) into cambiados
+  select count(*) into descuadre
   from pedidos pe
-  where antes ? pe.id::text and pe.total::text is distinct from antes->>(pe.id::text);
-  if cambiados > 0 then
-    raise exception 'Se cambiaría el total de % pedido(s); se revierte todo', cambiados;
+  where pe.id in (select pedido_id from pedido_lineas_envio_bk where producto_id::text = pid)
+    and abs(pe.total - (
+          (select coalesce(round(sum(l.cantidad * l.precio_applied * (1 - coalesce(l.descuento_pct,0)/100.0))), 0)
+           from pedido_lineas l where l.pedido_id = pe.id) + pe.envio_monto)) > 1;
+  if descuadre > 0 then
+    raise exception 'El total de % pedido(s) no cuadra; se revierte todo', descuadre;
   end if;
 end $$;
 
--- ═══ PASO C — comprobación final (solo lee) ═══════════════════════
--- Debe dar 0 líneas; y los pedidos migrados ahora muestran su envío:
-select count(*) as lineas_envio_que_quedan
-from pedido_lineas l join productos_terminados p on p.id = l.producto_id
-where translate(lower(p.nombre), 'íÍ', 'ii') = 'envio';
-
-select pe.id, pe.fecha, pe.total, pe.envio_monto
+-- comprobación: diferencia debe ser 0 en cada fila
+select pe.id, pe.fecha, pe.status, pe.total, pe.envio_monto, pe.envio_nota,
+       pe.total - (round(coalesce(sum(l.cantidad * l.precio_applied * (1 - coalesce(l.descuento_pct,0)/100.0)), 0)) + pe.envio_monto) as diferencia
 from pedidos pe
-where pe.id in (select pedido_id from pedido_lineas_envio_bk)
+left join pedido_lineas l on l.pedido_id = pe.id
+where pe.id in (select pedido_id from pedido_lineas_envio_bk where producto_id::text = 'a99144d8-08a3-4bf2-8040-77735ffe2019')
+group by pe.id, pe.fecha, pe.status, pe.total, pe.envio_monto, pe.envio_nota
 order by pe.fecha;
