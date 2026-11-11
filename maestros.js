@@ -233,12 +233,13 @@ function panNombreRender() {
       <button class="btn btn-out btn-xs" onclick="panNombreMarcar(false)">Desmarcar</button>
       <button class="btn btn-gold btn-xs" onclick="panNombreAplicar()">Aplicar a los marcados</button>
     </div>`;
-  html += lista.map(x => `<label class="item-row" style="cursor:pointer;gap:10px">
-      <input type="checkbox" class="pan-nom-chk" value="${pmEsc(x.id)}">
-      <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--gold3);min-width:44px">${pmEsc(x.id)}</span>
-      <span style="flex:1;font-size:12px;color:var(--cream2)">${pmEsc(x.actual)}</span>
-      <span style="flex:1;font-size:13px;font-weight:600">${pmEsc(x.sug)}</span>
-    </label>`).join('');
+  const tx = 'text-transform:none;letter-spacing:normal;';
+  html += lista.map(x => `<div class="item-row" style="gap:10px;align-items:center">
+      <input type="checkbox" class="pan-nom-chk" value="${pmEsc(x.id)}" style="width:auto;flex:none;margin:0">
+      <span style="${tx}font-family:'DM Mono',monospace;font-size:10px;color:var(--gold3);min-width:44px;flex:none">${pmEsc(x.id)}</span>
+      <span style="${tx}flex:1;min-width:140px;font-size:12px;color:var(--cream2);font-weight:400">${pmEsc(x.actual)}</span>
+      <span style="${tx}flex:1;min-width:140px;font-size:13px;font-weight:600">${pmEsc(x.sug)}</span>
+    </div>`).join('');
   html += '</div>';
   panel.innerHTML = html;
 }
