@@ -142,18 +142,42 @@ function _panClaseTexto(id) {
   return [c.cat, c.mm ? 'Masa madre' : ''].filter(Boolean).join(' · ') || 'Sin clase';
 }
 
+// ── Orden de las listas: por código o alfabético (se recuerda la elección) ──
+function _ordenProdGet(sel) {
+  const v = document.getElementById(sel)?.value;
+  if (v) return v;
+  try { return localStorage.getItem('pm_' + sel) || 'cod'; } catch (e) { return 'cod'; }
+}
+function _ordenProdSet(sel) {
+  const v = document.getElementById(sel)?.value || 'cod';
+  try { localStorage.setItem('pm_' + sel, v); } catch (e) {}
+}
+function _ordenProdAplicar(lista, modo) {
+  return modo === 'alfa'
+    ? pmOrdenar(lista, p => p.nombre)
+    : lista.slice().sort((a,b) => (a.id||'').localeCompare(b.id||'', 'es', { numeric: true }));
+}
+function _ordenProdIniciar(sel, render) {
+  const el = document.getElementById(sel);
+  if (!el || el.dataset.ini) return;
+  el.dataset.ini = '1';
+  try { el.value = localStorage.getItem('pm_' + sel) || 'cod'; } catch (e) {}
+  el.onchange = () => { _ordenProdSet(sel); render(); };
+}
+
 // Lista filtrada (búsqueda + clase), ordenada por código
 function _panListaFiltrada() {
   const q = (document.getElementById('pan-search')?.value||'').toLowerCase();
   const fc = document.getElementById('pan-clase')?.value || '';
-  return G.tiposPan.filter(p => {
+  const lista = G.tiposPan.filter(p => {
     if (q && !p.nombre.toLowerCase().includes(q) && !p.id.toLowerCase().includes(q)) return false;
     if (!fc) return true;
     const c = _panClase[p.id] || { cat: '', mm: false };
     if (fc === '__mm') return c.mm;
     if (fc === '__sin') return !c.cat && !c.mm;
     return c.cat === fc;
-  }).sort((a,b) => (a.id||'').localeCompare(b.id||''));
+  });
+  return _ordenProdAplicar(lista, _ordenProdGet('pan-orden'));
 }
 
 // Costo de la receta vinculada → { cpg, costo, margen } (null si no hay)
@@ -304,6 +328,7 @@ async function gallCargarSb() {
 }
 
 function panRender() {
+  _ordenProdIniciar('pan-orden', panRender);
   const list = _panListaFiltrada();
   document.getElementById('pan-count').textContent = `Tipos de pan (${list.length})`;
   document.getElementById('pan-list').innerHTML = list.map(p => {
@@ -523,8 +548,10 @@ function _gallCostoDesdeReceta(p) {
 function gallRender() {
   gallRecetaPopulate();
   const dim = '<div style="font-size:10px;color:var(--cream2);opacity:.4">—</div>';
-  document.getElementById('gall-count').textContent = `Tipos galleta (${G.tiposGalleta.length})`;
-  document.getElementById('gall-list').innerHTML = G.tiposGalleta.map(p => {
+  _ordenProdIniciar('gall-orden', gallRender);
+  const gList = _ordenProdAplicar(G.tiposGalleta, _ordenProdGet('gall-orden'));
+  document.getElementById('gall-count').textContent = `Tipos galleta (${gList.length})`;
+  document.getElementById('gall-list').innerHTML = gList.map(p => {
     const k = _gallCostoDesdeReceta(p);
     const recBadge = p.recetaCod
       ? `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--blue);background:rgba(74,128,192,.12);padding:2px 7px;border-radius:10px;border:1px solid rgba(74,128,192,.3)">${p.recetaCod}</div>`
