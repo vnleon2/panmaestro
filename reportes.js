@@ -210,7 +210,7 @@ async function _pmPedidosPagadosDelMes(tipo, mes) {
         const lins = await pmDB.get('pedido_lineas', { pedido_id: sb.id }, '*');
         total = (lins||[]).reduce((s,l) => s + (parseFloat(l.precio_applied)||0) * (l.cantidad||1), 0);
         // Pedidos comerciales: el envío (y el IVA, si aplica) también se cobra.
-        if (tipo === 'comercial') total = pmTotalDesde(total, Number(sb.envio_monto) > 0 ? Number(sb.envio_monto) : 0);
+        total = pmTotalDesde(total, Number(sb.envio_monto) > 0 ? Number(sb.envio_monto) : 0);
       } catch(e) { console.warn('[pmDB] lineas de pedido', sb.id, e.message); }
       out.push({ _sbId: sb.id, date: sb.fecha, cli: sb.cliente_nom, status: sb.status, total, refId: null });
       vistos.add(sb.id);
@@ -1644,7 +1644,7 @@ async function _pmPedidosNoPagadosGlobal(tipo) {
         const lins = await pmDB.get('pedido_lineas', { pedido_id: sb.id }, '*');
         total = (lins||[]).reduce((s,l) => s + (parseFloat(l.precio_applied)||0) * (l.cantidad||1), 0);
         // Pedidos comerciales: el envío (y el IVA, si aplica) también se cobra.
-        if (tipo === 'comercial') total = pmTotalDesde(total, Number(sb.envio_monto) > 0 ? Number(sb.envio_monto) : 0);
+        total = pmTotalDesde(total, Number(sb.envio_monto) > 0 ? Number(sb.envio_monto) : 0);
       } catch(e) { console.warn('[pmDB] lineas de pedido', sb.id, e.message); }
       out.push({ _sbId: sb.id, date: sb.fecha, cli: sb.cliente_nom, status: sb.status, total, numPed: sb.numero_pedido||null });
       vistos.add(sb.id);

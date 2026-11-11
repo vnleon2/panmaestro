@@ -267,6 +267,7 @@ function pgCard(p) {
         <input type="date" value="${p.fechaEntrega||''}" ${locked?'disabled':''} onchange="pvSetEntrega('galleta',${p.id},this.value)" style="padding:3px 6px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--cream);font-size:11px">
       </label>
       ${p.fechaEntrega ? '' : '<span style="font-size:10px;color:var(--cream2)">(sin fecha de entrega)</span>'}
+      ${pvEnvioHtml('galleta', p, locked)}
     </div>
     <div id="pgb-${p.id}" style="display:none">
       ${subform}

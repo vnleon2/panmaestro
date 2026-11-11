@@ -342,6 +342,7 @@ function ppCard(p) {
         <input type="date" value="${p.fechaEntrega||''}" ${locked?'disabled':''} onchange="ppSetEntrega(${p.id},this.value)" style="padding:3px 6px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--cream);font-size:11px">
       </label>
       ${p.fechaEntrega ? '' : '<span style="font-size:10px;color:var(--cream2)">(sin fecha: se produce el día del pedido)</span>'}
+      ${pvEnvioHtml('pan', p, locked)}
     </div>
     <div id="pb-${p.id}" style="display:none">
       ${subform}

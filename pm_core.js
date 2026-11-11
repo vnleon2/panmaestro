@@ -566,12 +566,19 @@ function pmImprimirPedidoUnico(p, tipo) {
 function pmPrecioPan(id) { return pmGetPan(id)?.precio || 0; }
 function pmPrecioGall(id) { return pmGetGall(id)?.precio || 0; }
 
-function pmTotalPan(ped) {
+// Pan y Galletas (11 nov 2026): igual que los comerciales, el total a cobrar es
+// productos + envío (ped.envio) + IVA (hoy 0 %); ver pmTotalCom más abajo.
+function pmSubtotalPan(ped) {
   return (ped.lineas||[]).reduce((s,l) => s + pmPrecioPan(l.pid) * (l.cant||1), 0);
 }
-
-function pmTotalGall(ped) {
+function pmSubtotalGall(ped) {
   return (ped.lineas||[]).reduce((s,l) => s + pmPrecioGall(l.pid) * (l.cant||1), 0);
+}
+function pmTotalPan(ped) {
+  return pmTotalDesde(pmSubtotalPan(ped), pmEnvioCom(ped));
+}
+function pmTotalGall(ped) {
+  return pmTotalDesde(pmSubtotalGall(ped), pmEnvioCom(ped));
 }
 
 // ── Pedido comercial: subtotal + envío + IVA = total a cobrar (11 nov 2026) ──
