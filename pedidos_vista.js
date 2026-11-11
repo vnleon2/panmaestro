@@ -85,12 +85,12 @@ const PV_CFG = {
 // Estado de la vista de cada pantalla (en memoria; solo "Ver por" se recuerda).
 //   modo   : 'creacion' | 'entrega'
 //   estado : 'todos' | 'pendientes' | 'cerrados' | 'cobrar'
-//   rango  : 'dia' (la fecha del selector) | 'manana' | 'semana' | 'ult7' | 'todas'
+//   rango  : 'dia' (la fecha del selector) | 'manana' | 'semana' | 'ult7' | 'rango' (Desde/Hasta elegidos) | 'todas'
 //   busq   : texto buscado (# de pedido o cliente); si hay, ignora fechas y estado
 const _pvEstado = {
-  pan:     { modo: 'creacion', estado: 'todos', rango: 'dia', busq: '' },
-  galleta: { modo: 'creacion', estado: 'todos', rango: 'dia', busq: '' },
-  com:     { modo: 'entrega', estado: 'pendientes', rango: 'todas', busq: '' }
+  pan:     { modo: 'creacion', estado: 'todos', rango: 'dia', busq: '', desde: '', hasta: '' },
+  galleta: { modo: 'creacion', estado: 'todos', rango: 'dia', busq: '', desde: '', hasta: '' },
+  com:     { modo: 'entrega', estado: 'pendientes', rango: 'todas', busq: '', desde: '', hasta: '' }
 };
 const _pvReq = { pan: 0, galleta: 0, com: 0 };        // descarta respuestas que llegan tarde
 const _pvCargando = { pan: false, galleta: false, com: false };
@@ -100,6 +100,7 @@ function pvRango(kind) {
   const st = _pvEstado[kind], cfg = PV_CFG[kind];
   const hoy = pmHoy();
   if (st.busq) return null;                      // buscando: en todas las fechas
+  if (st.rango === 'rango')  return { desde: st.desde || st.hasta || hoy, hasta: st.hasta || st.desde || hoy };
   if (st.rango === 'ult7')   return { desde: pmSumarDias(hoy, -6), hasta: hoy };
   if (st.rango === 'manana') { const d = pmSumarDias(hoy, 1); return { desde: d, hasta: d }; }
   if (st.rango === 'semana') return { desde: hoy, hasta: pmSumarDias(hoy, 6) };
@@ -167,6 +168,7 @@ function pvEtiquetaVista(kind) {
   let donde;
   if (st.busq)                    donde = `de todas las fechas que contienen «${st.busq}»`;
   else if (st.rango === 'ult7')   donde = `de los últimos 7 días (${pmFmtDateShort(r.desde)} al ${pmFmtDateShort(r.hasta)})`;
+  else if (st.rango === 'rango')  donde = `del ${pmFmtDate(r.desde)} al ${pmFmtDate(r.hasta)}`;
   else if (st.rango === 'manana')      donde = `de mañana (${pmFmtDate(r.desde)})`;
   else if (st.rango === 'semana') donde = `de esta semana (${pmFmtDateShort(r.desde)} al ${pmFmtDateShort(r.hasta)})`;
   else if (st.rango === 'todas')  donde = 'de todas las fechas';
@@ -232,6 +234,14 @@ function pvRenderBarra(kind, lista) {
     + btn(st.rango === 'todas' && st.estado === 'pendientes', `pvQuick('${kind}','pend')`, '🟡 Todos los pendientes', 'Todo lo que falta pagar y entregar, de cualquier fecha')
     + btn(st.rango === 'todas' && st.estado === 'cobrar', `pvQuick('${kind}','cobrar')`, '💰 Por cobrar', 'Todo lo que falta cobrar, esté entregado o no, de cualquier fecha');
 
+  // Rango propio: Desde / Hasta. Siempre muestra el rango que se está viendo;
+  // al cambiar una fecha se pasa a «rango» y se conservan «Ver por» y el estado.
+  const rr = pvRango(kind);
+  const inpF = 'padding:4px 8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--cream);font-size:12px';
+  const filaRango = `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px">${lbl('Rango')}
+      <span style="font-size:11px;color:var(--cream2)">Desde</span><input type="date" id="pv-desde-${kind}" value="${rr ? rr.desde : ''}" onchange="pvRangoCambio('${kind}')" style="${inpF}">
+      <span style="font-size:11px;color:var(--cream2)">Hasta</span><input type="date" id="pv-hasta-${kind}" value="${rr ? rr.hasta : ''}" onchange="pvRangoCambio('${kind}')" style="${inpF}">
+      <span style="font-size:11px;color:var(--cream2)">por ${st.modo === 'entrega' ? 'fecha de entrega' : 'fecha de creación'}, con el estado elegido</span></div>`;
   const n = lista.length;
   const unid = pvUnidades(lista);
   const total = lista.reduce((s, p) => s + cfg.total(p), 0);
@@ -254,6 +264,7 @@ function pvRenderBarra(kind, lista) {
   el.innerHTML = `<div class="card" style="padding:12px 16px">
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">${lbl('Ver por')}${modos}<span style="width:10px"></span>${lbl('Estado')}${estados}</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${lbl('Rápido')}${rapidos}</div>
+      ${filaRango}
       ${cfg.busqueda ? `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px">${lbl('Buscar')}
         <input id="pv-busq-${kind}" type="search" value="${pmEsc(st.busq)}" placeholder="# de pedido o cliente (ej. 25)" oninput="pvSetBusq('${kind}',this.value)"
           title="Busca en todas las fechas y todos los estados (también cerrados y pagados)"
@@ -505,7 +516,7 @@ function pvSetEstado(kind, estado) {
   st.estado = estado;
   st.busq = '';
   // Pedidos Comerciales: elegir Pendientes / Por cobrar muestra todas las fechas.
-  if (cfg.estadoTodasFechas && (estado === 'pendientes' || estado === 'cobrar')) st.rango = 'todas';
+  if (cfg.estadoTodasFechas && (estado === 'pendientes' || estado === 'cobrar') && st.rango !== 'rango') st.rango = 'todas';
   // Pan y Galletas: "todas las fechas" solo tiene sentido para pendientes o por
   // cobrar. Comerciales lo admite con cualquier estado (Cerrados, Pagados, Todos).
   if (!cfg.todasCualquierEstado && st.rango === 'todas' && estado !== 'pendientes' && estado !== 'cobrar') {
@@ -537,6 +548,21 @@ function pvQuick(kind, q) {
   pvCargar(kind);
 }
 
+// Cambió Desde o Hasta: filtra por ese rango (por creación o entrega según
+// «Ver por») y conserva el estado elegido. Con una sola fecha puesta, el rango
+// es ese día.
+function pvRangoCambio(kind) {
+  const st = _pvEstado[kind];
+  const d = (document.getElementById('pv-desde-' + kind) || {}).value || '';
+  const h = (document.getElementById('pv-hasta-' + kind) || {}).value || '';
+  if (!d && !h) return;
+  let desde = d || h, hasta = h || d;
+  if (desde > hasta) { const x = desde; desde = hasta; hasta = x; }
+  st.desde = desde; st.hasta = hasta; st.rango = 'rango'; st.busq = '';
+  pvPrefillEntrega(kind);
+  pvCargar(kind);
+}
+
 // Cambió el selector de fecha: vuelve a "un solo día".
 function pvFechaCambio(kind) {
   _pvEstado[kind].rango = 'dia';
@@ -560,7 +586,7 @@ function pvInit(kind) {
   const cfg = PV_CFG[kind], st = _pvEstado[kind];
   let modo = 'creacion';
   try { if (localStorage.getItem(cfg.lsKey) === 'entrega') modo = 'entrega'; } catch (e) { /* sin almacenamiento */ }
-  st.modo = modo; st.estado = 'todos'; st.rango = 'dia'; st.busq = '';
+  st.modo = modo; st.estado = 'todos'; st.rango = 'dia'; st.busq = ''; st.desde = ''; st.hasta = '';
   if (cfg.estadoTodasFechas) { st.estado = 'pendientes'; st.rango = 'todas'; }
   document.getElementById(cfg.ids.fecha).value = pmHoy();
   pvPrefillEntrega(kind);

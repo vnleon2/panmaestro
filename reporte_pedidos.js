@@ -24,7 +24,16 @@
 // pmMoney, pmEsc, pmFmtDate, pmSumarDias, pmHoy (pm_core.js), repStatBox.
 // ═══════════════════════════════════════════════════════════════════════════
 
-const _rpf = { desde: '', hasta: '', pan: true, galleta: true, modo: 'entrega', cache: null };
+const _rpf = { desde: '', hasta: '', pan: true, galleta: true, com: true, estado: 'todos', modo: 'entrega', cache: null };
+const _RPF_TIPOS = { pan: 'Pan', galleta: 'Galletas', comercial: 'Comercial' };
+
+// Mismo filtro de estado que la pantalla de Pedidos (pvPasaEstado en pedidos_vista.js).
+function _rpfPasaEstado(status) { return pvPasaEstado({ status }, _rpf.estado); }
+
+function rpfEstado(v) {
+  _rpf.estado = v;
+  repRender();
+}
 
 function rpfModo(v) {
   _rpf.modo = v === 'toma' ? 'toma' : 'entrega';
@@ -87,10 +96,10 @@ async function _rpfQuery(tipo, desde, hasta, modo) {
 }
 
 async function _rpfPedidosDe(tipo, desde, hasta, modo) {
-  const esGall = tipo === 'galleta';
-  const nombreFn = esGall ? pmNombreGall : pmNombrePan;
-  const precioFn = esGall ? pmPrecioGall : pmPrecioPan;
-  const arrLocal = (esGall ? G.pedidosGalletas : G.pedidosPan) || [];
+  const esGall = tipo === 'galleta', esCom = tipo === 'comercial';
+  const nombreFn = esCom ? (id => (pmGetPan(id) && pmGetPan(id).nombre) || (pmGetGall(id) && pmGetGall(id).nombre) || id) : esGall ? pmNombreGall : pmNombrePan;
+  const precioFn = esCom ? (id => pmPrecioPan(id) || pmPrecioGall(id)) : esGall ? pmPrecioGall : pmPrecioPan;
+  const arrLocal = (esCom ? G.pedidosCom : esGall ? G.pedidosGalletas : G.pedidosPan) || [];
   const out = [];
   const vistos = new Set();
   let aviso = '';
@@ -103,6 +112,7 @@ async function _rpfPedidosDe(tipo, desde, hasta, modo) {
       const lineasPor = await pvTraerLineas(rows.map(r => r.id));
       for (const sb of rows) {
         vistos.add(sb.id);
+        if (!_rpfPasaEstado(sb.status)) continue;
         const lineas = (lineasPor[sb.id] || []).map(l => {
           const pid = (typeof _sbProdMapInv !== 'undefined' && _sbProdMapInv) ? (_sbProdMapInv[l.producto_id] || '') : '';
           const cant = l.cantidad || 1;
@@ -111,7 +121,7 @@ async function _rpfPedidosDe(tipo, desde, hasta, modo) {
           return { nombre: pid ? nombreFn(pid) : '(producto no encontrado)', cant, monto: unit * cant };
         });
         const dia = modo === 'toma' ? (sb.fecha || '') : (sb.fecha_entrega || sb.fecha || '');
-        out.push({ tipo, dia, cli: sb.cliente_nom || '', lineas });
+        out.push({ tipo, dia, cli: sb.cliente_nom || '', lineas, status: sb.status || '', envio: Number(sb.envio_monto) > 0 ? Number(sb.envio_monto) : 0 });
       }
       sbOk = true;
     } catch (e) {
@@ -128,10 +138,11 @@ async function _rpfPedidosDe(tipo, desde, hasta, modo) {
     const f = modo === 'toma' ? (p.date || '') : pmFechaProd(p);
     if (!f || f < desde || f > hasta) return;
     if (sbOk && (p._sbId || vistos.has(p._sbId))) return;
+    if (!_rpfPasaEstado(p.status)) return;
     const lineas = (p.lineas || []).map(l => ({
       nombre: nombreFn(l.pid), cant: l.cant || 1, monto: precioFn(l.pid) * (l.cant || 1)
     }));
-    out.push({ tipo, dia: f, cli: p.cliNom || p.cli || '', lineas });
+    out.push({ tipo, dia: f, cli: p.cliNom || p.cli || '', lineas, status: p.status || '', envio: pmEnvioCom(p) });
   });
 
   return { peds: out, aviso };
@@ -149,12 +160,17 @@ function _rpfTitDia(dia) {
 
 function _rpfTotales(peds) {
   let unid = 0, monto = 0;
-  peds.forEach(p => p.lineas.forEach(l => { unid += l.cant; monto += l.monto; }));
+  // Monto = productos + envío (+ IVA si aplica) de cada pedido.
+  peds.forEach(p => {
+    let s = 0;
+    p.lineas.forEach(l => { unid += l.cant; s += l.monto; });
+    monto += pmTotalDesde(s, p.envio || 0);
+  });
   return { pedidos: peds.length, unid, monto };
 }
 
 function _rpfCuerpo(peds, c) {
-  if (!peds.length) return `<div style="padding:22px;text-align:center;color:${c.mut}">No hay pedidos para entregar en estas fechas</div>`;
+  if (!peds.length) return `<div style="padding:22px;text-align:center;color:${c.mut}">No hay pedidos con estos filtros</div>`;
   const dias = {};
   peds.forEach(p => { (dias[p.dia] = dias[p.dia] || []).push(p); });
   const th = (t, r) => `<th style="padding:6px 10px;text-align:${r ? 'right' : 'left'};font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:${c.mut};background:${c.cab}">${t}</th>`;
@@ -164,7 +180,7 @@ function _rpfCuerpo(peds, c) {
     const filas = lista.map(p => {
       const tp = _rpfTotales([p]);
       const cab = `<tr>
-        <td colspan="2" style="padding:12px 10px 4px;font-weight:700;color:${c.txt}">${pmEsc(p.cli || 'Sin nombre')} <span style="font-weight:400;font-size:11px;color:${c.mut}">· ${p.tipo === 'galleta' ? 'Galletas' : 'Pan'}</span></td>
+        <td colspan="2" style="padding:12px 10px 4px;font-weight:700;color:${c.txt}">${pmEsc(p.cli || 'Sin nombre')} <span style="font-weight:400;font-size:11px;color:${c.mut}">· ${_RPF_TIPOS[p.tipo] || 'Pan'}${p.status ? ' · ' + pmEsc(p.status) : ''}</span></td>
         <td style="padding:12px 10px 4px;text-align:right;font-weight:700;color:${c.oro}">${pmMoney(tp.monto)}</td>
       </tr>`;
       const lins = p.lineas.length ? p.lineas.map(l => `<tr>
@@ -172,7 +188,8 @@ function _rpfCuerpo(peds, c) {
         <td style="padding:4px 10px;border-bottom:1px solid ${c.lin};text-align:right;color:${c.txt}">${l.cant}</td>
         <td style="padding:4px 10px;border-bottom:1px solid ${c.lin};text-align:right;color:${c.txt}">${pmMoney(l.monto)}</td>
       </tr>`).join('') : `<tr><td colspan="3" style="padding:4px 10px 4px 22px;color:${c.mut}">Sin productos agregados</td></tr>`;
-      return cab + lins;
+      const env = p.envio ? `<tr><td style="padding:4px 10px 4px 22px;border-bottom:1px solid ${c.lin};color:${c.mut}">🚚 Envío</td><td style="border-bottom:1px solid ${c.lin}"></td><td style="padding:4px 10px;border-bottom:1px solid ${c.lin};text-align:right;color:${c.txt}">${pmMoney(p.envio)}</td></tr>` : '';
+      return cab + lins + env;
     }).join('');
     return `<div style="margin-bottom:18px">
       <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;padding:6px 0 4px;border-bottom:2px solid ${c.oro};margin-bottom:4px">
@@ -196,7 +213,9 @@ function _rpfTitulo() {
 }
 
 function _rpfTiposTxt() {
-  return [_rpf.pan ? 'Pan' : '', _rpf.galleta ? 'Galletas' : ''].filter(Boolean).join(' y ') || 'ningún tipo';
+  const t = [_rpf.pan ? 'Pan' : '', _rpf.galleta ? 'Galletas' : '', _rpf.com ? 'Comercial' : ''].filter(Boolean).join(', ') || 'ningún tipo';
+  const e = (_PV_ESTADOS.find(x => x[0] === _rpf.estado) || [])[1];
+  return _rpf.estado === 'todos' ? t : `${t} · ${e}`;
 }
 
 // ── Pestaña «Pedidos por fecha» en Reportes ─────────────────────────────────
@@ -205,6 +224,7 @@ async function repPedidosFecha() {
   const tipos = [];
   if (_rpf.pan) tipos.push('pan');
   if (_rpf.galleta) tipos.push('galleta');
+  if (_rpf.com) tipos.push('comercial');
 
   const res = await Promise.all(tipos.map(t => _rpfPedidosDe(t, _rpf.desde, _rpf.hasta, _rpf.modo)));
   const peds = [];
@@ -220,13 +240,14 @@ async function repPedidosFecha() {
     <div class="no-print">
       <div class="row" style="align-items:flex-end;gap:10px;margin-bottom:10px">
         <div class="col sm"><label>Ver por</label><select onchange="rpfModo(this.value)"><option value="entrega"${_rpf.modo === 'entrega' ? ' selected' : ''}>Fecha de entrega</option><option value="toma"${_rpf.modo === 'toma' ? ' selected' : ''}>Fecha del pedido</option></select></div>
+        <div class="col sm"><label>Estado</label><select onchange="rpfEstado(this.value)">${_PV_ESTADOS.map(([v, t]) => `<option value="${v}"${_rpf.estado === v ? ' selected' : ''}>${t}</option>`).join('')}</select></div>
         <div class="col sm"><label>Desde</label><input type="date" id="rpf-desde" value="${_rpf.desde}" onchange="rpfCambio()"></div>
         <div class="col sm"><label>Hasta</label><input type="date" id="rpf-hasta" value="${_rpf.hasta}" onchange="rpfCambio()"></div>
         <div class="col xs"><label>&nbsp;</label><button class="btn btn-out" onclick="rpfImprimir()">🖨 Imprimir / PDF</button></div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
         ${rapido('hoy', 'Hoy')}${rapido('manana', 'Mañana')}${rapido('semana', 'Próximos 7 días')}${rapido('proxima', 'Próxima semana')}
-        <span style="width:10px"></span>${chk('pan', '🍞 Pan')}${chk('galleta', '🍪 Galletas')}
+        <span style="width:10px"></span>${chk('pan', '🍞 Pan')}${chk('galleta', '🍪 Galletas')}${chk('com', '🏪 Comercial')}
       </div>
       ${avisos.map(a => `<div style="font-size:12px;color:var(--red);margin-bottom:10px">⚠️ ${pmEsc(a)}</div>`).join('')}
     </div>

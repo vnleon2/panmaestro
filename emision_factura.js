@@ -24,7 +24,7 @@
 // _corrSiguiente, _corrFmt (comercial.js), y los helpers de pm_core.js.
 // ═══════════════════════════════════════════════════════════════════════════
 
-const _em = { desde: '', hasta: '', kind: 'com', lista: [], sel: null, buscado: false, cargando: false, aviso: '' };
+const _em = { desde: '', hasta: '', kind: 'com', modo: 'creacion', estado: 'todos', lista: [], sel: null, buscado: false, cargando: false, aviso: '' };
 
 const _EM_TIPOS = [['com', '🏪 Comercial'], ['pan', '🍞 Pan'], ['galleta', '🍪 Galleta']];
 const _EM_TIPO_TXT = { com: 'Comercial', pan: 'Pan', galleta: 'Galleta' };
@@ -56,7 +56,15 @@ async function _emCargar() {
     if (pmDB.disponible()) {
       try {
         await _sbProdEnsureMap();
-        const rows = await pmDB.get('pedidos', {}, `*&tipo=eq.${cfg.tipo}&fecha=gte.${_em.desde}&fecha=lte.${_em.hasta}`);
+        // Misma consulta que la pantalla de Pedidos (pvQuery): por creación o por entrega.
+        const r = { desde: _em.desde, hasta: _em.hasta };
+        let rows;
+        try {
+          rows = await pmDB.get('pedidos', {}, pvQuery(cfg, { modo: _em.modo, estado: 'todos', rango: 'rango', busq: '' }, r));
+        } catch (e) {
+          if (_em.modo === 'entrega' && /fecha_entrega/.test(e.message)) rows = await pmDB.get('pedidos', {}, pvQuery(cfg, { modo: 'creacion', estado: 'todos', rango: 'rango', busq: '' }, r));
+          else throw e;
+        }
         const sbRows = rows || [];
         const lineasPorPedido = await pvTraerLineas(sbRows.map(s => s.id));
         if (sbRows.some(s => s.cliente_id) && (typeof _sbCliCache === 'undefined' || !_sbCliCache)) {
@@ -77,9 +85,10 @@ async function _emCargar() {
     } else {
       _em.aviso = 'Sin conexión: se muestra lo guardado en este navegador.';
     }
+    const st = { modo: _em.modo, estado: _em.estado, rango: 'rango', busq: '' }, r2 = { desde: _em.desde, hasta: _em.hasta };
     _em.lista = cfg.arr()
-      .filter(p => p.date && p.date >= _em.desde && p.date <= _em.hasta)
-      .sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.numPed || '').localeCompare(String(b.numPed || '')));
+      .filter(p => pvCoincide(p, st, r2))
+      .sort((a, b) => pvFechaClave(a, st).localeCompare(pvFechaClave(b, st)) || String(a.numPed || '').localeCompare(String(b.numPed || '')));
     if (_em.sel != null && !_em.lista.some(p => String(p.id) === String(_em.sel))) _em.sel = null;
     _em.buscado = true;
   } finally {
@@ -93,6 +102,9 @@ async function emBuscar() {
   if (d && d.value) _em.desde = d.value;
   if (h && h.value) _em.hasta = h.value;
   if (t && t.value && t.value !== _em.kind) { _em.kind = t.value; _em.sel = null; }
+  const m = document.getElementById('em-modo'), e = document.getElementById('em-estado');
+  if (m && m.value) _em.modo = m.value;
+  if (e && e.value) _em.estado = e.value;
   if (_em.desde > _em.hasta) { const x = _em.desde; _em.desde = _em.hasta; _em.hasta = x; }
   await _emCargar();
   repRender();
@@ -186,11 +198,13 @@ async function emisionRender() {
   const sel = _emSel();
   return `<div class="card" style="margin-bottom:16px">
       <div class="ctitle" style="margin-bottom:2px">🧾 Emisión de factura</div>
-      <div style="font-size:11px;color:var(--cream2);margin-bottom:12px">Elegí el rango de fechas de creación y el tipo de pedido; después escogé el pedido para emitir factura, nota de entrega o ambas.</div>
+      <div style="font-size:11px;color:var(--cream2);margin-bottom:12px">Elegí el rango de fechas (de creación o de entrega), el tipo y el estado del pedido; después escogé el pedido para emitir factura, nota de entrega o ambas.</div>
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
         <div>${lbl('Desde')}<input type="date" id="em-desde" value="${_em.desde}" onchange="emBuscar()" style="${inp}"></div>
         <div>${lbl('Hasta')}<input type="date" id="em-hasta" value="${_em.hasta}" onchange="emBuscar()" style="${inp}"></div>
+        <div>${lbl('Fecha por')}<select id="em-modo" onchange="emBuscar()" style="${inp}"><option value="creacion"${_em.modo === 'creacion' ? ' selected' : ''}>Creación</option><option value="entrega"${_em.modo === 'entrega' ? ' selected' : ''}>Entrega</option></select></div>
         <div>${lbl('Tipo de pedido')}<select id="em-tipo" onchange="emBuscar()" style="${inp}">${tipos}</select></div>
+        <div>${lbl('Estado')}<select id="em-estado" onchange="emBuscar()" style="${inp}">${_PV_ESTADOS.map(([v, t]) => `<option value="${v}"${_em.estado === v ? ' selected' : ''}>${t}</option>`).join('')}</select></div>
         <button class="btn btn-gold btn-sm" onclick="emBuscar()" style="padding:9px 16px">🔍 Buscar</button>
       </div>
       ${_em.aviso ? `<div style="margin-top:10px;font-size:12px;color:var(--amber)">⚠️ ${pmEsc(_em.aviso)}</div>` : ''}
@@ -198,7 +212,7 @@ async function emisionRender() {
     ${sel ? _emDetalleHtml(sel) : ''}
     <div class="card" style="padding:0;overflow:hidden">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--border)">
-        <div style="font-size:12px;color:var(--cream2)">${_EM_TIPO_TXT[kind]} · creados del <strong style="color:var(--cream)">${pmFmtDate(_em.desde)}</strong> al <strong style="color:var(--cream)">${pmFmtDate(_em.hasta)}</strong></div>
+        <div style="font-size:12px;color:var(--cream2)">${_EM_TIPO_TXT[kind]} · ${_em.modo === 'entrega' ? 'con entrega del' : 'creados del'} <strong style="color:var(--cream)">${pmFmtDate(_em.desde)}</strong> al <strong style="color:var(--cream)">${pmFmtDate(_em.hasta)}</strong></div>
         <div style="display:flex;gap:8px">${repStatBox('Pedidos', lista.length)}${repStatBox('Total', pmMoney(total))}</div>
       </div>
       ${lista.length ? filas : `<div class="ph" style="padding:24px"><span class="ph-icon">🧾</span>Sin pedidos ${_EM_TIPO_TXT[kind].toLowerCase()} en ese rango</div>`}
