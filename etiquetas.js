@@ -24,11 +24,20 @@ async function etCargarCatalogo() {
   const sel = document.getElementById('et-producto');
   if (!sel) return;
   try {
-    const data = await pmDB.get('productos_terminados',
-      { activo: true },
-      'codigo,nombre,peso_g,precio_full,es_masa_madre'
-    );
-    etProductos = pmOrdenar(data || [], 'nombre');
+    let data = [];
+    if (pmDB.disponible()) {
+      data = await pmDB.get('productos_terminados',
+        { activo: true },
+        'codigo,nombre,peso_g,precio_full,es_masa_madre'
+      ) || [];
+    }
+    // También los tipos que solo existen en este navegador (aún sin sincronizar
+    // a Supabase) y los de Maestros: así el selector muestra TODOS los panes y galletas.
+    const enSb = new Set(data.map(d => d.codigo));
+    [...(G.tiposPan || []), ...(G.tiposGalleta || [])].forEach(p => {
+      if (!enSb.has(p.id)) data.push({ codigo: p.id, nombre: p.nombre, peso_g: p.peso || null, precio_full: p.precio || 0, es_masa_madre: false });
+    });
+    etProductos = pmOrdenar(data, 'nombre');   // alfabético
     sel.innerHTML = '<option value="">Seleccioná un producto…</option>' +
       etProductos.map((p, i) => `<option value="${i}">${pmEsc(p.nombre)} — ${pmEsc(p.codigo)}</option>`).join('');
   } catch(e) {
