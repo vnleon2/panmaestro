@@ -604,7 +604,7 @@ function pcDelLinea(pedId, lid) {
 function pcDel(pedId) {
   if (!confirm('¿Eliminar este pedido?')) return;
   const p = G.pedidosCom.find(x => String(x.id) === String(pedId));
-  G.pedidosCom = G.pedidosCom.filter(x => x.id !== pedId);
+  G.pedidosCom = G.pedidosCom.filter(x => String(x.id) !== String(pedId));
   pmSave('comercial'); pcRender();
   pmToast('Pedido eliminado');
 
