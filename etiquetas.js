@@ -18,12 +18,30 @@ function etMostrar(id) {
 let etProductos = [];
 let etActual = null;
 
+// Refresco ÚNICO de panes y galletas desde Supabase al entrar a Etiquetas.
+// Los dos selectores (Producto y Hoja carta) esperan esta misma promesa, así
+// ninguno lee G.tiposPan / G.tiposGalleta antes de que terminen de cargar.
+let _etRefrescoP = null;
+function etRefrescarProductos(forzar) {
+  if (!_etRefrescoP || forzar) {
+    _etRefrescoP = (async () => {
+      try { if (typeof panCargarSb === 'function') await panCargarSb(); } catch (e) { console.warn('[etiquetas] panes', e.message); }
+      try { if (typeof gallCargarSb === 'function') await gallCargarSb(); } catch (e) { console.warn('[etiquetas] galletas', e.message); }
+    })();
+  }
+  return _etRefrescoP;
+}
+
 async function etCargarCatalogo() {
   const ctc0 = document.getElementById('et-p-contacto');
   if (ctc0) ctc0.textContent = etContactoTexto();
   const sel = document.getElementById('et-producto');
   if (!sel) return;
   try {
+    // 1) Esperar a que panes y galletas estén cargados (antes se leían a medias)
+    await etRefrescarProductos();
+    // 2) Productos de Supabase + los que solo existen en este navegador / Maestros,
+    //    sin repetir (por código): así el selector muestra TODOS los panes y galletas.
     let data = [];
     if (pmDB.disponible()) {
       data = await pmDB.get('productos_terminados',
@@ -31,15 +49,32 @@ async function etCargarCatalogo() {
         'codigo,nombre,peso_g,precio_full,es_masa_madre'
       ) || [];
     }
-    // También los tipos que solo existen en este navegador (aún sin sincronizar
-    // a Supabase) y los de Maestros: así el selector muestra TODOS los panes y galletas.
     const enSb = new Set(data.map(d => d.codigo));
-    [...(G.tiposPan || []), ...(G.tiposGalleta || [])].forEach(p => {
-      if (!enSb.has(p.id)) data.push({ codigo: p.id, nombre: p.nombre, peso_g: p.peso || null, precio_full: p.precio || 0, es_masa_madre: false });
+    const esGalleta = new Set((G.tiposGalleta || []).map(p => p.id));
+    const sinSb = [...(G.tiposPan || []), ...(G.tiposGalleta || [])].filter(p => !enSb.has(p.id));
+    sinSb.forEach(p => data.push({ codigo: p.id, nombre: p.nombre, peso_g: p.peso || null, precio_full: p.precio || 0, es_masa_madre: false }));
+    // 3) Agrupar (Panes / Galletas / Otros) y ordenar alfabético dentro de cada grupo.
+    //    etProductos queda en el MISMO orden que se muestra, porque el value del
+    //    <option> es la posición en este arreglo.
+    const grupos = [['Panes', []], ['Galletas', []], ['Otros', []]];
+    const enPan = new Set((G.tiposPan || []).map(p => p.id));
+    data.forEach(p => {
+      if (esGalleta.has(p.codigo)) grupos[1][1].push(p);
+      else if (enPan.has(p.codigo) || !esGalleta.size) grupos[0][1].push(p);
+      else grupos[2][1].push(p);
     });
-    etProductos = pmOrdenar(data, 'nombre');   // alfabético
-    sel.innerHTML = '<option value="">Seleccioná un producto…</option>' +
-      etProductos.map((p, i) => `<option value="${i}">${pmEsc(p.nombre)} — ${pmEsc(p.codigo)}</option>`).join('');
+    etProductos = [];
+    let html = '<option value="">Seleccioná un producto…</option>';
+    grupos.forEach(([titulo, arr]) => {
+      if (!arr.length) return;
+      const ord = pmOrdenar(arr, 'nombre');
+      html += `<optgroup label="${titulo}">` + ord.map(p => {
+        etProductos.push(p);
+        return `<option value="${etProductos.length - 1}">${pmEsc(p.nombre)}${p.peso_g ? ' — ' + pmEsc(p.peso_g) + ' g' : ''}</option>`;
+      }).join('') + '</optgroup>';
+    });
+    sel.innerHTML = html;
+    etActual = null;
   } catch(e) {
     sel.innerHTML = '<option>Error cargando catálogo</option>';
     pmToast('Error al cargar catálogo: ' + e.message, 'err');

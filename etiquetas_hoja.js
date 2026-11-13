@@ -158,7 +158,7 @@ async function ethInit() {
   if (!sel) return;
   try { await _sbCosteoCargar(); } catch (e) { console.warn('[ethInit] recetas', e.message); }
   // Refrescar panes y galletas desde Supabase (si no, solo se ven los que ya estaban en este navegador)
-  try { if (typeof panCargarSb === 'function') await panCargarSb(); if (typeof gallCargarSb === 'function') await gallCargarSb(); } catch (e) { console.warn('[ethInit] productos', e.message); }
+  try { await etRefrescarProductos(); } catch (e) { console.warn('[ethInit] productos', e.message); }
   _ethProductos = ethListaProductos();
   const op = (p) => `<option value="${pmEsc(p.key)}">${pmEsc(p.nombre)}${p.peso ? ' — ' + pmEsc(p.peso) + ' g' : ''}</option>`;
   const panes = pmOrdenar(_ethProductos.filter(p => p.tipo === 'pan'), 'nombre');
