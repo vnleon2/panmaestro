@@ -334,6 +334,57 @@ async function cstPlnCopiar(modo) {
   cstPlnRender();
 }
 
+// ── Cargar desde el MPS (rolling forecast) ──────────────────
+// Reparte las unidades mensuales del MPS (real si el mes ya pasó; forecast corregido; si no, el Budget) entre los días
+// activos de cada mes dentro del período. Es un punto de partida: no cambia el Budget ni el forecast, y lo que quede en el
+// plan se puede ajustar a mano. Reemplaza las cantidades de los productos que tengan unidades en el MPS.
+function cstPlnDesdeMpsCalc(meses, unFn) {
+  const { lista } = _cstPlnSemList();
+  const out = [];
+  const prods = new Set();
+  meses.forEach(ym => {
+    const dias = [];
+    lista.forEach(s => s.fechas.forEach((f, i) => { if (s.activos[i] && f.slice(0, 7) === ym) dias.push({ n: s.n, dia: i + 1 }); }));
+    if (!dias.length) return;
+    _cstRutProd.forEach(p => {
+      const q = Math.round(Number(unFn(p.id, ym)) || 0);
+      if (q <= 0) return;
+      prods.add(p.id);
+      mpbRepartir(q, dias.length).forEach((v, k) => { if (v > 0) out.push({ producto_id: p.id, semana: dias[k].n, dia: dias[k].dia, cantidad: v }); });
+    });
+  });
+  return { filas: out, productos: [...prods] };
+}
+
+async function cstPlnDesdeMps() {
+  const per = _cstPerActual();
+  if (!per) { pmToast('Elegí un período', 'err'); return; }
+  if (typeof mpfUnidades !== 'function') { pmToast('Falta el módulo del MPS', 'err'); return; }
+  const meses = _cstGasMesesPer();
+  if (!meses.length) { pmToast('El período no tiene fechas válidas', 'err'); return; }
+  try {
+    await cstBudCargarDatos();
+    const r = await pmDB.get('mps_forecast');
+    _mpfRows = (r || []).map(x => Object.assign({}, x, { mes: String(x.mes).slice(0, 7), unidades: Number(x.unidades) }));
+  } catch (e) { _mpfRows = []; console.warn('[cstPlnDesdeMps forecast]', e.message); }
+  try { _mpfReal = await cstRealPorMes(meses[0], _cstBudSumarMes(meses[meses.length - 1], 1)); } catch (e) { _mpfReal = {}; console.warn('[cstPlnDesdeMps real]', e.message); }
+  const calc = cstPlnDesdeMpsCalc(meses, mpfUnidades);
+  if (!calc.filas.length) { pmToast('El MPS no tiene unidades en los meses de este período', 'err'); return; }
+  if (!confirm(`Se cargan ${calc.productos.length} productos desde el MPS (rolling forecast de ${meses.join(', ')}), repartidos en los días del período. Las cantidades que ya tengan esos productos en el plan se reemplazan. El Budget y el forecast no cambian. ¿Seguir?`)) return;
+  const ids = new Set(calc.productos);
+  const borrar = _cstPlnRows.filter(r => ids.has(r.producto_id)).map(r => r.id);
+  try {
+    await pmDB.hardDeleteMany('cost_plan', borrar);
+    await pmDB.insert('cost_plan', calc.filas.map(f => Object.assign({ periodo_id: _cstPerSel }, f)), false);
+    pmToast(`✅ Plan cargado desde el MPS: ${calc.productos.length} productos`, 'ok');
+  } catch (e) {
+    console.warn('[cstPlnDesdeMps]', e.message);
+    pmToast('⚠️ No se pudo cargar: ' + _cstErr(e, 'sql_costos_plan.sql'), 'err');
+  }
+  await _cstPlnCargarFilas();
+  cstPlnRender();
+}
+
 // ── Pantalla ────────────────────────────────────────────────
 const _CST_PLN_TH = 'padding:6px 8px;font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:var(--cream2);text-align:right;white-space:nowrap;border-bottom:1px solid #E2E8F0';
 const _CST_PLN_TD = 'padding:5px 8px;text-align:right;font-family:\'DM Mono\',monospace;font-size:12px;white-space:nowrap;border-bottom:1px solid #F1F5F9';
@@ -370,6 +421,7 @@ function cstPlnRender() {
   const barra = `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px">
       <div style="flex:2 1 240px"><label>Agregar producto al plan</label><select id="cstpl-agregar"><option value="">— Elegí un producto (${_cstRutProd.filter(p => !_cstPlnIds.includes(p.id)).length} disponibles) —</option>${opts}</select></div>
       <button class="btn btn-gold btn-sm" onclick="cstPlnAgregar()">+ Agregar</button>
+      <button class="btn btn-out btn-sm" onclick="cstPlnDesdeMps()" title="Reparte las unidades mensuales del MPS (rolling forecast) entre los días del período">📥 Cargar desde el MPS</button>
       ${hayMas && _cstPlnIds.length ? `<button class="btn btn-out btn-sm" onclick="cstPlnCopiar('sig')">Copiar a la semana siguiente</button><button class="btn btn-out btn-sm" onclick="cstPlnCopiar('todas')">Copiar a todas las siguientes</button>` : ''}</div>`;
 
   if (!_cstPlnIds.length) {
