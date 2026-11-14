@@ -164,16 +164,46 @@ async function cstGbSet(cuentaId, deptoId, ym, valor) {
   cstGbTotales();
 }
 
-// Copia el monto del primer mes a los meses 2–12 de una línea
-async function cstGbCopiar(cuentaId, deptoId) {
+// Rellena los meses siguientes a partir de un mes elegido: monto del mes base × (1 + cambio mensual %)^k. Los meses anteriores no se tocan.
+function _cstGbBaseRelleno() {
   const meses = _cstGbMeses();
-  const base = _cstGbMonto(cuentaId, deptoId || null, meses[0]);
+  const desde = _cstVal('cstgb-desde') || meses[0];
+  const i = Math.max(0, meses.indexOf(desde));
+  const g = parseFloat(String(_cstVal('cstgb-factor')).replace(',', '.'));
+  return { meses, i, crec: isNaN(g) ? 0 : g };
+}
+async function _cstGbRellenarLinea(cuentaId, deptoId, b) {
+  const base = _cstGbMonto(cuentaId, deptoId, b.meses[b.i]);
+  for (let k = 1; b.i + k < b.meses.length; k++) {
+    await _cstGbGuardar(cuentaId, deptoId, b.meses[b.i + k], cstRound(Math.max(0, base * Math.pow(1 + b.crec / 100, k)), 4, 'normal'));
+  }
+}
+async function cstGbRellenar(cuentaId, deptoId) {
+  const b = _cstGbBaseRelleno();
+  if (!(_cstGbMonto(cuentaId, deptoId || null, b.meses[b.i]) > 0)) { pmToast('Escribí primero el monto de ' + _cstGbMesTxt(b.meses[b.i]) + ' en esa línea', 'err'); return; }
   try {
-    for (let i = 1; i < meses.length; i++) await _cstGbGuardar(cuentaId, deptoId || null, meses[i], base);
-    pmToast('Mes 1 copiado a los demás ✓');
+    await _cstGbRellenarLinea(cuentaId, deptoId || null, b);
+    pmToast('Meses siguientes a ' + _cstGbMesTxt(b.meses[b.i]) + ' completados ✓');
     cstGbRender();
   } catch (e) {
-    console.warn('[cstGbCopiar]', e.message);
+    console.warn('[cstGbRellenar]', e.message);
+    pmToast('⚠️ No se pudo guardar todo: ' + _cstErr(e, 'sql_costos_presupuesto.sql'), 'err');
+    await cstGbCargarDatos(); cstGbRender();
+  }
+}
+// Lo mismo para todas las líneas que tengan monto en el mes elegido
+async function cstGbRellenarTodas() {
+  const b = _cstGbBaseRelleno();
+  const lineas = _cstGbLineas().filter(l => _cstGbMonto(l.cuentaId, l.deptoId, b.meses[b.i]) > 0);
+  if (!lineas.length) { pmToast('Ninguna línea tiene monto en ' + _cstGbMesTxt(b.meses[b.i]), 'err'); return; }
+  if (b.i >= b.meses.length - 1) { pmToast('No hay meses después de ' + _cstGbMesTxt(b.meses[b.i]), 'err'); return; }
+  if (!confirm(`Se van a reemplazar los meses posteriores a ${_cstGbMesTxt(b.meses[b.i])} en ${lineas.length} línea${lineas.length === 1 ? '' : 's'}, con ${b.crec} % de cambio por mes. ¿Seguir?`)) return;
+  try {
+    for (const l of lineas) await _cstGbRellenarLinea(l.cuentaId, l.deptoId, b);
+    pmToast('Líneas completadas ✓');
+    cstGbRender();
+  } catch (e) {
+    console.warn('[cstGbRellenarTodas]', e.message);
     pmToast('⚠️ No se pudo guardar todo: ' + _cstErr(e, 'sql_costos_presupuesto.sql'), 'err');
     await cstGbCargarDatos(); cstGbRender();
   }
@@ -223,6 +253,8 @@ function cstGbRender() {
   const todas = _cstGbLineas();
   const lineas = _cstGbOcultar ? todas.filter(l => _cstGbTieneDatos(l.cuentaId, l.deptoId)) : todas;
   const chk = document.getElementById('cstgb-ocultar'); if (chk) chk.checked = _cstGbOcultar;
+  const dsel = document.getElementById('cstgb-desde');
+  if (dsel) { const v = dsel.value; dsel.innerHTML = meses.map(m => `<option value="${m}">${pmEsc(_cstGbMesTxt(m))}</option>`).join(''); dsel.value = meses.includes(v) ? v : meses[0]; }
   const th = 'padding:6px 8px;text-align:right;font-size:11px;white-space:nowrap';
   const td = 'padding:3px 4px;text-align:right';
   const inp = 'width:92px;text-align:right;padding:4px 6px;font-size:12px';
@@ -245,7 +277,7 @@ function cstGbRender() {
     html += `<tr style="border-bottom:1px solid var(--bdr)"><td style="padding:3px 8px;text-align:left">${pmEsc(nom)}</td>` +
       meses.map(m => `<td style="${td}"><input type="number" min="0" step="any" style="${inp}" value="${_cstGbMonto(l.cuentaId, l.deptoId, m) || ''}" placeholder="—" onchange="cstGbSet('${l.cuentaId}','${l.deptoId || ''}','${m}',this.value)"></td>`).join('') +
       `<td style="${td};padding-right:8px" id="cstgb-t-${l.cuentaId}-${l.deptoId || 'x'}">${tot > 0 ? cstMoney(tot) : '—'}</td>` +
-      `<td style="white-space:nowrap"><button class="btn btn-out btn-sm" title="Copia el primer mes a los meses 2 a 12" onclick="cstGbCopiar('${l.cuentaId}','${l.deptoId || ''}')">⇢ Copiar mes 1</button>${tiene ? ` <button class="btn btn-out btn-sm" title="Borra los montos de esta línea" onclick="cstGbQuitar('${l.cuentaId}','${l.deptoId || ''}')">🗑</button>` : ''}</td></tr>`;
+      `<td style="white-space:nowrap"><button class="btn btn-out btn-sm" title="Llena los meses siguientes al mes elegido arriba, con el factor indicado" onclick="cstGbRellenar('${l.cuentaId}','${l.deptoId || ''}')">⇢ Rellenar</button>${tiene ? ` <button class="btn btn-out btn-sm" title="Borra los montos de esta línea" onclick="cstGbQuitar('${l.cuentaId}','${l.deptoId || ''}')">🗑</button>` : ''}</td></tr>`;
   });
   // Depreciación (solo lectura): una fila por departamento con activos
   const deptosDep = Array.from(new Set(_cstActivos.filter(a => a.activo !== false).map(a => a.depto_id || '')));

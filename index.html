@@ -2267,6 +2267,15 @@
       <div class="col sm"><label>&nbsp;</label><button class="btn btn-gold" onclick="cstGbAgregar()">Agregar</button></div>
     </div>
   </div>
+  <div class="card">
+    <div class="ctitle">Rellenar meses</div>
+    <div class="row">
+      <div class="col"><label>Desde el mes</label><select id="cstgb-desde"></select></div>
+      <div class="col sm"><label>Cambio por mes (%)</label><input type="number" step="0.1" id="cstgb-factor" placeholder="0" style="text-align:right"></div>
+      <div class="col sm"><label>&nbsp;</label><button class="btn btn-out" onclick="cstGbRellenarTodas()" title="Para todas las líneas que tengan monto en el mes elegido">Rellenar todas las líneas</button></div>
+    </div>
+    <div style="font-size:11px;color:var(--cream2);margin-top:6px">Escribí el monto del mes elegido en una línea y tocá «⇢ Rellenar» en esa fila: los meses siguientes se llenan con ese monto, subiendo (o bajando) el % por mes. 0 = el mismo monto. Los meses anteriores no se tocan.</div>
+  </div>
   <div class="stats" id="cstgb-stats"></div>
   <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin:6px 0"><input type="checkbox" id="cstgb-ocultar" onchange="cstGbOcultar(this.checked)"> Ocultar líneas sin datos <span style="color:var(--cream2)">(solo cambia la vista; quitá el tick para ver todas las cuentas y llenarlas)</span></label>
   <div id="cstgb-tabla"></div>
@@ -2424,7 +2433,7 @@
 <script src="costos_equilibrio.js?v=20261114b"></script>
 <script src="costos_budget.js?v=20261114c"></script>
 <script src="costos_compras.js?v=20261114a"></script>
-<script src="costos_gasbud.js?v=20261114b"></script>
+<script src="costos_gasbud.js?v=20261114c"></script>
 <script src="mps_forecast.js?v=20261114a"></script>
 <script src="costos_consulta.js?v=20261025a"></script>
 <script src="costos_hoja.js?v=20261023a"></script>
