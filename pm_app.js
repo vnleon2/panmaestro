@@ -30,7 +30,7 @@ function showTab(id) {
     'pg-com':'COMERCIAL','pg-promo':'PROMOCIONAL','pg-prod':'PRODUCCIÓN','pg-rep':'REPORTES',
     'pg-gastos':'GASTOS','pg-costeo':'COSTEO','pg-hid':'HIDRATACIÓN',
     'app-inner':'MAESTROS','pg-rec':'RECETARIO','pg-gmrec':'GLUTEN MORGEN','pg-planlibre':'PLAN LIBRE',
-    'pg-etiquetas':'ETIQUETAS','pg-mercadeo':'MERCADEO','pg-tienda':'TIENDA WEB','pg-mps':'MPS','pg-opgen':'ÓRDENES','pg-depuracion':'DEPURACIÓN','pg-simulador':'SIMULADOR','pg-molde':'MASA POR MOLDE','pg-empaques':'COSTOS','pg-costos-config':'COSTOS','pg-costos-maestros':'COSTOS','pg-costos-personal':'COSTOS','pg-costos-laboral':'COSTOS','pg-costos-gastos':'COSTOS','pg-costos-capacidad':'COSTOS','pg-costos-rutas':'COSTOS','pg-costos-plan':'COSTOS','pg-costos-tarifas':'COSTOS','pg-costos-reportes':'COSTOS','pg-costos-equilibrio':'COSTOS','pg-costos-budget':'COSTOS','pg-costos-compras':'COSTOS','pg-costos-nomest':'COSTOS','pg-costos-gasbud':'COSTOS','pg-costos-activos':'COSTOS','pg-costos-resbud':'COSTOS','pg-costos-unitarios':'COSTOS','pg-costos-consulta':'COSTOS'
+    'pg-etiquetas':'ETIQUETAS','pg-mercadeo':'MERCADEO','pg-tienda':'TIENDA WEB','pg-mps':'MPS','pg-opgen':'ÓRDENES','pg-depuracion':'DEPURACIÓN','pg-simulador':'SIMULADOR','pg-molde':'MASA POR MOLDE','pg-empaques':'COSTOS','pg-costos-config':'COSTOS','pg-costos-maestros':'COSTOS','pg-costos-personal':'COSTOS','pg-costos-laboral':'COSTOS','pg-costos-gastos':'COSTOS','pg-costos-capacidad':'COSTOS','pg-costos-rutas':'COSTOS','pg-costos-plan':'COSTOS','pg-costos-tarifas':'COSTOS','pg-costos-reportes':'COSTOS','pg-costos-equilibrio':'COSTOS','pg-costos-budget':'COSTOS','pg-costos-compras':'COSTOS','pg-costos-nomest':'COSTOS','pg-costos-gasbud':'COSTOS','pg-costos-activos':'COSTOS','pg-costos-resbud':'COSTOS','pg-costos-varbud':'COSTOS','pg-costos-unitarios':'COSTOS','pg-costos-consulta':'COSTOS'
   };
   const modEl = document.querySelector('.brand-mod');
   if (modEl) modEl.textContent = labels[id] || 'PANMAESTRO';
@@ -56,6 +56,7 @@ function showTab(id) {
     'pg-costos-gasbud': () => { cstGbInit(); },
     'pg-costos-activos': () => { cstActInit(); },
     'pg-costos-resbud': () => { cstRbInit(); },
+    'pg-costos-varbud': () => { cstVbInit(); },
     'pg-costos-unitarios': () => { cstUnInit(); },
     'pg-costos-capacidad': () => { cstCapInit(); },
     'pg-costos-rutas': () => { cstRutInit(); },
