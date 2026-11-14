@@ -19,6 +19,7 @@
 
 const CST_EQ_LS = 'cst_eq_prefs';
 let _cstEqProd = '';              // producto de referencia (id), solo se usa si no hay mezcla
+let _cstEqVenta = 0;              // kg que se venden hoy al mes (a mano; sirve para medir cuánto hay que crecer)
 let _cstEqMeta = 0;               // ganancia mensual que se quiere
 let _cstEqMezcla = {};            // % de los kg por producto escrito a mano (id → %)
 let _cstEqPlan = {};              // piezas del Presupuesto de producción por producto (id → piezas)
@@ -34,11 +35,12 @@ function _cstEqCargarPrefs() {
     if (o.prod) _cstEqProd = o.prod;
     if (o.mezcla && typeof o.mezcla === 'object') _cstEqMezcla = o.mezcla;
     if (Number(o.meta) >= 0) _cstEqMeta = Number(o.meta) || 0;
+    if (Number(o.venta) >= 0) _cstEqVenta = Number(o.venta) || 0;
     if (Array.isArray(o.pct) && o.pct.length === 3) _cstEqPct = o.pct.map(x => Number(x) > 0 ? Number(x) : 0);
   } catch (e) { /* ok */ }
 }
 function _cstEqGuardarPrefs() {
-  try { localStorage.setItem(CST_EQ_LS, JSON.stringify({ prod: _cstEqProd, meta: _cstEqMeta, pct: _cstEqPct, mezcla: _cstEqMezcla })); } catch (e) { /* ok */ }
+  try { localStorage.setItem(CST_EQ_LS, JSON.stringify({ prod: _cstEqProd, meta: _cstEqMeta, venta: _cstEqVenta, pct: _cstEqPct, mezcla: _cstEqMezcla })); } catch (e) { /* ok */ }
 }
 
 // ── Cálculo (puro) ──────────────────────────────────────────
@@ -174,6 +176,7 @@ async function cstEqElegirPer(id) {
 
 function cstEqElegirProd(id) { _cstEqProd = id || ''; _cstEqGuardarPrefs(); cstEqRender(); }
 function cstEqSetMeta(v) { const n = parseFloat(String(v).replace(',', '.')); _cstEqMeta = n > 0 ? n : 0; _cstEqGuardarPrefs(); cstEqRender(); }
+function cstEqSetVenta(v) { const n = parseFloat(String(v).replace(',', '.')); _cstEqVenta = n > 0 ? n : 0; _cstEqGuardarPrefs(); cstEqRender(); }
 function cstEqSetPct(i, v) { const n = parseFloat(String(v).replace(',', '.')); _cstEqPct[i] = n > 0 ? n : 0; _cstEqGuardarPrefs(); cstEqRender(); }
 function cstEqSetMezcla(id, v) { const n = parseFloat(String(v).replace(',', '.')); if (n > 0) _cstEqMezcla[id] = n; else delete _cstEqMezcla[id]; _cstEqGuardarPrefs(); cstEqRender(); }
 function cstEqMezclaAuto() { _cstEqMezcla = {}; _cstEqGuardarPrefs(); cstEqRender(); }
@@ -201,6 +204,7 @@ function cstEqRender() {
 
   ctlEl.innerHTML = `<div class="row" style="margin-top:8px">
       <div class="col"><label>Ganancia mensual que querés</label><input type="number" min="0" step="1000" value="${_cstEqMeta || ''}" placeholder="0" onchange="cstEqSetMeta(this.value)" style="text-align:right"></div>
+      <div class="col"><label>Kg que vendés hoy al mes</label><input type="number" min="0" step="1" value="${_cstEqVenta || ''}" placeholder="0" onchange="cstEqSetVenta(this.value)" style="text-align:right"></div>
     </div>`;
 
   const stat = (lbl, val, sub) => `<div class="stat"><div class="stat-lbl">${lbl}</div><div class="stat-val" style="font-size:17px">${val}</div>${sub ? `<div class="stat-sub">${sub}</div>` : ''}</div>`;
@@ -224,7 +228,31 @@ function cstEqRender() {
   // Mezcla de ventas
   const origenTxt = { manual: 'escrita a mano', plan: 'tomada del Presupuesto de producción del período', ref: 'sin mezcla: 100 % del producto de referencia' }[mix.origen] || 'sin datos';
   const filasMezcla = R.filas.filter(f => f.baseOk);
-  escEl.innerHTML = `
+  // ¿Cuánto hay que crecer? Objetivo (kg al mes) frente a lo que se vende hoy
+  const objs = [];
+  if (hayEq) {
+    objs.push({ n: 'Equilibrio: cubrir los costos fijos', kg: mix.eqKg });
+    if (_cstEqMeta > 0) objs.push({ n: `Meta: ganar ${cstMoney(_cstEqMeta)} al mes`, kg: mix.metaKg });
+  }
+  const venta = _cstEqVenta;
+  const crecerHtml = objs.length ? `
+    <div class="sec" style="margin-top:14px"><h2>¿Cuánto hay que crecer?</h2></div>
+    <div class="card" style="padding:0;overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;min-width:520px">
+        <thead><tr style="${_CST_EQ_HEAD}">${th('Objetivo')}${th('Kg al mes', 1)}${th('Hoy vendés (kg)', 1)}${th('Faltan (kg)', 1)}${th('Hay que crecer', 1)}${th('% de la capacidad', 1)}</tr></thead>
+        <tbody>${objs.map(o => {
+    const falta = venta > 0 ? o.kg - venta : null;
+    const pct = venta > 0 ? (o.kg / venta - 1) * 100 : null;
+    const ok = falta !== null && falta <= 0;
+    return `<tr><td style="${_CST_EQ_CEL}">${pmEsc(o.n)}</td>${m(_cstNum(o.kg, 0))}${m(venta > 0 ? _cstNum(venta, 0) : '—')}
+          <td style="${_CST_EQ_CEL}${_CST_EQ_MONO};font-weight:600;color:${falta === null ? 'inherit' : ok ? 'var(--green,#22A06B)' : 'var(--red)'}">${falta === null ? '—' : ok ? 'ya lo superás en ' + _cstNum(-falta, 0) : _cstNum(falta, 0)}</td>
+          <td style="${_CST_EQ_CEL}${_CST_EQ_MONO};font-weight:600">${pct === null ? '—' : ok ? '—' : _cstNum(pct, 0) + ' %'}</td>
+          ${m(b.capKg > 0 ? _cstFmtPct(o.kg / b.capKg * 100) : '—')}</tr>`;
+  }).join('')}</tbody>
+      </table>
+    </div>
+    <div style="font-size:11px;color:var(--cream2);margin:4px 2px 0">${venta > 0 ? 'Con la mezcla de ventas de abajo.' : 'Escribí arriba cuántos kg vendés hoy al mes para ver cuánto hay que crecer.'} Como los sueldos son fijos, el equilibrio cuenta toda la nómina como costo fijo.</div>` : '';
+  escEl.innerHTML = crecerHtml + `
     <div class="sec" style="margin-top:14px"><h2>Mezcla de ventas</h2></div>
     <div style="font-size:11px;color:var(--cream2);margin-bottom:6px">Qué porcentaje de los kg vendidos es cada producto. Mezcla actual: <b>${origenTxt}</b>. Si escribís porcentajes, se ajustan solos para sumar 100 %.</div>
     ${filasMezcla.length ? `<div class="card" style="padding:0;overflow-x:auto">
