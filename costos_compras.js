@@ -145,7 +145,7 @@ function cstComRender() {
     const tot = f.g.reduce((a, x) => a + x, 0);
     html += `<tr style="border-bottom:1px solid var(--bdr)"><td style="padding:4px 8px;text-align:left">${pmEsc(f.nombre)}</td>` +
       f.g.map(g => `<td style="${td}">${fmtV(g, f.cpg)}</td>`).join('') +
-      `<td style="${td};font-weight:700">${fmtV(tot, f.cpg)}</td><td style="${td}">${f.cpg > 0 ? cstMoney(f.cpg * 1000, 0) : '—'}</td></tr>`;
+      `<td style="${td};font-weight:700">${fmtV(tot, f.cpg)}</td><td style="${td}">${f.cpg > 0 ? cstMoney(f.cpg * 1000, 2) : '—'}</td></tr>`;
   });
   html += `<tr style="font-weight:700"><td style="padding:6px 8px;text-align:left">Total materiales (₡)</td>` +
     r.costoMes.map(x => `<td style="${td}">${x > 0 ? cstMoney(x, 0) : '—'}</td>`).join('') + `<td style="${td}">${cstMoney(totalAnio, 0)}</td><td></td></tr></tbody></table></div>`;
@@ -227,7 +227,7 @@ function cstNomRender() {
   const conExtra = r.filas.filter(f => f.sobra > 0.5);
   if (stats) stats.innerHTML = stat('Nómina mensual cargada', cstMoney(r.nominaMes, 0), 'período ' + pmEsc(r.per.inicio)) +
     stat('Nómina fija (apoyo + admin, mercadeo y venta)', cstMoney(r.apoyo + r.admin, 0), 'no cambia con la producción') +
-    stat('Nómina de producción', cstMoney(r.poolMod + r.ociosa, 0), `${_cstNum(r.hhProdMes, 1)} HH productivas + ${_cstNum(r.hhOciMes, 1)} HH ociosas · ₡${_cstNum(r.tasaHH, 0)} por HH directa`) +
+    stat('Nómina de producción', cstMoney(r.poolMod + r.ociosa, 0), `${_cstNum(r.hhProdMes, 1)} HH productivas + ${_cstNum(r.hhOciMes, 1)} HH ociosas · ₡${_cstNum(r.tasaHH, 2)} por HH directa`) +
     stat('Meses que piden más de lo cargado', String(conExtra.length), conExtra.length ? 'el Budget exige más horas directas que las de la nómina' : 'la nómina actual alcanza');
   let html = `<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:12px"><thead><tr style="border-bottom:1px solid var(--bdr)"><th style="${th};text-align:left">Mes</th><th style="${th}">Kg de masa</th><th style="${th}">HH del Budget</th><th style="${th}">Ocupación</th><th style="${th}" title="HH del Budget × tasa de mano de obra por HH">Directa aplicada</th><th style="${th}" title="Nómina de producción que el Budget no absorbe">Fija de producción</th><th style="${th}" title="Departamento de capacidad ociosa">Ociosa</th><th style="${th}">Apoyo</th><th style="${th}">Admin · mercadeo · venta</th><th style="${th}">Nómina estimada</th></tr></thead><tbody>`;
   r.filas.forEach(f => {

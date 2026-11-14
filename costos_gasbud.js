@@ -9,6 +9,10 @@
 //     desde el mes de inicio y durante la vida útil. Aparece en la matriz como gasto fijo por departamento (solo lectura).
 // El presupuesto no se modifica solo: lo que se ve aquí es lo que se escribió.
 
+// Partidas globales (presupuesto): sin decimales
+function _cstGbR(n) { return Math.round(Number(n) || 0); }   // montos del presupuesto: enteros
+function _cstGbM(n) { return cstMoney(Math.round(Number(n) || 0), 0); }
+
 let _cstGbRows = [];     // cost_gasto_budget
 let _cstActivos = [];    // cost_activos
 
@@ -124,7 +128,7 @@ async function cstGbAgregar() {
   if (_cstGbRows.some(r => _cstGbKey(r.cuenta_id, r.depto_id) === key)) { pmToast('Ya existe esa línea (cuenta y departamento): editá sus meses', 'err'); return; }
   try {
     const meses = _cstGbMeses();
-    const m = cstRound(monto, 4, 'normal');
+    const m = _cstGbR(monto, 4, 'normal');
     for (const ym of meses) await _cstGbGuardar(cuentaId, deptoId, ym, m);
     const el = document.getElementById('cstgb-n-monto'); if (el) el.value = '';
     pmToast('Línea agregada con el mismo monto en los 12 meses ✓');
@@ -155,7 +159,7 @@ async function cstGbSet(cuentaId, deptoId, ym, valor) {
   const n = txt === '' ? 0 : parseFloat(txt.replace(',', '.'));
   if (isNaN(n) || n < 0) { pmToast('Ingresá un monto de 0 o más', 'err'); cstGbRender(); return; }
   try {
-    await _cstGbGuardar(cuentaId, deptoId || null, ym, cstRound(n, 4, 'normal'));
+    await _cstGbGuardar(cuentaId, deptoId || null, ym, _cstGbR(n, 4, 'normal'));
   } catch (e) {
     console.warn('[cstGbSet]', e.message);
     pmToast('⚠️ No se pudo guardar: ' + _cstErr(e, 'sql_costos_presupuesto.sql'), 'err');
@@ -175,7 +179,7 @@ function _cstGbBaseRelleno() {
 async function _cstGbRellenarLinea(cuentaId, deptoId, b) {
   const base = _cstGbMonto(cuentaId, deptoId, b.meses[b.i]);
   for (let k = 1; b.i + k < b.meses.length; k++) {
-    await _cstGbGuardar(cuentaId, deptoId, b.meses[b.i + k], cstRound(Math.max(0, base * Math.pow(1 + b.crec / 100, k)), 4, 'normal'));
+    await _cstGbGuardar(cuentaId, deptoId, b.meses[b.i + k], _cstGbR(Math.max(0, base * Math.pow(1 + b.crec / 100, k)), 4, 'normal'));
   }
 }
 async function cstGbRellenar(cuentaId, deptoId) {
@@ -275,8 +279,8 @@ function cstGbRender() {
     const tot = meses.reduce((a, m) => a + _cstGbMonto(l.cuentaId, l.deptoId, m), 0);
     const tiene = _cstGbRows.some(r => _cstGbKey(r.cuenta_id, r.depto_id) === _cstGbKey(l.cuentaId, l.deptoId));
     html += `<tr style="border-bottom:1px solid var(--bdr)"><td style="padding:3px 8px;text-align:left">${pmEsc(nom)}</td>` +
-      meses.map(m => `<td style="${td}"><input type="number" min="0" step="any" style="${inp}" value="${_cstGbMonto(l.cuentaId, l.deptoId, m) || ''}" placeholder="—" onchange="cstGbSet('${l.cuentaId}','${l.deptoId || ''}','${m}',this.value)"></td>`).join('') +
-      `<td style="${td};padding-right:8px" id="cstgb-t-${l.cuentaId}-${l.deptoId || 'x'}">${tot > 0 ? cstMoney(tot) : '—'}</td>` +
+      meses.map(m => `<td style="${td}"><input type="number" min="0" step="any" style="${inp}" value="${Math.round(_cstGbMonto(l.cuentaId, l.deptoId, m)) || ''}" placeholder="—" onchange="cstGbSet('${l.cuentaId}','${l.deptoId || ''}','${m}',this.value)"></td>`).join('') +
+      `<td style="${td};padding-right:8px" id="cstgb-t-${l.cuentaId}-${l.deptoId || 'x'}">${tot > 0 ? _cstGbM(tot) : '—'}</td>` +
       `<td style="white-space:nowrap"><button class="btn btn-out btn-sm" title="Llena los meses siguientes al mes elegido arriba, con el factor indicado" onclick="cstGbRellenar('${l.cuentaId}','${l.deptoId || ''}')">⇢ Rellenar</button>${tiene ? ` <button class="btn btn-out btn-sm" title="Borra los montos de esta línea" onclick="cstGbQuitar('${l.cuentaId}','${l.deptoId || ''}')">🗑</button>` : ''}</td></tr>`;
   });
   // Depreciación (solo lectura): una fila por departamento con activos
@@ -284,12 +288,12 @@ function cstGbRender() {
   deptosDep.forEach(d => {
     const tot = meses.reduce((a, m) => a + (cstActDepPorDepto(m)[d] || 0), 0);
     html += `<tr style="border-bottom:1px solid var(--bdr);color:var(--cream2)"><td style="padding:3px 8px;text-align:left">📦 Depreciación de activos · ${pmEsc(_cstGbDeptoNom(d || null))}</td>` +
-      meses.map(m => `<td style="${td};padding-right:8px">${cstMoney(cstActDepPorDepto(m)[d] || 0)}</td>`).join('') +
-      `<td style="${td};padding-right:8px">${cstMoney(tot)}</td><td></td></tr>`;
+      meses.map(m => `<td style="${td};padding-right:8px">${_cstGbM(cstActDepPorDepto(m)[d] || 0)}</td>`).join('') +
+      `<td style="${td};padding-right:8px">${_cstGbM(tot)}</td><td></td></tr>`;
   });
   html += `<tr style="font-weight:700"><td style="padding:6px 8px;text-align:left">Total gasto fijo presupuestado</td>` +
-    meses.map((m, i) => `<td style="${td};padding-right:8px" id="cstgb-tm-${i}">${cstMoney(cstGbTotalMes(m))}</td>`).join('') +
-    `<td style="${td};padding-right:8px" id="cstgb-tt">${cstMoney(meses.reduce((a, m) => a + cstGbTotalMes(m), 0))}</td><td></td></tr>`;
+    meses.map((m, i) => `<td style="${td};padding-right:8px" id="cstgb-tm-${i}">${_cstGbM(cstGbTotalMes(m))}</td>`).join('') +
+    `<td style="${td};padding-right:8px" id="cstgb-tt">${_cstGbM(meses.reduce((a, m) => a + cstGbTotalMes(m), 0))}</td><td></td></tr>`;
   html += '</tbody></table></div>';
   tabla.innerHTML = html;
   cstGbTotales();
@@ -298,20 +302,20 @@ function cstGbRender() {
 // Solo totales y estadísticas (no rehace los campos, para no perder el foco al escribir)
 function cstGbTotales() {
   const meses = _cstGbMeses();
-  meses.forEach((m, i) => { const el = document.getElementById('cstgb-tm-' + i); if (el) el.textContent = cstMoney(cstGbTotalMes(m)); });
+  meses.forEach((m, i) => { const el = document.getElementById('cstgb-tm-' + i); if (el) el.textContent = _cstGbM(cstGbTotalMes(m)); });
   _cstGbLineas().forEach(l => {
     const el = document.getElementById(`cstgb-t-${l.cuentaId}-${l.deptoId || 'x'}`);
-    if (el) { const t = meses.reduce((a, m) => a + _cstGbMonto(l.cuentaId, l.deptoId, m), 0); el.textContent = t > 0 ? cstMoney(t) : '—'; }
+    if (el) { const t = meses.reduce((a, m) => a + _cstGbMonto(l.cuentaId, l.deptoId, m), 0); el.textContent = t > 0 ? _cstGbM(t) : '—'; }
   });
   const total = meses.reduce((a, m) => a + cstGbTotalMes(m), 0);
-  const tt = document.getElementById('cstgb-tt'); if (tt) tt.textContent = cstMoney(total);
+  const tt = document.getElementById('cstgb-tt'); if (tt) tt.textContent = _cstGbM(total);
   const dep = meses.reduce((a, m) => a + cstActDepTotal(m), 0);
   const st = document.getElementById('cstgb-stats');
   if (st) {
     const stat = (t, v, s) => `<div class="stat"><div class="stat-lbl">${t}</div><div class="stat-val" style="font-size:17px">${v}</div>${s ? `<div class="stat-sub">${s}</div>` : ''}</div>`;
-    st.innerHTML = stat('Gasto fijo del año', cstMoney(total), 'incluye la depreciación') +
-      stat('Promedio mensual', cstMoney(total / 12), 'lo que habría que cubrir cada mes') +
-      stat('Depreciación del año', cstMoney(dep), _cstActivos.length ? _cstActivos.filter(a => a.activo !== false).length + ' activos' : 'sin activos cargados');
+    st.innerHTML = stat('Gasto fijo del año', _cstGbM(total), 'incluye la depreciación') +
+      stat('Promedio mensual', _cstGbM(total / 12), 'lo que habría que cubrir cada mes') +
+      stat('Depreciación del año', _cstGbM(dep), _cstActivos.length ? _cstActivos.filter(a => a.activo !== false).length + ' activos' : 'sin activos cargados');
   }
 }
 
@@ -339,7 +343,7 @@ async function cstActAgregar() {
   if (isNaN(vida) || vida <= 0) { pmToast('Escribí la vida útil en meses', 'err'); return; }
   if (!/^\d{4}-\d{2}$/.test(inicio || '')) { pmToast('Elegí el mes en que empieza a depreciarse', 'err'); return; }
   try {
-    await pmDB.insert('cost_activos', { nombre, depto_id: deptoId, costo: cstRound(costo, 4, 'normal'), valor_residual: cstRound(res, 4, 'normal'), vida_util_meses: vida, inicio: inicio + '-01' });
+    await pmDB.insert('cost_activos', { nombre, depto_id: deptoId, costo: _cstGbR(costo, 4, 'normal'), valor_residual: _cstGbR(res, 4, 'normal'), vida_util_meses: vida, inicio: inicio + '-01' });
     ['cstact-n-nombre', 'cstact-n-costo', 'cstact-n-res', 'cstact-n-vida'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
     await cstGbCargarDatos();
     cstActRender();
@@ -388,8 +392,8 @@ function cstActRender() {
     const mensual = Math.max(0, a.costo - a.valor_residual) / a.vida_util_meses;
     const vigente = cstActDepMes(a, hoy) > 0;
     html += `<tr style="border-bottom:1px solid var(--bdr)${a.activo === false ? ';opacity:.5' : ''}"><td style="${td};text-align:left">${pmEsc(a.nombre)}</td><td style="${td};text-align:left">${pmEsc(_cstGbDeptoNom(a.depto_id))}</td>` +
-      `<td style="${td}">${cstMoney(a.costo)}</td><td style="${td}">${cstMoney(a.valor_residual)}</td><td style="${td}">${a.vida_util_meses}</td><td style="${td}">${pmEsc(_cstGbMesTxt(a.inicio.slice(0, 7)))}</td>` +
-      `<td style="${td}">${cstMoney(mensual)}</td><td style="${td}">${vigente ? '✓ se deprecia' : '—'}</td>` +
+      `<td style="${td}">${_cstGbM(a.costo)}</td><td style="${td}">${_cstGbM(a.valor_residual)}</td><td style="${td}">${a.vida_util_meses}</td><td style="${td}">${pmEsc(_cstGbMesTxt(a.inicio.slice(0, 7)))}</td>` +
+      `<td style="${td}">${_cstGbM(mensual)}</td><td style="${td}">${vigente ? '✓ se deprecia' : '—'}</td>` +
       `<td style="white-space:nowrap"><button class="btn btn-out btn-sm" onclick="cstActToggle('${a.id}')">${a.activo === false ? 'Reactivar' : 'Pausar'}</button> <button class="btn btn-out btn-sm" onclick="cstActQuitar('${a.id}')">🗑</button></td></tr>`;
   });
   html += '</tbody></table></div>';
@@ -400,7 +404,7 @@ function cstActRender() {
   if (st) {
     const stat = (t, v, s) => `<div class="stat"><div class="stat-lbl">${t}</div><div class="stat-val" style="font-size:17px">${v}</div>${s ? `<div class="stat-sub">${s}</div>` : ''}</div>`;
     st.innerHTML = stat('Activos', String(vig.length), vig.length === _cstActivos.length ? 'todos en uso' : (_cstActivos.length - vig.length) + ' en pausa') +
-      stat('Costo de los activos', cstMoney(vig.reduce((a, x) => a + x.costo, 0)), 'sin residual') +
-      stat('Depreciación de este mes', cstMoney(mensualHoy), 'va al presupuesto de gasto fijo');
+      stat('Costo de los activos', _cstGbM(vig.reduce((a, x) => a + x.costo, 0)), 'sin residual') +
+      stat('Depreciación de este mes', _cstGbM(mensualHoy), 'va al presupuesto de gasto fijo');
   }
 }
