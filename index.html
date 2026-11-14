@@ -100,6 +100,7 @@
         <button class="ntab" data-tab="pg-costos-nomest" onclick="showTab('pg-costos-nomest');pmCloseNav()">👷 Nómina estimada</button>
         <button class="ntab" data-tab="pg-costos-gasbud" onclick="showTab('pg-costos-gasbud');pmCloseNav()">🧾 Gasto fijo presupuestado</button>
         <button class="ntab" data-tab="pg-costos-activos" onclick="showTab('pg-costos-activos');pmCloseNav()">📦 Activos depreciables</button>
+        <button class="ntab" data-tab="pg-costos-resbud" onclick="showTab('pg-costos-resbud');pmCloseNav()">📊 Resultados presupuestarios</button>
         <div class="drop-h">1 · Datos base</div>
         <button class="ntab" data-tab="pg-costos-maestros" onclick="showTab('pg-costos-maestros');pmCloseNav()">🏭 Departamentos y cuentas</button>
         <button class="ntab" data-tab="pg-costos-personal" onclick="showTab('pg-costos-personal');pmCloseNav()">👥 Personal</button>
@@ -2301,6 +2302,21 @@
   <div id="cstact-tabla"></div>
 </div>
 
+<!-- ═══ 💲 Costos · Resultados presupuestarios ═══ -->
+<div class="page" id="pg-costos-resbud">
+  <div class="pg-title">📊 Resultados presupuestarios</div>
+  <div class="pg-sub">Cuadro mes a mes de los costos y gastos presupuestados: volumen de producción previsto en kg y, en colones, mano de obra directa y fija, gastos variables y fijos de producción, de venta, de mercadeo y administrativos, con subtotales y total — solo lectura</div>
+  <div class="card">
+    <div class="ctitle">Meses y período de referencia</div>
+    <div class="row">
+      <div class="col"><label>Primer mes (el mismo del Budget)</label><input type="month" id="cstrb-inicio" onchange="cstRbSetInicio(this.value)"></div>
+      <div class="col" style="flex:2"><label>Período de la nómina y las tarifas</label><select id="cstrb-periodo" onchange="cstRbElegirPer(this.value)"></select></div>
+    </div>
+  </div>
+  <div class="stats" id="cstrb-stats"></div>
+  <div id="cstrb-tabla"></div>
+</div>
+
 <!-- ═══ 💲 Costos · Punto de equilibrio ═══ -->
 <div class="page" id="pg-costos-equilibrio">
   <div class="pg-title">⚖️ Punto de equilibrio</div>
@@ -2434,6 +2450,7 @@
 <script src="costos_budget.js?v=20261114c"></script>
 <script src="costos_compras.js?v=20261114b"></script>
 <script src="costos_gasbud.js?v=20261114e"></script>
+<script src="costos_resbud.js?v=20261114a"></script>
 <script src="mps_forecast.js?v=20261114a"></script>
 <script src="costos_consulta.js?v=20261025a"></script>
 <script src="costos_hoja.js?v=20261023a"></script>
