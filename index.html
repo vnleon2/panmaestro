@@ -1581,6 +1581,7 @@
 
   <div class="pills" id="mps-pills">
     <button class="pill on" onclick="mpsTab('est',this)">📝 Estimado del mes</button>
+    <button class="pill" onclick="mpsTab('for',this)">🔭 Rolling forecast</button>
     <button class="pill" onclick="mpsTab('ven',this)">💰 Ventas reales</button>
     <button class="pill" onclick="mpsTab('bal',this)">⚖️ Balance diario</button>
     <button class="pill" onclick="mpsTab('rep',this)">📑 Reporte del mes</button>
@@ -1592,6 +1593,9 @@
     <div class="stats" id="mps-stats"></div>
     <div id="mps-hoja"></div>
   </div>
+
+  <!-- ROLLING FORECAST -->
+  <div id="mpst-for" style="display:none"><div id="mpf-root"></div></div>
 
   <!-- REPORTE DEL MES -->
   <div id="mpst-rep" style="display:none"><div id="mpr-root"></div></div>
@@ -2344,7 +2348,8 @@
 <script src="costos_plan.js?v=20261024b"></script>
 <script src="costos_reportes.js?v=20261111c"></script>
 <script src="costos_equilibrio.js?v=20261114b"></script>
-<script src="costos_budget.js?v=20261114a"></script>
+<script src="costos_budget.js?v=20261114b"></script>
+<script src="mps_forecast.js?v=20261114a"></script>
 <script src="costos_consulta.js?v=20261025a"></script>
 <script src="costos_hoja.js?v=20261023a"></script>
 
