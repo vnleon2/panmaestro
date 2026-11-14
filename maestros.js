@@ -78,6 +78,7 @@ function panAdd() {
 
 // ── Carga tipos de pan desde Supabase (fuente primaria) ──
 async function panCargarSb() {
+  panRender();   // pinta ya lo guardado en el aparato; la nube lo refresca después
   await _panRecEnsure();
   if (pmDB.disponible()) {
     try {
@@ -170,7 +171,7 @@ function _panListaFiltrada() {
   const q = (document.getElementById('pan-search')?.value||'').toLowerCase();
   const fc = document.getElementById('pan-clase')?.value || '';
   const lista = G.tiposPan.filter(p => {
-    if (q && !p.nombre.toLowerCase().includes(q) && !p.id.toLowerCase().includes(q)) return false;
+    if (q && !String(p.nombre||'').toLowerCase().includes(q) && !String(p.id||'').toLowerCase().includes(q)) return false;
     if (!fc) return true;
     const c = _panClase[p.id] || { cat: '', mm: false };
     if (fc === '__mm') return c.mm;
@@ -328,6 +329,14 @@ async function gallCargarSb() {
 }
 
 function panRender() {
+  try { _panRenderInterno(); }
+  catch (e) {
+    console.warn('[panRender]', e);
+    const el = document.getElementById('pan-list');
+    if (el) el.innerHTML = '<div class="ph"><span class="ph-icon">⚠️</span>No se pudo mostrar la lista: ' + pmEsc(e.message) + '</div>';
+  }
+}
+function _panRenderInterno() {
   _ordenProdIniciar('pan-orden', panRender);
   const list = _panListaFiltrada();
   document.getElementById('pan-count').textContent = `Tipos de pan (${list.length})`;
@@ -347,7 +356,7 @@ function panRender() {
     return `
     <div class="item-row" id="pan-row-${p.id}">
       <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--gold3);min-width:44px">${p.id}</div>
-      <div class="item-name">${p.nombre}</div>
+      <div class="item-name">${pmEsc(p.nombre)}</div>
       <div style="font-size:10px;color:var(--cream2);white-space:nowrap">${pmEsc(_panClaseTexto(p.id))}</div>
       <div class="item-meta">${pmMoney(p.precio)} · ${p.peso}g</div>
       ${p.recetaCod ? `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--blue);background:rgba(74,128,192,.12);padding:2px 7px;border-radius:10px;border:1px solid rgba(74,128,192,.3)">${p.recetaCod}</div>` : `<div style="font-size:10px;color:var(--cream2);opacity:.4">—</div>`}
