@@ -2329,8 +2329,8 @@
       <div class="col sm"><label>Margen (%)</label><input type="number" min="0" max="95" step="1" id="cstun-margen" style="text-align:right" onchange="cstUnSetMargen(this.value)"></div>
       <div class="col" style="flex:2"><label>Período de la nómina y las tarifas</label><select id="cstun-periodo" onchange="cstUnElegirPer(this.value)"></select></div>
     </div>
-    <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin-top:8px"><input type="checkbox" id="cstun-solobud" onchange="cstUnSoloBud(this.checked)"> Solo productos del Budget <span style="color:var(--cream2)">(quitá el tick para ver todos los productos)</span></label>
-    <div style="font-size:11px;color:var(--cream2);margin-top:6px">Margen sobre el precio de venta: con 40 %, el costo es el 60 % del precio. El precio sugerido sale sin IVA y se muestra también con el IVA de cada producto. La capacidad ociosa no se carga a las piezas.</div>
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin-top:8px"><input type="checkbox" id="cstun-solobud" onchange="cstUnSoloBud(this.checked)"> Solo productos del Budget <span style="color:var(--cream2)">(sin tick se ven todos los productos; con tick, solo los que tienen unidades en el Budget)</span></label>
+    <div style="font-size:11px;color:var(--cream2);margin-top:6px">Margen sobre el precio de venta: con 40 %, el costo es el 60 % del precio. El precio sugerido sale sin IVA y se muestra también con el IVA de cada producto. La capacidad ociosa no se carga a las piezas. Este listado no cambia tu costo actual de Costeo ni de Precio de venta; no necesita Budget.</div>
   </div>
   <div class="stats" id="cstun-stats"></div>
   <div id="cstun-avisos"></div>
@@ -2471,7 +2471,7 @@
 <script src="costos_compras.js?v=20261114c"></script>
 <script src="costos_gasbud.js?v=20261114e"></script>
 <script src="costos_resbud.js?v=20261114a"></script>
-<script src="costos_unitarios.js?v=20261114b"></script>
+<script src="costos_unitarios.js?v=20261114c"></script>
 <script src="mps_forecast.js?v=20261114a"></script>
 <script src="costos_consulta.js?v=20261025a"></script>
 <script src="costos_hoja.js?v=20261023a"></script>
