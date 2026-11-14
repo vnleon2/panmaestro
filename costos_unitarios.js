@@ -38,11 +38,14 @@ function cstUnCalcular() {
     const gastos = convOk && c.capa2 !== null && c.capa2 !== undefined ? c.capa2 : null;
     if (convOk && gastos === null) avisos.push('Gastos del período: faltan los kg de ventas normales o la masa de la pieza');
     const directo = f.mat !== null && mod !== null ? f.mat + f.emp + mod : null;
-    const indirecto = fija !== null && gastos !== null ? fija + vari + gastos : null;
-    const total = directo !== null && indirecto !== null ? directo + indirecto : null;
+    // Forma canónica (NIC 2): costo de fábrica = materiales + empaque + MOD + CIF fijo (a capacidad normal) + CIF variable.
+    // Los gastos de venta, mercadeo y administración no son costo de fábrica: se suman aparte para el precio.
+    const indirecto = fija !== null && vari !== null ? fija + vari : null;
+    const fabrica = directo !== null && indirecto !== null ? directo + indirecto : null;
+    const total = fabrica !== null && gastos !== null ? fabrica + gastos : null;
     const sugerido = total !== null ? total / (1 - margen / 100) : null;
     filas.push({ p: f.p, un, mat: f.mat, emp: f.mat !== null ? f.emp : null, mod, directo, fija, vari, gastos,
-      indirecto, total, sugerido, sugeridoIva: sugerido !== null ? sugerido * (1 + f.iva / 100) : null, precio: f.precio, iva: f.iva, avisos,
+      indirecto, fabrica, total, sugerido, sugeridoIva: sugerido !== null ? sugerido * (1 + f.iva / 100) : null, precio: f.precio, iva: f.iva, avisos,
       sinEmp: !((typeof _cstProdEmp !== 'undefined' && _cstProdEmp[f.p.id]) || []).length });
   });
   // Referencia: promedio mensual del Budget frente a los kg de ventas normales del estándar
@@ -114,25 +117,26 @@ function cstUnRender() {
   }
   const conAviso = r.filas.filter(f => f.avisos.length);
   if (conAviso.length) L.push(`⚠ ${conAviso.length} producto${conAviso.length === 1 ? '' : 's'} sin costo completo: ${conAviso.map(f => f.p.nombre + ' (' + f.avisos.join('; ') + ')').join(' · ')}`);
+  L.push('ℹ Costo de fábrica = materiales + empaque + mano de obra + CIF fijo (sobre capacidad normal) + CIF variable. Los gastos de venta, mercadeo y administración se suman aparte para el precio. La capacidad que no se usa no se carga a la pieza: queda como CIF fijo no absorbido (ver Resultados presupuestarios).');
   const sinEmp = r.filas.filter(f => f.sinEmp);
   if (sinEmp.length) L.push(`📦 ${sinEmp.length} de ${r.filas.length} productos no tienen empaque asignado (su costo total no lo incluye): ${sinEmp.map(f => f.p.nombre).join(' · ')}. Se asigna en Empaques › Por producto.`);
   if (av) av.innerHTML = L.length ? `<div class="card">${L.map(x => `<div style="font-size:12px;margin:3px 0">${pmEsc(x)}</div>`).join('')}</div>` : '';
   let html = `<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:12px"><thead>` +
     `<tr style="border-bottom:1px solid var(--bdr)"><th style="${th};text-align:left" rowspan="2">Producto</th><th style="${th}" rowspan="2" title="Unidades del año en el Budget (solo referencia)">Budget (un./año)</th>` +
     `<th style="${th};text-align:center;border-left:1px solid var(--bdr)" colspan="4">DIRECTO por unidad</th>` +
-    `<th style="${th};text-align:center;border-left:1px solid var(--bdr)" colspan="4">INDIRECTO por unidad</th>` +
-    `<th style="${th};border-left:1px solid var(--bdr)" rowspan="2">COSTO TOTAL</th><th style="${th}" rowspan="2">Precio sugerido (sin IVA)</th><th style="${th}" rowspan="2">Precio sugerido (con IVA)</th><th style="${th}" rowspan="2">Precio actual (con IVA)</th></tr>` +
+    `<th style="${th};text-align:center;border-left:1px solid var(--bdr)" colspan="3">INDIRECTO de fábrica por unidad</th>` +
+    `<th style="${th};border-left:1px solid var(--bdr)" rowspan="2" title="Materiales + empaque + mano de obra + CIF fijo + CIF variable (NIC 2)">COSTO DE FÁBRICA</th><th style="${th}" rowspan="2" title="Venta, mercadeo y administración: no son costo de fábrica, pero el precio debe cubrirlos">Gastos del período</th><th style="${th};border-left:1px solid var(--bdr)" rowspan="2">COSTO TOTAL (para precio)</th><th style="${th}" rowspan="2">Precio sugerido (sin IVA)</th><th style="${th}" rowspan="2">Precio sugerido (con IVA)</th><th style="${th}" rowspan="2">Precio actual (con IVA)</th></tr>` +
     `<tr style="border-bottom:1px solid var(--bdr)"><th style="${th};border-left:1px solid var(--bdr)">Materiales</th><th style="${th}">Empaque</th><th style="${th}">Mano de obra</th><th style="${th}">Subtotal directo</th>` +
-    `<th style="${th};border-left:1px solid var(--bdr)">CIF fijo</th><th style="${th}">CIF variable</th><th style="${th}" title="Venta, mercadeo y administración">Gastos del período</th><th style="${th}">Subtotal indirecto</th></tr></thead><tbody>`;
-  if (!r.filas.length) html += `<tr><td colspan="14" style="padding:14px;color:var(--cream2)">No hay productos para mostrar. Cargalos en 📈 Budget de ventas o quitá el tick «Solo productos del Budget».</td></tr>`;
+    `<th style="${th};border-left:1px solid var(--bdr)">CIF fijo</th><th style="${th}">CIF variable</th><th style="${th}">Subtotal indirecto</th></tr></thead><tbody>`;
+  if (!r.filas.length) html += `<tr><td colspan="15" style="padding:14px;color:var(--cream2)">No hay productos para mostrar. Cargalos en 📈 Budget de ventas o quitá el tick «Solo productos del Budget».</td></tr>`;
   _cstBudGrupos(r.filas.map(f => f.p)).forEach(g => {
-    html += `<tr><td colspan="14" style="padding:9px 8px 3px;font-size:11px;font-weight:700;color:var(--gold,#b8860b);text-transform:uppercase">${pmEsc(g.nombre)}</td></tr>`;
+    html += `<tr><td colspan="15" style="padding:9px 8px 3px;font-size:11px;font-weight:700;color:var(--gold,#b8860b);text-transform:uppercase">${pmEsc(g.nombre)}</td></tr>`;
     g.prods.forEach(p => {
       const f = r.filas.find(x => x.p.id === p.id);
       html += `<tr style="border-bottom:1px solid var(--bdr)"><td style="${td};text-align:left">${pmEsc(p.nombre)}</td><td style="${td};color:var(--cream2)">${f.un > 0 ? _cstNum(f.un, 0) : '—'}</td>` +
         `<td style="${td};border-left:1px solid var(--bdr)">${U(f.mat)}</td><td style="${td}">${f.sinEmp && f.mat !== null ? '<span style="color:#b45309;font-size:11px" title="No tiene empaque asignado (Empaques › Por producto)">sin asignar</span>' : U(f.emp)}</td><td style="${td}">${U(f.mod)}</td><td style="${td};font-weight:700;${bg}">${U(f.directo)}</td>` +
-        `<td style="${td};border-left:1px solid var(--bdr)">${U(f.fija)}</td><td style="${td}">${U(f.vari)}</td><td style="${td}">${U(f.gastos)}</td><td style="${td};font-weight:700;${bg}">${U(f.indirecto)}</td>` +
-        `<td style="${td};font-weight:800;border-left:1px solid var(--bdr)">${U(f.total)}</td><td style="${td};font-weight:700">${P(f.sugerido)}</td><td style="${td};font-weight:700">${P(f.sugeridoIva)}</td><td style="${td};color:var(--cream2)">${f.precio === null ? '—' : P(f.precio)}</td></tr>`;
+        `<td style="${td};border-left:1px solid var(--bdr)">${U(f.fija)}</td><td style="${td}">${U(f.vari)}</td><td style="${td};font-weight:700;${bg}">${U(f.indirecto)}</td>` +
+        `<td style="${td};font-weight:800;border-left:1px solid var(--bdr)">${U(f.fabrica)}</td><td style="${td}">${U(f.gastos)}</td><td style="${td};font-weight:800;border-left:1px solid var(--bdr)">${U(f.total)}</td><td style="${td};font-weight:700">${P(f.sugerido)}</td><td style="${td};font-weight:700">${P(f.sugeridoIva)}</td><td style="${td};color:var(--cream2)">${f.precio === null ? '—' : P(f.precio)}</td></tr>`;
     });
   });
   html += '</tbody></table></div>';

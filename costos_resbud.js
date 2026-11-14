@@ -35,8 +35,22 @@ function cstRbCalcular() {
     const t = x.depto.tipo;
     if (t === 'venta' || t === 'mercadeo' || t === 'administracion') nominaGrupo[_cstRbGrupoDeTipo(t)] += x.costo / n;
   });
+  // Absorción del CIF fijo del estándar (NIC 2): lo que la producción prevista absorbe con las tarifas del período
+  // y lo que queda sin absorber (capacidad no usada → gasto del período, no costo de la pieza)
+  let tarifas = [];
+  try { tarifas = cstTasActuales().tarifas || []; } catch (e) { tarifas = []; }
+  const ids = _cstRutProd.map(p => p.id);
+  const sem = [{ n: 1, activos: [true, true, true, true, true, true, true] }];
+  const cifFMes = tarifas.reduce((a, t) => a + (isFinite(t.cifF) ? t.cifF : 0), 0) / n;
   const cols = meses.map((ym, i) => {
     const f = nom.filas[i] || { kg: 0, directa: 0, fijaProd: 0, ociosa: 0, apoyo: 0 };
+    let cifFAbs = null;
+    if (tarifas.length && cifFMes > 0) {
+      try {
+        const rr = cstPlnCalc(ids, (id, nn, d) => (d === 1 ? _cstBudUn(id, ym) : 0), sem, tarifas, 1);
+        cifFAbs = rr.deptos.reduce((a, d) => a + (d.t && d.t.tasaF !== null && isFinite(d.t.tasaF) ? d.t.tasaF * d.qMes : 0), 0);
+      } catch (e) { cifFAbs = null; }
+    }
     const g = { fab: { v: 0, f: 0 }, ven: { v: 0, f: 0 }, mer: { v: 0, f: 0 }, adm: { v: 0, f: 0 } };
     _cstGbRows.filter(r => r.mes === ym && !_cstGbEsDeprec(_cstGbCuentaDeId(r.cuenta_id))).forEach(r => {
       const c = _cstGbCuentaDeId(r.cuenta_id);
@@ -57,7 +71,8 @@ function cstRbCalcular() {
     const costoProd = f.directa + moFija + g.fab.v + g.fab.f;
     const sub = k => g[k].v + g[k].f;
     const gastos = sub('ven') + sub('mer') + sub('adm');
-    return { ym, kg: f.kg, mod: f.directa, moFija, g, costoProd, subVen: sub('ven'), subMer: sub('mer'), subAdm: sub('adm'), gastos, total: costoProd + gastos };
+    return { ym, kg: f.kg, mod: f.directa, moFija, g, costoProd, subVen: sub('ven'), subMer: sub('mer'), subAdm: sub('adm'), gastos, total: costoProd + gastos,
+      cifFEst: cifFAbs === null ? null : cifFMes, cifFAbs, cifFNoAbs: cifFAbs === null ? null : cifFMes - cifFAbs };
   });
   return { meses, cols, per: nom.per };
 }
@@ -134,6 +149,12 @@ function cstRbRender() {
   html += cab('Totales');
   html += fila('Total gastos (venta, mercadeo y administración)', c => c.gastos, { sub: true });
   html += fila('TOTAL GASTOS Y COSTOS', c => c.total, { total: true });
+  if (r.cols.some(c => c.cifFAbs !== null)) {
+    html += cab('Memo · absorción del CIF fijo del estándar (NIC 2, tarifas del período, no suma al total)');
+    html += fila('CIF fijo del estándar (por mes)', c => c.cifFEst || 0);
+    html += fila('CIF fijo absorbido por la producción prevista', c => c.cifFAbs || 0);
+    html += fila('CIF fijo no absorbido (capacidad no usada: gasto del período)', c => c.cifFNoAbs || 0, { sub: true });
+  }
   const pk = (v, kg) => kg > 0 ? cstMoney(v / kg, 2) : '—';
   html += `<tr style="border-bottom:1px solid var(--bdr)"><td style="${td};text-align:left;padding-left:22px">Costo de producción por kg</td>` +
     r.cols.map(c => `<td style="${td}">${pk(c.costoProd, c.kg)}</td>`).join('') + `<td style="${td}">${pk(sum(c => c.costoProd), kgAnio)}</td></tr>`;
