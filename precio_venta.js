@@ -174,6 +174,42 @@ function _pvLectura(r, item, s, d) {
   return out;
 }
 
+// ── Alertas del producto: rojo / amarillo / verde ──────────────
+// Rojo: el precio actual (sin IVA) no cubre el costo. Amarillo: margen real menor de 15 %,
+// falta el precio de lista o falta el peso del producto. Verde: nada que corregir.
+const PV_MARGEN_MIN = 15;
+
+function _pvAlertas(item, s, d) {
+  const rojo = [], amarillo = [];
+  if (item.precio > 0) {
+    const netoAct = item.precio / (1 + s.iva.v / 100);
+    const margenAct = netoAct > 0 ? (netoAct - d.costo) / netoAct * 100 : -Infinity;
+    if (netoAct < d.costo) {
+      rojo.push(`El precio actual de ${pmMoney(item.precio)} (${pmMoney(Math.round(netoAct))} sin IVA) está por debajo del costo de ${pmMoney(d.costo)}: cada unidad vendida pierde ${pmMoney(Math.round(d.costo - netoAct))}.`);
+    } else if (margenAct < PV_MARGEN_MIN) {
+      amarillo.push(`El margen real con el precio actual es ${margenAct.toFixed(1)} %, menor de ${PV_MARGEN_MIN} %.`);
+    }
+  } else {
+    amarillo.push('Falta el precio de lista: no se puede comparar el precio actual con el costo (se indica en Maestros).');
+  }
+  if (!(item.peso > 0)) amarillo.push('Falta el peso del producto: los materiales se calcularon con el rendimiento de la receta (se indica en Maestros).');
+  return { rojo, amarillo };
+}
+
+function _pvAlertasHTML(item, s, d) {
+  const a = _pvAlertas(item, s, d);
+  const nivel = a.rojo.length ? 'rojo' : a.amarillo.length ? 'amarillo' : 'verde';
+  const estilo = { rojo: ['#fde8e8', '#b42318', '🔴'], amarillo: ['#fff4d6', '#8a5a00', '🟡'], verde: ['#e4f4e8', '#1e5a1a', '🟢'] }[nivel];
+  const titulo = { rojo: 'ALERTA', amarillo: 'REVISAR', verde: 'TODO EN ORDEN' }[nivel];
+  const lineas = nivel === 'verde'
+    ? ['No hay nada que corregir: el precio actual cubre el costo con margen suficiente.']
+    : a.rojo.concat(a.amarillo);
+  return `<div class="pv-alertas" style="background:${estilo[0]};border:1.5px solid ${estilo[1]};color:#161616;padding:8px 14px;margin-top:14px">
+    <h3 style="margin:0 0 4px;font-size:14px;color:${estilo[1]}">${estilo[2]} ${titulo}</h3>
+    <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.45">${lineas.map(t => `<li>${pmEsc(t)}</li>`).join('')}</ul>
+  </div>`;
+}
+
 // ── Hoja (misma para pantalla e impresión) ─────────────────────
 function _pvEtiqueta(o) {
   const t = { receta: 'receta', estimado: 'estimado', manual: 'manual' }[o];
@@ -183,6 +219,7 @@ function _pvEtiqueta(o) {
 function _pvHojaHTML(item, r, s, d, conLectura) {
   const hoy = new Date().toLocaleDateString('es-CR', { day: '2-digit', month: 'long', year: 'numeric' });
   const filaIng = d.ings.map(x => `<tr><td>${pmEsc(x.nombre)}</td><td class="n">${pmMoney(x.v)}</td></tr>`).join('');
+  const alertas = conLectura ? _pvAlertasHTML(item, s, d) : '';
   const lectura = conLectura
     ? `<div class="pv-lectura"><h3>LECTURA DEL ANALISTA</h3><ul>${_pvLectura(r, item, s, d).map(t => `<li>${t}</li>`).join('')}</ul></div>`
     : '';
@@ -233,6 +270,7 @@ function _pvHojaHTML(item, r, s, d, conLectura) {
         <p class="f">Redondeado a ₡${d.paso} · margen efectivo ${d.margenCarta.toFixed(1)}%${item.precio > 0 ? `<br>Precio actual de lista: ${pmMoney(item.precio)}` : ''}</p>
       </div>
     </div>
+    ${alertas}
     ${lectura}
     <div class="pv-pie">Victor's Bakery &amp; Sweets · PanMaestro · ${hoy}</div>
   </div>`;
