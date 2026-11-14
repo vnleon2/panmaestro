@@ -52,12 +52,13 @@ function cstUnCalcular() {
     const precioSin = f.precio > 0 ? f.precio / (1 + (Number(f.iva) || 0) / 100) : null;
     // Costeo directo: costo variable total = costo primo + gasto de fábrica variable (CIF variable); margen bruto = precio − costo variable;
     // costo remanente por cubrir = costos fijos = CIF fijo + gastos del período (venta, mercadeo y administración)
-    const totalVar = primo !== null && vari !== null ? primo + vari : null;
+    const conversion = mod !== null && vari !== null ? mod + vari : null;   // costo de conversión = mano de obra directa + gasto de fábrica variable
+    const totalVar = matEmp !== null && conversion !== null ? matEmp + conversion : null;   // costo variable = materiales + conversión
     const margenBruto = precioSin !== null && totalVar !== null ? precioSin - totalVar : null;
     const remanente = fija !== null && gastos !== null ? fija + gastos : null;
     const resultado = margenBruto !== null && remanente !== null ? margenBruto - remanente : null;
     filas.push({ p: f.p, un, mat: f.mat, emp: f.mat !== null ? f.emp : null, mod, directo, fija, vari, gastos,
-      indirecto, fabrica, total, matEmp, primo, totalVar, precioSin, margenBruto, remanente, resultado, sugerido, sugeridoIva: sugerido !== null ? sugerido * (1 + f.iva / 100) : null, precio: f.precio, iva: f.iva, avisos,
+      indirecto, fabrica, total, matEmp, primo, conversion, totalVar, precioSin, margenBruto, remanente, resultado, sugerido, sugeridoIva: sugerido !== null ? sugerido * (1 + f.iva / 100) : null, precio: f.precio, iva: f.iva, avisos,
       sinEmp: !((typeof _cstProdEmp !== 'undefined' && _cstProdEmp[f.p.id]) || []).length });
   });
   // Referencia: promedio mensual del Budget frente a los kg de ventas normales del estándar
@@ -139,9 +140,10 @@ function cstUnRender() {
     const neg = x => (x !== null && x !== undefined && x < 0 ? 'color:#b91c1c;' : '');
     let h = `<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:12px"><thead>` +
       `<tr style="border-bottom:1px solid var(--bdr)"><th style="${th};text-align:left">Producto</th>` +
-      `<th style="${th}" title="Materiales + empaque">Costo material</th><th style="${th}">Costo MOD</th><th style="${th};${bg}">COSTO PRIMO</th>` +
-      `<th style="${th}" title="CIF variable: gasto de fábrica que se aplica directo a la pieza">Gasto de fábrica variable</th><th style="${th};${bg}" title="Costo primo + gasto de fábrica variable">COSTO VARIABLE TOTAL</th>` +
-      `<th style="${th};border-left:1px solid var(--bdr)" title="Precio de venta actual del maestro, sin IVA">Precio de venta (sin IVA)</th><th style="${th};${bg}" title="Precio de venta − costo variable total">MARGEN BRUTO</th><th style="${th}">% s/ precio</th>` +
+      `<th style="${th}" title="Materiales de la receta + empaque (material directo)">Costo de materiales</th>` +
+      `<th style="${th};border-left:1px solid var(--bdr)">Mano de obra directa</th><th style="${th}" title="CIF variable: gasto de fábrica que se aplica directo a la pieza">Gasto de fábrica variable</th><th style="${th};${bg}" title="Mano de obra directa + gasto de fábrica variable">COSTO DE CONVERSIÓN</th>` +
+      `<th style="${th};${bg}" title="Costo de materiales + costo de conversión">COSTO VARIABLE</th>` +
+      `<th style="${th};border-left:1px solid var(--bdr)" title="Precio de venta actual del maestro, sin IVA">Precio de venta (sin IVA)</th><th style="${th};${bg}" title="Precio de venta − costo variable">MARGEN BRUTO</th><th style="${th}">% s/ precio</th>` +
       `<th style="${th};border-left:1px solid var(--bdr)">CIF fijo</th><th style="${th}" title="Venta, mercadeo y administración por unidad">Gastos del período</th><th style="${th};${bg}" title="CIF fijo + gastos del período: lo que el margen bruto todavía tiene que pagar">COSTO REMANENTE POR CUBRIR</th>` +
       `<th style="${th}" title="Margen bruto − costo remanente">Resultado por unidad</th></tr></thead><tbody>`;
     if (!r.filas.length) h += `<tr><td colspan="13" style="padding:14px;color:var(--cream2)">No hay productos para mostrar.</td></tr>`;
@@ -150,8 +152,9 @@ function cstUnRender() {
       g.prods.forEach(p => {
         const f = r.filas.find(x => x.p.id === p.id);
         h += `<tr style="border-bottom:1px solid var(--bdr)"><td style="${td};text-align:left">${pmEsc(p.nombre)}</td>` +
-          `<td style="${td}">${U(f.matEmp)}</td><td style="${td}">${U(f.mod)}</td><td style="${td};font-weight:700;${bg}">${U(f.primo)}</td>` +
-          `<td style="${td}">${U(f.vari)}</td><td style="${td};font-weight:800;${bg}">${U(f.totalVar)}</td>` +
+          `<td style="${td}">${U(f.matEmp)}</td>` +
+          `<td style="${td};border-left:1px solid var(--bdr)">${U(f.mod)}</td><td style="${td}">${U(f.vari)}</td><td style="${td};font-weight:700;${bg}">${U(f.conversion)}</td>` +
+          `<td style="${td};font-weight:800;${bg}">${U(f.totalVar)}</td>` +
           `<td style="${td};border-left:1px solid var(--bdr)">${U(f.precioSin)}</td><td style="${td};font-weight:700;${bg}${neg(f.margenBruto)}">${U(f.margenBruto)}</td>` +
           `<td style="${td};${neg(f.margenBruto)}">${PC(f.margenBruto !== null && f.precioSin ? f.margenBruto / f.precioSin * 100 : null)}</td>` +
           `<td style="${td};border-left:1px solid var(--bdr)">${U(f.fija)}</td><td style="${td}">${U(f.gastos)}</td><td style="${td};font-weight:800;${bg}">${U(f.remanente)}</td>` +
