@@ -15,6 +15,7 @@
 
 let _cstUnMargen = 40;       // % de margen sobre el precio
 let _cstUnVista = 'margen';   // 'margen' (costo primo → costo de fábrica → precio actual → margen bruto) o 'sugerido' (costo total y precio sugerido)
+let _cstUnSel = '';           // producto con el detalle de conversión abierto
 let _cstUnSoloBudget = false; // listar solo los productos con unidades en el Budget (por defecto, todos)
 
 function cstUnCalcular() {
@@ -57,7 +58,7 @@ function cstUnCalcular() {
     const margenBruto = precioSin !== null && totalVar !== null ? precioSin - totalVar : null;
     const remanente = fija !== null && gastos !== null ? fija + gastos : null;
     const resultado = margenBruto !== null && remanente !== null ? margenBruto - remanente : null;
-    filas.push({ p: f.p, un, mat: f.mat, emp: f.mat !== null ? f.emp : null, mod, directo, fija, vari, gastos,
+    filas.push({ p: f.p, c, kgPz: c && !c.sinRuta ? c.kgPz : null, un, mat: f.mat, emp: f.mat !== null ? f.emp : null, mod, directo, fija, vari, gastos,
       indirecto, fabrica, total, matEmp, primo, conversion, totalVar, precioSin, margenBruto, remanente, resultado, sugerido, sugeridoIva: sugerido !== null ? sugerido * (1 + f.iva / 100) : null, precio: f.precio, iva: f.iva, avisos,
       sinEmp: !((typeof _cstProdEmp !== 'undefined' && _cstProdEmp[f.p.id]) || []).length });
   });
@@ -87,6 +88,7 @@ function cstUnSetInicio(v) {
   try { localStorage.setItem(CST_BUD_LS, v); } catch (e) { /* ok */ }
   cstUnRender();
 }
+function cstUnVerDetalle(id) { _cstUnSel = _cstUnSel === id ? '' : id; cstUnRender(); }
 function cstUnSetVista(v) { _cstUnVista = v === 'sugerido' ? 'sugerido' : 'margen'; cstUnRender(); }
 function cstUnSoloBud(v) { _cstUnSoloBudget = !!v; cstUnRender(); }
 function cstUnSetMargen(v) {
@@ -99,6 +101,30 @@ async function cstUnElegirPer(id) {
   try { localStorage.setItem(CST_PER_LS, _cstPerSel); } catch (e) { /* ok */ }
   await cstTasCargar();
   cstUnRender();
+}
+
+// Factores de conversión de un producto: por departamento, lo que consume la pieza × la tarifa
+function _cstUnDetalleHtml(f) {
+  const c = f.c;
+  if (!c || c.sinRuta || !c.porDepto || !c.porDepto.length) return '<div style="font-size:12px;color:var(--cream2)">Este producto no tiene ruta de elaboración con departamentos: no hay factores de conversión que mostrar.</div>';
+  const th = 'padding:4px 8px;text-align:right;font-size:10px;white-space:nowrap;color:var(--cream2)';
+  const td = 'padding:3px 8px;text-align:right;font-family:\'DM Mono\',monospace;font-size:11px;white-space:nowrap';
+  const T = x => (x === null || x === undefined || !isFinite(x) ? '—' : cstMoney(x, 2));
+  const N = (x, d) => (x === null || x === undefined || !isFinite(x) ? '—' : _cstNum(x, d));
+  const filas = c.porDepto.map(x => {
+    const t = x.t || {};
+    return `<tr style="border-bottom:1px solid var(--bdr)"><td style="${td};text-align:left;font-family:inherit">${pmEsc(x.depto ? x.depto.codigo + ' ' + x.depto.nombre : 'departamento')}</td>` +
+      `<td style="${td}">${pmEsc(t.driver_codigo || '—')}</td><td style="${td}">${N(x.q, 4)} ${pmEsc(t.unidad || '')}</td>` +
+      `<td style="${td};border-left:1px solid var(--bdr)">${N(x.hh, 4)}</td><td style="${td}">${T(t.tasaMod)}</td><td style="${td};font-weight:700">${T(x.mod)}</td>` +
+      `<td style="${td};border-left:1px solid var(--bdr)">${T(t.tasaV)}</td><td style="${td};font-weight:700">${T(x.vari)}</td>` +
+      `<td style="${td};border-left:1px solid var(--bdr)">${T(t.tasaF)}</td><td style="${td};font-weight:700">${T(x.fija)}</td></tr>`;
+  }).join('');
+  return `<div style="font-size:11px;color:var(--cream2);margin-bottom:4px">Masa cruda por pieza: <b>${f.kgPz > 0 ? N(f.kgPz * 1000, 1) + ' g' : '—'}</b> · cada monto = lo que consume la pieza × la tarifa del departamento</div>` +
+    `<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%"><thead><tr style="border-bottom:1px solid var(--bdr)"><th style="${th};text-align:left">Departamento</th><th style="${th}">Base</th><th style="${th}">Consumo por pieza</th>` +
+    `<th style="${th};border-left:1px solid var(--bdr)">HH por pieza</th><th style="${th}">Tarifa MOD (₡/HH)</th><th style="${th}">MOD</th>` +
+    `<th style="${th};border-left:1px solid var(--bdr)">Tarifa variable (₡/base)</th><th style="${th}">CIF variable</th>` +
+    `<th style="${th};border-left:1px solid var(--bdr)">Tarifa fija (₡/base)</th><th style="${th}">CIF fijo</th></tr></thead><tbody>${filas}</tbody>` +
+    `<tfoot><tr><td colspan="5" style="${td};text-align:right;font-family:inherit">Totales</td><td style="${td};font-weight:800">${T(c.mod)}</td><td></td><td style="${td};font-weight:800">${T(c.vari)}</td><td></td><td style="${td};font-weight:800">${T(c.fija)}</td></tr></tfoot></table></div>`;
 }
 
 function cstUnRender() {
@@ -151,7 +177,7 @@ function cstUnRender() {
       h += `<tr><td colspan="13" style="padding:9px 8px 3px;font-size:11px;font-weight:700;color:var(--gold,#b8860b);text-transform:uppercase">${pmEsc(g.nombre)}</td></tr>`;
       g.prods.forEach(p => {
         const f = r.filas.find(x => x.p.id === p.id);
-        h += `<tr style="border-bottom:1px solid var(--bdr)"><td style="${td};text-align:left">${pmEsc(p.nombre)}</td>` +
+        h += `<tr style="border-bottom:1px solid var(--bdr)"><td style="${td};text-align:left;cursor:pointer" onclick="cstUnVerDetalle('${p.id}')" title="Ver los factores de conversión">${_cstUnSel === p.id ? '▾' : '▸'} ${pmEsc(p.nombre)}</td>` +
           `<td style="${td}">${U(f.matEmp)}</td>` +
           `<td style="${td};border-left:1px solid var(--bdr)">${U(f.mod)}</td><td style="${td}">${U(f.vari)}</td><td style="${td};font-weight:700;${bg}">${U(f.conversion)}</td>` +
           `<td style="${td};font-weight:800;${bg}">${U(f.totalVar)}</td>` +
@@ -159,6 +185,7 @@ function cstUnRender() {
           `<td style="${td};${neg(f.margenBruto)}">${PC(f.margenBruto !== null && f.precioSin ? f.margenBruto / f.precioSin * 100 : null)}</td>` +
           `<td style="${td};border-left:1px solid var(--bdr)">${U(f.fija)}</td><td style="${td}">${U(f.gastos)}</td><td style="${td};font-weight:800;${bg}">${U(f.remanente)}</td>` +
           `<td style="${td};font-weight:700;${neg(f.resultado)}">${U(f.resultado)}</td></tr>`;
+        if (_cstUnSel === p.id) h += `<tr><td colspan="13" style="padding:6px 8px 12px">${_cstUnDetalleHtml(f)}</td></tr>`;
       });
     });
     h += '</tbody></table></div>';
