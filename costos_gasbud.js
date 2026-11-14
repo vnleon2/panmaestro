@@ -15,6 +15,7 @@ function _cstGbM(n) { return cstMoney(Math.round(Number(n) || 0), 0); }
 
 let _cstGbRows = [];     // cost_gasto_budget
 let _cstActivos = [];    // cost_activos
+let _cstGbCargado = false; // el presupuesto de gasto y los activos ya se cargaron
 
 // ── Meses (los mismos del Budget de ventas) ─────────────────
 function _cstGbMeses() { return typeof _cstBudMeses === 'function' ? _cstBudMeses() : []; }
@@ -58,6 +59,7 @@ function cstGbTotalMes(ym) {
 async function cstGbCargarDatos() {
   _cstGbRows = []; _cstActivos = [];
   try {
+    _cstGbCargado = true;
     const [g, a] = await Promise.all([pmDB.get('cost_gasto_budget'), pmDB.get('cost_activos')]);
     _cstGbRows = (g || []).map(x => Object.assign({}, x, { mes: String(x.mes).slice(0, 7), monto: Number(x.monto) }));
     _cstActivos = (a || []).map(x => Object.assign({}, x, { costo: Number(x.costo), valor_residual: Number(x.valor_residual), vida_util_meses: Number(x.vida_util_meses), inicio: String(x.inicio).slice(0, 10) }))

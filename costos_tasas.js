@@ -123,7 +123,7 @@ function cstTasCostoProducto(prod, tas) {
 function cstTasPendientes(v) {
   const bloqueos = [];
   if (!_cstLineas.length) bloqueos.push('El período no tiene nómina — generala en Costo laboral');
-  if (!_cstGasRows.length) bloqueos.push('El período no tiene gastos — cargalos en Gastos del período');
+  if (!cstGasFilas().length) bloqueos.push('El período no tiene gastos — cargalos en Gastos del período');
   if (!v.tarifas.length) bloqueos.push('No hay departamentos productivos activos');
   v.tarifas.forEach(t => {
     const nom = t.depto.codigo + ' ' + t.depto.nombre;
@@ -320,6 +320,8 @@ function cstTasRender() {
     cstTasRenderResumen();
     return;
   }
+  const fuenteEl = document.getElementById('cstta-fuente');
+  if (fuenteEl) fuenteEl.innerHTML = cstGasFuenteHtml();
   const col = per.estado === 'borrador' ? 'b0' : 'b3';
   estEl.innerHTML = `<span class="badge ${col}">${pmEsc(per.estado)}</span> <span style="font-size:11px;color:var(--cream2)">${pmEsc(per.inicio)} → ${pmEsc(per.fin)} · ${Number(per.meses)} ${Number(per.meses) === 1 ? 'mes' : 'meses'}${per.estado !== 'borrador' && per.aprobado_en ? ' · aprobado el ' + pmEsc(_cstTasFecha(per.aprobado_en)) : ''}</span>`;
   if (kgEl) {

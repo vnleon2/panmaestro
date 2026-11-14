@@ -65,7 +65,7 @@ function cstEqCalcular() {
   base.fijos = base.nomina + base.gastoFijo;
 
   if (!(_cstLineas || []).length) avisos.push({ nivel: 'amarillo', t: 'El período no tiene nómina: los costos fijos quedan incompletos — generala en Costo laboral.' });
-  if (!(_cstGasRows || []).length) avisos.push({ nivel: 'amarillo', t: 'El período no tiene gastos cargados: faltan la parte fija y la variable — cargalos en Gastos del período.' });
+  if (!cstGasFilas().length) avisos.push({ nivel: 'amarillo', t: 'El período no tiene gastos cargados: faltan la parte fija y la variable — cargalos en Gastos del período.' });
   if (!(kgPer > 0)) avisos.push({ nivel: 'amarillo', t: 'Falta el total de kg de ventas normales del período (se escribe en Tarifas y aprobación): sin eso no hay capacidad ni gasto variable por kg.' });
 
   const filas = cstRepCalcular().map(f => {
@@ -204,6 +204,7 @@ function cstEqRender() {
 
   ctlEl.innerHTML = `<div class="row" style="margin-top:8px">
       <div class="col"><label>Ganancia mensual que querés</label><input type="number" min="0" step="1000" value="${_cstEqMeta || ''}" placeholder="0" onchange="cstEqSetMeta(this.value)" style="text-align:right"></div>
+      <div class="col" style="flex:2">${cstGasFuenteHtml().replace('margin-top:8px','margin-top:0')}</div>
       <div class="col"><label>Kg que vendés hoy al mes</label><input type="number" min="0" step="1" value="${_cstEqVenta || ''}" placeholder="0" onchange="cstEqSetVenta(this.value)" style="text-align:right"></div>
     </div>`;
 
