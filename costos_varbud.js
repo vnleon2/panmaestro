@@ -59,6 +59,50 @@ function cstVbCalcular() {
   return { per, meses, filas, grupos, pres: pres_, real: real_, varia: real_ - pres_, nPres: pres.length, nReal: real.length };
 }
 
+// ── Variaciones de la carga fabril fija (costo estándar) ────
+// Tres cifras, por departamento productivo y en total:
+//   · CIF fijo REAL      = el pool fijo repartido con los gastos reales cargados.
+//   · CIF fijo ESTÁNDAR  = el pool fijo repartido con el presupuesto (lo que la capacidad normal debería costar).
+//   · CIF fijo ABSORBIDO = tasa fija estándar × lo realmente producido (venta real; si el mes no ha pasado, el Budget).
+// Variación de gasto (presupuesto) = real − estándar        (se gastó más o menos de lo previsto)
+// Variación por volumen            = estándar − absorbido   (capacidad normal no usada; positiva = desfavorable)
+// Subabsorción total               = real − absorbido       (= suma de las dos)
+let _cstVbReal = {};   // 'AAAA-MM' → { producto_id: unidades reales }
+
+function _cstVbUn(pid, ym) {
+  const hoy = pmHoy().slice(0, 7);
+  const re = ym <= hoy && _cstVbReal[ym] ? Number(_cstVbReal[ym][pid]) || 0 : 0;
+  return re > 0 ? re : (typeof _cstBudUn === 'function' ? _cstBudUn(pid, ym) : 0);
+}
+
+function cstVbCarga(meses) {
+  const fuente = _cstGasFuente;
+  let pres = null, real = null;
+  try {
+    _cstGasFuente = 'presupuesto'; pres = cstTasVivas();
+    _cstGasFuente = 'real'; real = cstTasVivas();
+  } catch (e) { console.warn('[cstVbCarga]', e.message); return null; }
+  finally { _cstGasFuente = fuente; }
+  if (!pres || !pres.tarifas.length) return null;
+  const ids = _cstRutProd.map(p => p.id);
+  const sem = [{ n: 1, activos: [true, true, true, true, true, true, true] }];
+  let rr;
+  try { rr = cstPlnCalc(ids, (id, n, d) => (d === 1 ? meses.reduce((a, ym) => a + _cstVbUn(id, ym), 0) : 0), sem, pres.tarifas, 1); }
+  catch (e) { console.warn('[cstVbCarga plan]', e.message); return null; }
+  const filas = pres.tarifas.map(t => {
+    const tr = real.tarifas.find(x => x.depto_id === t.depto_id);
+    const d = rr.deptos.find(x => x.t && x.t.depto_id === t.depto_id);
+    const std = Number(t.cifF) || 0, rea = tr ? Number(tr.cifF) || 0 : 0;
+    const abs = d && isFinite(t.tasaF) && t.tasaF !== null ? t.tasaF * d.qMes : 0;
+    return { depto: t.depto, unidad: t.unidad || '', cap: t.cap, q: d ? d.qMes : 0, tasaF: t.tasaF, std, real: rea, abs,
+      vGasto: rea - std, vVol: std - abs, total: rea - abs, uso: std > 0 ? abs / std * 100 : null };
+  }).filter(f => f.std > 0.5 || f.real > 0.5 || f.abs > 0.5);
+  const sum = k => filas.reduce((a, f) => a + f[k], 0);
+  const tot = { std: sum('std'), real: sum('real'), abs: sum('abs'), vGasto: sum('vGasto'), vVol: sum('vVol'), total: sum('total') };
+  tot.uso = tot.std > 0 ? tot.abs / tot.std * 100 : null;
+  return { filas, tot };
+}
+
 // ── Pantalla ────────────────────────────────────────────────
 async function cstVbInit() {
   if (!(await _cstGbAsegurar())) return;
@@ -66,7 +110,15 @@ async function cstVbInit() {
   await cstGbCargarDatos();
   try { await cstGasCargar(); } catch (e) { console.warn('[cstVbInit]', e.message); }
   cstPerLlenarSelectId('cstvb-periodo', '— Sin períodos —');
+  await _cstVbCargarReal();
   cstVbRender();
+}
+
+async function _cstVbCargarReal() {
+  _cstVbReal = {};
+  const ms = _cstGasMesesPer();
+  if (!ms.length || typeof cstRealPorMes !== 'function') return;
+  try { _cstVbReal = await cstRealPorMes(ms[0], _cstBudSumarMes(ms[ms.length - 1], 1)); } catch (e) { console.warn('[cstVbCargarReal]', e.message); }
 }
 
 async function cstVbElegirPer(id) {
@@ -74,6 +126,7 @@ async function cstVbElegirPer(id) {
   try { localStorage.setItem(CST_PER_LS, _cstPerSel); } catch (e) { /* ok */ }
   await cstTasCargar();
   try { await cstGasCargar(); } catch (e) { console.warn('[cstVbElegirPer]', e.message); }
+  await _cstVbCargarReal();
   cstVbRender();
 }
 
@@ -117,5 +170,23 @@ function cstVbRender() {
   html += `<tr style="font-weight:800;border-top:2px solid var(--bdr)"><td style="${td};text-align:left" colspan="2">TOTAL</td><td style="${td}">${M(r.pres)}</td><td style="${td}">${M(r.real)}</td>` +
     `<td style="${td};${col(r.varia)}">${M(r.varia)}</td><td style="${td};${col(r.varia)}">${r.pres > 0.005 ? PC(r.varia / r.pres * 100) : '—'}</td></tr>`;
   html += '</tbody></table></div><div style="font-size:11px;color:var(--cream2);margin:6px 2px 0">Variación = real − presupuesto. En rojo, lo que se gastó de más; en verde, de menos. El presupuesto es la matriz de gasto fijo presupuestado de los meses del período más la depreciación de los activos. La nómina no está en este cuadro.</div>';
-  tabla.innerHTML = html;
+  tabla.innerHTML = html + cstVbCargaHtml(r, M, col);
+}
+
+function cstVbCargaHtml(r, M, col) {
+  const c = cstVbCarga(r.meses);
+  if (!c) return '<div class="card" style="margin-top:12px;font-size:12px;color:var(--cream2)">Variación por volumen: faltan tarifas del período (capacidad, reparto y gastos) para calcularla.</div>';
+  const th = 'padding:6px 8px;text-align:right;font-size:11px;white-space:nowrap';
+  const td = 'padding:4px 8px;text-align:right';
+  const fav = v => (Math.abs(v) < 0.5 ? 'sin variación' : v > 0 ? 'desfavorable' : 'favorable');
+  let h = `<div class="sec" style="margin-top:16px"><h2>Variaciones de la carga fabril fija</h2></div><div class="card"><div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:12px"><thead><tr style="border-bottom:1px solid var(--bdr)">` +
+    `<th style="${th};text-align:left">Departamento</th><th style="${th}">CIF fijo estándar<br>(capacidad normal)</th><th style="${th}">CIF fijo real</th><th style="${th}">CIF fijo absorbido<br>(producción real)</th><th style="${th}">Uso de la capacidad</th><th style="${th}">Variación de gasto</th><th style="${th}">Variación por volumen</th><th style="${th}">Subabsorción total</th></tr></thead><tbody>`;
+  const fila = (f, tot) => `<tr style="border-bottom:1px solid var(--bdr)${tot ? ';font-weight:800;border-top:2px solid var(--bdr)' : ''}"><td style="${td};text-align:left">${tot ? 'TOTAL' : pmEsc(f.depto.codigo + ' · ' + f.depto.nombre)}</td>` +
+    `<td style="${td}">${M(f.std)}</td><td style="${td}">${M(f.real)}</td><td style="${td}">${M(f.abs)}</td><td style="${td}">${f.uso === null ? '—' : _cstNum(f.uso, 1) + ' %'}</td>` +
+    `<td style="${td};${col(f.vGasto)}">${M(f.vGasto)}</td><td style="${td};${col(f.vVol)}">${M(f.vVol)}</td><td style="${td};${col(f.total)}">${M(f.total)}</td></tr>`;
+  c.filas.forEach(f => { h += fila(f, false); });
+  h += fila(c.tot, true) + '</tbody></table></div>';
+  h += `<div style="font-size:12px;margin-top:8px"><b>Variación por volumen: ${M(c.tot.vVol) === '—' ? '₡0' : M(c.tot.vVol)}</b> (${fav(c.tot.vVol)}). Se produjo el ${c.tot.uso === null ? '—' : _cstNum(c.tot.uso, 1) + ' %'} de la capacidad normal: la parte no usada del CIF fijo no se carga a las piezas, va al gasto del período.</div>`;
+  h += `<div style="font-size:11px;color:var(--cream2);margin-top:6px">Variación de gasto = CIF fijo real − estándar (se gastó más o menos de lo previsto). Variación por volumen = estándar − absorbido = (capacidad normal − producción real) × tasa fija. Subabsorción total = real − absorbido. Estándar = el presupuesto repartido; real = los gastos cargados en Gastos del período; la producción es la venta real del mes y, si el mes no ha pasado, el Budget. Positivo (rojo) es desfavorable.</div></div>`;
+  return h;
 }
