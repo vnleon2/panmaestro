@@ -57,6 +57,10 @@ function cstBudCalcular(unFn, mesesIn) {
   const sinMasa = prods.filter(p => meses.some(m => un_(p.id, m) > 0) && !(kgPz[p.id] > 0));
   const sinRuta = prods.filter(p => meses.some(m => un_(p.id, m) > 0) && kgPz[p.id] > 0 && !_cstPlnTieneRuta(p));
 
+  // HH del período que la nómina deja en capacidad ociosa (disponibles para producir más)
+  let hhOciosaPeriodo = 0;
+  try { Object.values(cstLabResumen().porDepto).forEach(x => { if (cstTratamiento(x.depto.tipo) === 'OCIOSA') hhOciosaPeriodo += x.hh || 0; }); } catch (e) { hhOciosaPeriodo = 0; }
+
   const semana = [{ n: 1, activos: [true, true, true, true, true, true, true] }];
   const porMes = meses.map(ym => {
     let un = 0, kg = 0;
@@ -64,13 +68,21 @@ function cstBudCalcular(unFn, mesesIn) {
     let uso = null, donde = '', usoKg = null;
     if (tarifas.length && un > 0) {
       const r = cstPlnCalc(prods.map(p => p.id), (id, n, d) => (d === 1 ? un_(id, ym) : 0), semana, tarifas, 1);
+      // Capacidad medida en horas-hombre: producción + capacidad ociosa (tiempo ya pagado que aún no se usa).
+      // Los departamentos con driver HH se juzgan en conjunto; los demás drivers (kg de masa, piezas, horas de equipo) siguen por su capacidad normal.
+      let hhDem = 0, hhProd = 0;
       r.deptos.forEach(d => {
-        [[d.pct, d.t.depto ? d.t.depto.nombre : 'departamento'], [d.pctHH, (d.t.depto ? d.t.depto.nombre : 'departamento') + ' (horas-hombre)']].forEach(([pct, nom]) => {
-          if (pct === null || pct === undefined) return;
-          const mensual = pct * mesesPer;   // la capacidad del período se reparte en sus meses
-          if (uso === null || mensual > uso) { uso = mensual; donde = nom; }
-        });
+        const nom = d.t.depto ? d.t.depto.nombre : 'departamento';
+        hhDem += d.hhMes || 0; hhProd += d.hhDisp || 0;
+        if (d.t.driver_codigo === 'HH' || d.pct === null || d.pct === undefined) return;
+        const mensual = d.pct * mesesPer;
+        if (uso === null || mensual > uso) { uso = mensual; donde = nom; }
       });
+      const hhDisp = hhProd + hhOciosaPeriodo;
+      if (hhDem > 0 && hhDisp > 0) {
+        const mensual = hhDem / hhDisp * 100 * mesesPer;
+        if (uso === null || mensual > uso) { uso = mensual; donde = 'horas-hombre (producción + ociosa)'; }
+      }
     } else if (tarifas.length) { uso = 0; }
     return { ym, un, kg, uso, donde };
   });
