@@ -2263,7 +2263,7 @@
       <div class="col"><label>Primer mes (el mismo del Budget)</label><input type="month" id="cstgb-inicio" onchange="cstGbSetInicio(this.value)"></div>
       <div class="col" style="flex:2"><label>Cuenta</label><select id="cstgb-n-cuenta" onchange="cstGbNuevaCuenta()"></select></div>
       <div class="col" style="flex:2"><label>Departamento</label><select id="cstgb-n-depto"></select></div>
-      <div class="col sm"><label>Monto mensual</label><input type="number" min="0" step="any" id="cstgb-n-monto" placeholder="0" style="text-align:right"></div>
+      <div class="col sm"><label>Monto mensual</label><input type="number" min="0" step="1" id="cstgb-n-monto" placeholder="0" style="text-align:right"></div>
       <div class="col sm"><label>&nbsp;</label><button class="btn btn-gold" onclick="cstGbAgregar()">Agregar</button></div>
     </div>
   </div>
@@ -2290,8 +2290,8 @@
     <div class="row">
       <div class="col" style="flex:2"><label>Activo</label><input type="text" id="cstact-n-nombre" placeholder="Ej.: Horno Unox"></div>
       <div class="col" style="flex:2"><label>Departamento</label><select id="cstact-n-depto"></select></div>
-      <div class="col sm"><label>Costo</label><input type="number" min="0" step="any" id="cstact-n-costo" style="text-align:right"></div>
-      <div class="col sm"><label>Valor residual</label><input type="number" min="0" step="any" id="cstact-n-res" placeholder="0" style="text-align:right"></div>
+      <div class="col sm"><label>Costo</label><input type="number" min="0" step="1" id="cstact-n-costo" style="text-align:right"></div>
+      <div class="col sm"><label>Valor residual</label><input type="number" min="0" step="1" id="cstact-n-res" placeholder="0" style="text-align:right"></div>
       <div class="col sm"><label>Vida útil (meses)</label><input type="number" min="1" step="1" id="cstact-n-vida" placeholder="60" style="text-align:right"></div>
       <div class="col"><label>Empieza a depreciarse</label><input type="month" id="cstact-n-inicio"></div>
       <div class="col sm"><label>&nbsp;</label><button class="btn btn-gold" onclick="cstActAgregar()">Agregar</button></div>
@@ -2432,8 +2432,8 @@
 <script src="costos_reportes.js?v=20261111c"></script>
 <script src="costos_equilibrio.js?v=20261114b"></script>
 <script src="costos_budget.js?v=20261114c"></script>
-<script src="costos_compras.js?v=20261114a"></script>
-<script src="costos_gasbud.js?v=20261114c"></script>
+<script src="costos_compras.js?v=20261114b"></script>
+<script src="costos_gasbud.js?v=20261114d"></script>
 <script src="mps_forecast.js?v=20261114a"></script>
 <script src="costos_consulta.js?v=20261025a"></script>
 <script src="costos_hoja.js?v=20261023a"></script>
