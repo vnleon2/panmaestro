@@ -2256,9 +2256,9 @@
 <!-- ═══ 💲 Costos · Gasto fijo presupuestado ═══ -->
 <div class="page" id="pg-costos-gasbud">
   <div class="pg-title">🧾 Gasto fijo presupuestado</div>
-  <div class="pg-sub">Plantilla de 12 meses del gasto fijo (mercadeo, administración, venta y demás cuentas): una línea por cuenta y departamento. La depreciación de los activos entra sola. Los gastos reales de «Gastos del período» se compararán contra esto</div>
+  <div class="pg-sub">Esqueleto de 12 meses con todas las cuentas de gasto (carga fabril, venta, mercadeo y administrativos), cada una con su departamento: solo hay que llenar los montos estimados. La depreciación de los activos entra sola. Los gastos reales de «Gastos del período» se compararán contra esto</div>
   <div class="card">
-    <div class="ctitle">Agregar línea</div>
+    <div class="ctitle">Mes de inicio y otra combinación cuenta + departamento</div>
     <div class="row">
       <div class="col"><label>Primer mes (el mismo del Budget)</label><input type="month" id="cstgb-inicio" onchange="cstGbSetInicio(this.value)"></div>
       <div class="col" style="flex:2"><label>Cuenta</label><select id="cstgb-n-cuenta" onchange="cstGbNuevaCuenta()"></select></div>
@@ -2268,6 +2268,7 @@
     </div>
   </div>
   <div class="stats" id="cstgb-stats"></div>
+  <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin:6px 0"><input type="checkbox" id="cstgb-ocultar" onchange="cstGbOcultar(this.checked)"> Ocultar líneas sin datos <span style="color:var(--cream2)">(solo cambia la vista; quitá el tick para ver todas las cuentas y llenarlas)</span></label>
   <div id="cstgb-tabla"></div>
 </div>
 
@@ -2423,7 +2424,7 @@
 <script src="costos_equilibrio.js?v=20261114b"></script>
 <script src="costos_budget.js?v=20261114c"></script>
 <script src="costos_compras.js?v=20261114a"></script>
-<script src="costos_gasbud.js?v=20261114a"></script>
+<script src="costos_gasbud.js?v=20261114b"></script>
 <script src="mps_forecast.js?v=20261114a"></script>
 <script src="costos_consulta.js?v=20261025a"></script>
 <script src="costos_hoja.js?v=20261023a"></script>
