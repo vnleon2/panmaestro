@@ -2065,6 +2065,14 @@
       <button class="btn btn-gold btn-sm" id="cstcap-btn-prep" onclick="cstCapPreparar()">⚙️ Preparar departamentos</button>
     </div>
     <div style="margin-top:14px;padding-top:12px;border-top:1px solid #E1E8DD">
+      <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--cream2);margin-bottom:6px">Capacidad práctica (NIC 2)</div>
+      <div style="font-size:12px;color:var(--cream2);margin-bottom:6px">Capacidad normal = (HH productivas + HH ociosas pagadas) × eficiencia. El nivel normal queda en las HH productivas actuales. Lo que no se use es CIF fijo no absorbido (gasto del período), no costo de la pieza.</div>
+      <div class="row">
+        <div class="col sm"><label>Eficiencia %</label><input type="number" id="cstcap-efic" value="80" min="1" max="100" step="1"></div>
+        <div class="col sm"><label>&nbsp;</label><button class="btn btn-out" id="cstcap-btn-prac" onclick="cstCapPractica()">Aplicar capacidad práctica</button></div>
+      </div>
+    </div>
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid #E1E8DD">
       <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--cream2);margin-bottom:6px">Copiar de otro período</div>
       <div class="row">
         <div class="col" style="flex:2"><label>Período de origen</label><select id="cstcap-copiar"></select></div>
@@ -2460,7 +2468,7 @@
 <script src="costos_personal.js?v=20261024a"></script>
 <script src="costos_laboral.js?v=20261024a"></script>
 <script src="costos_gastos.js?v=20261019a"></script>
-<script src="costos_capacidad.js?v=20261024a"></script>
+<script src="costos_capacidad.js?v=20261114a"></script>
 <script src="costos_rutas.js?v=20261023a"></script>
 <script src="costos_rutas_import.js?v=20261024a"></script>
 <script src="costos_tasas.js?v=20261114c"></script>
@@ -2470,8 +2478,8 @@
 <script src="costos_budget.js?v=20261114c"></script>
 <script src="costos_compras.js?v=20261114c"></script>
 <script src="costos_gasbud.js?v=20261114e"></script>
-<script src="costos_resbud.js?v=20261114a"></script>
-<script src="costos_unitarios.js?v=20261114d"></script>
+<script src="costos_resbud.js?v=20261114b"></script>
+<script src="costos_unitarios.js?v=20261114e"></script>
 <script src="mps_forecast.js?v=20261114a"></script>
 <script src="costos_consulta.js?v=20261025a"></script>
 <script src="costos_hoja.js?v=20261023a"></script>

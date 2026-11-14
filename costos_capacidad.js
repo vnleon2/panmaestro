@@ -201,6 +201,47 @@ async function cstCapSetNum(id, campo, valor) {
   await _cstCapGuardar(id, { [campo]: n }, false);
 }
 
+// HH que el período deja en capacidad ociosa (tiempo ya pagado que aún no se usa para producir)
+function cstCapHHOciosa() {
+  const per = _cstPerActual();
+  const meses = per && Number(per.meses) > 0 ? Number(per.meses) : 1;
+  let t = 0;
+  try {
+    _cstColabs.filter(c => c.activo !== false).forEach(c => {
+      cstRepartoDe(c.id).forEach(r => {
+        const d = _cstDeps.find(y => y.id === r.depto_id);
+        if (!d || d.tipo !== 'ociosa') return;
+        const car = _cstCargos.find(x => x.id === c.cargo_id);
+        const util = car ? Number(car.pct_utilizacion) : 0;
+        t += Number(c.horas_mes) * util / 100 * Number(r.pct) / 100 * meses;
+      });
+    });
+  } catch (e) { t = 0; }
+  return t;
+}
+
+// CAPACIDAD PRÁCTICA (criterio NIC 2: el CIF fijo se absorbe sobre la capacidad normal, no sobre un mes flojo).
+// Capacidad normal de cada departamento con base HH = (HH productivas + su parte de las HH ociosas pagadas) × eficiencia %.
+// El nivel normal (denominador de la tarifa variable) queda en las HH productivas actuales: el CIF variable sí crece con el volumen.
+// Lo que no se use de esa capacidad queda como CIF fijo no absorbido (gasto del período), no como costo de la pieza.
+async function cstCapPractica() {
+  if (!_cstPerEditable()) { pmToast('El período no está en borrador', 'err'); return; }
+  const efi = parseFloat((document.getElementById('cstcap-efic') || {}).value);
+  if (!(efi > 0 && efi <= 100)) { pmToast('La eficiencia debe estar entre 1 y 100 %', 'err'); return; }
+  const rs = cstLabResumen();
+  const ocio = cstCapHHOciosa();
+  const deps = _cstCapDeps(['productivo']).map(d => ({ d, fila: _cstCapFila(d.id), hh: rs.porDepto[d.id] ? rs.porDepto[d.id].hh : 0 }));
+  const aplicables = deps.filter(x => x.fila && _cstDrv(x.fila.driver_id) && _cstDrv(x.fila.driver_id).codigo === 'HH' && x.hh > 0);
+  if (!aplicables.length) { pmToast('No hay departamentos con base Horas-hombre y HH productivas en la nómina', 'err'); return; }
+  const hhTot = aplicables.reduce((a, x) => a + x.hh, 0);
+  const calc = aplicables.map(x => ({ x, cap: cstRound((x.hh + ocio * x.hh / hhTot) * efi / 100, 1, 'normal'), niv: cstRound(x.hh, 1, 'normal') }));
+  const txt = calc.map(c => `${c.x.d.codigo} ${c.x.d.nombre}: capacidad ${_cstNum(c.cap, 1)} HH (hoy ${c.x.fila.capacidad_normal === null ? 'vacía' : _cstNum(c.x.fila.capacidad_normal, 1)}) · nivel normal ${_cstNum(c.niv, 1)} HH`).join('\n');
+  if (!confirm(`Capacidad práctica al ${_cstNum(efi, 0)} % de eficiencia (HH productivas + ${_cstNum(ocio, 1)} HH ociosas):\n\n${txt}\n\n¿Aplicar?`)) return;
+  for (const c of calc) await _cstCapGuardar(c.x.fila.id, { capacidad_normal: c.cap, nivel_normal: c.niv }, false);
+  cstCapRender();
+  pmToast('Capacidad práctica aplicada ✓');
+}
+
 // Usa las HH productivas de la nómina como capacidad normal
 async function cstCapUsarHH(id) {
   const r = _cstCapRows.find(x => x.id === id);
@@ -399,7 +440,7 @@ function cstCapRender() {
   const capEl = document.getElementById('cstcap-cap');
   const basesEl = document.getElementById('cstcap-bases');
   if (!capEl || !basesEl) return;
-  ['cstcap-btn-prep', 'cstcap-btn-copiar'].forEach(i => { const b = document.getElementById(i); if (b) b.disabled = !per || per.estado !== 'borrador'; });
+  ['cstcap-btn-prep', 'cstcap-btn-copiar', 'cstcap-btn-prac'].forEach(i => { const b = document.getElementById(i); if (b) b.disabled = !per || per.estado !== 'borrador'; });
   if (!per) {
     if (estEl) estEl.textContent = '';
     capEl.innerHTML = _cstPh('📅', 'Creá primero un período en Costo laboral');
