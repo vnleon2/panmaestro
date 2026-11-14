@@ -2321,16 +2321,16 @@
 <!-- ═══ 💲 Costos · Costo unitario y precio sugerido ═══ -->
 <div class="page" id="pg-costos-unitarios">
   <div class="pg-title">🏷️ Costo unitario y precio sugerido</div>
-  <div class="pg-sub">Cuánto cuesta cada producto por unidad sobre el volumen del Budget: lo directo (materiales, empaque y mano de obra), lo indirecto (fábrica y gastos de venta, mercadeo y administración repartidos por kg de masa), el costo total y el precio que daría el margen elegido — solo lectura</div>
+  <div class="pg-sub">Costo estándar de cada producto por unidad (no depende del volumen del Budget): lo directo (materiales, empaque y mano de obra), lo indirecto (CIF fijo y variable de fábrica y gastos del período), el costo total y el precio que daría el margen elegido — solo lectura</div>
   <div class="card">
-    <div class="ctitle">Base y margen</div>
+    <div class="ctitle">Margen y período</div>
     <div class="row">
       <div class="col"><label>Primer mes (el mismo del Budget)</label><input type="month" id="cstun-inicio" onchange="cstUnSetInicio(this.value)"></div>
-      <div class="col"><label>Volumen base</label><select id="cstun-base" onchange="cstUnSetBase(this.value)"></select></div>
       <div class="col sm"><label>Margen (%)</label><input type="number" min="0" max="95" step="1" id="cstun-margen" style="text-align:right" onchange="cstUnSetMargen(this.value)"></div>
       <div class="col" style="flex:2"><label>Período de la nómina y las tarifas</label><select id="cstun-periodo" onchange="cstUnElegirPer(this.value)"></select></div>
     </div>
-    <div style="font-size:11px;color:var(--cream2);margin-top:6px">Margen sobre el precio de venta: con 40 %, el costo es el 60 % del precio. El precio sugerido sale sin IVA y se muestra también con el IVA de cada producto.</div>
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin-top:8px"><input type="checkbox" id="cstun-solobud" onchange="cstUnSoloBud(this.checked)"> Solo productos del Budget <span style="color:var(--cream2)">(quitá el tick para ver todos los productos)</span></label>
+    <div style="font-size:11px;color:var(--cream2);margin-top:6px">Margen sobre el precio de venta: con 40 %, el costo es el 60 % del precio. El precio sugerido sale sin IVA y se muestra también con el IVA de cada producto. La capacidad ociosa no se carga a las piezas.</div>
   </div>
   <div class="stats" id="cstun-stats"></div>
   <div id="cstun-avisos"></div>
@@ -2471,7 +2471,7 @@
 <script src="costos_compras.js?v=20261114c"></script>
 <script src="costos_gasbud.js?v=20261114e"></script>
 <script src="costos_resbud.js?v=20261114a"></script>
-<script src="costos_unitarios.js?v=20261114a"></script>
+<script src="costos_unitarios.js?v=20261114b"></script>
 <script src="mps_forecast.js?v=20261114a"></script>
 <script src="costos_consulta.js?v=20261025a"></script>
 <script src="costos_hoja.js?v=20261023a"></script>
