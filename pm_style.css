@@ -179,7 +179,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 .ph{text-align:center;padding:28px;color:#7D8C80;font-size:13px}
 .ph-icon{font-size:32px;display:block;margin-bottom:6px}
 .sep{height:1px;background:#E1E8DD;margin:12px 0}
-.sec{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.sec{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:10px}
 .sec h2{font-size:13px;font-weight:600}
 .date-nav{display:flex;align-items:center;gap:5px}
 .date-nav button{background:#FFFFFF;border:1px solid #C8D4C3;color:var(--cream);width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:13px;transition:border-color .15s}
