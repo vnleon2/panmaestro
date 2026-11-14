@@ -76,7 +76,7 @@ function cstBudCalcular(unFn, mesesIn) {
   const porMes = meses.map(ym => {
     let un = 0, kg = 0;
     prods.forEach(p => { const u = un_(p.id, ym); un += u; kg += u * (kgPz[p.id] || 0); });
-    let uso = null, donde = '', usoKg = null, hhNec = 0;
+    let uso = null, donde = '', usoKg = null, hhNec = 0, modAp = 0;
     if (tarifas.length && un > 0) {
       const r = cstPlnCalc(prods.map(p => p.id), (id, n, d) => (d === 1 ? un_(id, ym) : 0), semana, tarifas, 1);
       // Capacidad medida en horas-hombre: producción + capacidad ociosa (tiempo ya pagado que aún no se usa).
@@ -85,6 +85,7 @@ function cstBudCalcular(unFn, mesesIn) {
       r.deptos.forEach(d => {
         const nom = d.t.depto ? d.t.depto.nombre : 'departamento';
         hhDem += d.hhMes || 0; hhProd += d.hhDisp || 0;
+        if (d.t && isFinite(d.t.tasaMod) && d.t.tasaMod !== null) modAp += (d.hhMes || 0) * d.t.tasaMod;   // mano de obra directa aplicada (HH × tasa MOD)
         if (d.t.driver_codigo === 'HH' || d.pct === null || d.pct === undefined) return;
         const mensual = d.pct * mesesPer;
         if (uso === null || mensual > uso) { uso = mensual; donde = nom; }
@@ -96,9 +97,9 @@ function cstBudCalcular(unFn, mesesIn) {
         if (uso === null || mensual > uso) { uso = mensual; donde = 'horas-hombre (producción + ociosa)'; }
       }
     } else if (tarifas.length) { uso = 0; }
-    return { ym, un, kg, uso, donde, hh: hhNec };
+    return { ym, un, kg, uso, donde, hh: hhNec, modAp };
   });
-  return { meses, porMes, kgPz, sinMasa, sinRuta, prods, hayTarifas: tarifas.length > 0, per, mesesPer, hhProd: tarifas.reduce((a, t) => a + (t.hh > 0 ? t.hh : 0), 0), hhOciosa: hhOciosaPeriodo };
+  return { meses, porMes, kgPz, sinMasa, sinRuta, prods, hayTarifas: tarifas.length > 0, per, mesesPer, hhProd: tarifas.reduce((a, t) => a + (t.hh > 0 ? t.hh : 0), 0), hhOciosa: hhOciosaPeriodo, modPool: tarifas.reduce((a, t) => a + (t.mod > 0 ? t.mod : 0), 0) };
 }
 
 function _cstBudNivel(uso) {

@@ -7,9 +7,8 @@
 //   · Compras: explota la receta de cada producto (con sus subrecetas, rellenos y la merma de cada receta) hasta los
 //     ingredientes. Cada pieza lleva la cantidad de ingredientes de su receta escalada a su peso (peso del producto ÷ masa de la receta),
 //     igual que el costo de materiales de los reportes. Unidades del Budget × ingredientes por pieza = lo que hay que comprar cada mes.
-//   · Nómina: las HH que pide el Budget cada mes contra las HH del equipo (producción + capacidad ociosa). Si faltan horas,
-//     las horas extra se valoran al costo por HH que hoy tiene el equipo (nómina de producción y ociosa ÷ sus HH).
-//     La nómina del período es la que está cargada en Costo laboral.
+//   · Nómina: mano de obra directa (HH del Budget × tasa de MOD por HH, que sale de los factores de asignación de la nómina)
+//     + nómina fija (producción no absorbida, capacidad ociosa, apoyo, administración, mercadeo y venta). La nómina es la del período en Costo laboral.
 
 let _cstComVer = 'kg';   // 'kg' | 'cr'
 
@@ -157,6 +156,11 @@ function cstComRender() {
 }
 
 // ═══ Nómina estimada ════════════════════════════════════════
+// Nómina presupuestada = lo que se aplica a la producción (mano de obra directa) + lo fijo.
+//   · Directa: las HH que pide el Budget × la tasa de MOD por HH de cada departamento (los factores de asignación de la nómina).
+//   · Fija de producción: la nómina asignada a producción que el Budget no absorbe (equipo pagado de más), más la capacidad ociosa.
+//   · Apoyo (MOI) y administración / mercadeo / venta: nómina fija del período.
+// Si el Budget pide más de lo que la nómina de producción cubre, lo que sobra se valora a la misma tasa (horas a sumar).
 // Devuelve null si faltan tarifas / período
 function cstNomCalcular() {
   const c = cstBudCalcular();
@@ -165,15 +169,20 @@ function cstNomCalcular() {
   const hhProdMes = c.hhProd / n, hhOciMes = c.hhOciosa / n;
   const hhEquipo = hhProdMes + hhOciMes;
   const rs = cstLabResumen();
-  const nominaMes = (rs.tot.MOD + rs.tot.MOI + rs.tot.GASTO + rs.tot.OCIOSA) / n;
-  const costoProdOci = (rs.tot.MOD + rs.tot.OCIOSA) / n;
-  const costoHH = hhEquipo > 0 ? costoProdOci / hhEquipo : 0;
+  const poolMod = c.modPool / n;                 // nómina asignada a departamentos productivos, por mes
+  const ociosa = rs.tot.OCIOSA / n;
+  const apoyo = rs.tot.MOI / n;
+  const admin = rs.tot.GASTO / n;
+  const tasaHH = hhProdMes > 0 ? poolMod / hhProdMes : 0;
   const filas = c.porMes.map(x => {
+    const directa = Math.min(x.modAp, poolMod);
+    const sobra = Math.max(0, x.modAp - poolMod);       // directa que la nómina actual no cubre
+    const fijaProd = Math.max(0, poolMod - x.modAp);    // nómina de producción no absorbida
     const ocup = hhEquipo > 0 ? x.hh / hhEquipo * 100 : null;
     const extra = Math.max(0, x.hh - hhEquipo);
-    return { ym: x.ym, un: x.un, kg: x.kg, hh: x.hh, ocup, extra, costoExtra: extra * costoHH, nomina: nominaMes + extra * costoHH };
+    return { ym: x.ym, un: x.un, kg: x.kg, hh: x.hh, ocup, extra, directa: directa + sobra, fijaProd, ociosa, apoyo, admin, sobra, nomina: directa + sobra + fijaProd + ociosa + apoyo + admin };
   });
-  return { per: c.per, filas, hhEquipo, hhProdMes, hhOciMes, nominaMes, costoHH };
+  return { per: c.per, filas, hhEquipo, hhProdMes, hhOciMes, poolMod, ociosa, apoyo, admin, tasaHH, nominaMes: poolMod + ociosa + apoyo + admin };
 }
 
 async function cstNomInit() {
@@ -215,16 +224,15 @@ function cstNomRender() {
   const td = 'padding:5px 8px;text-align:right';
   const colorOcup = o => o === null ? '' : o > 100 ? 'var(--red)' : o > CST_PLN_OK ? '#B45309' : 'var(--green,#2e7d32)';
   const stat = (t, v, s) => `<div class="stat"><div class="stat-lbl">${t}</div><div class="stat-val" style="font-size:17px">${v}</div>${s ? `<div class="stat-sub">${s}</div>` : ''}</div>`;
-  const conExtra = r.filas.filter(f => f.extra > 0.0001);
-  const extraAnio = r.filas.reduce((a, f) => a + f.costoExtra, 0);
-  if (stats) stats.innerHTML = stat('Horas del equipo por mes', _cstNum(r.hhEquipo, 1) + ' HH', `producción ${_cstNum(r.hhProdMes, 1)} + ociosa ${_cstNum(r.hhOciMes, 1)}`) +
-    stat('Nómina mensual actual', cstMoney(r.nominaMes, 0), 'la del período ' + pmEsc(r.per.inicio)) +
-    stat('Costo por HH del equipo', cstMoney(r.costoHH, 0), 'nómina de producción y ociosa ÷ sus HH') +
-    stat('Meses que piden más horas', String(conExtra.length), conExtra.length ? 'costo extra del año ' + cstMoney(extraAnio, 0) : 'el equipo actual alcanza');
-  let html = `<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:12px"><thead><tr style="border-bottom:1px solid var(--bdr)"><th style="${th};text-align:left">Mes</th><th style="${th}">Unidades</th><th style="${th}">Kg de masa</th><th style="${th}">HH que pide el Budget</th><th style="${th}">Ocupación del equipo</th><th style="${th}">HH a sumar</th><th style="${th}">Costo de esas HH</th><th style="${th}">Nómina estimada</th></tr></thead><tbody>`;
+  const conExtra = r.filas.filter(f => f.sobra > 0.5);
+  if (stats) stats.innerHTML = stat('Nómina mensual cargada', cstMoney(r.nominaMes, 0), 'período ' + pmEsc(r.per.inicio)) +
+    stat('Nómina fija (apoyo + admin, mercadeo y venta)', cstMoney(r.apoyo + r.admin, 0), 'no cambia con la producción') +
+    stat('Nómina de producción', cstMoney(r.poolMod + r.ociosa, 0), `${_cstNum(r.hhProdMes, 1)} HH productivas + ${_cstNum(r.hhOciMes, 1)} HH ociosas · ₡${_cstNum(r.tasaHH, 0)} por HH directa`) +
+    stat('Meses que piden más de lo cargado', String(conExtra.length), conExtra.length ? 'el Budget exige más horas directas que las de la nómina' : 'la nómina actual alcanza');
+  let html = `<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:12px"><thead><tr style="border-bottom:1px solid var(--bdr)"><th style="${th};text-align:left">Mes</th><th style="${th}">Kg de masa</th><th style="${th}">HH del Budget</th><th style="${th}">Ocupación</th><th style="${th}" title="HH del Budget × tasa de mano de obra por HH">Directa aplicada</th><th style="${th}" title="Nómina de producción que el Budget no absorbe">Fija de producción</th><th style="${th}" title="Departamento de capacidad ociosa">Ociosa</th><th style="${th}">Apoyo</th><th style="${th}">Admin · mercadeo · venta</th><th style="${th}">Nómina estimada</th></tr></thead><tbody>`;
   r.filas.forEach(f => {
-    html += `<tr style="border-bottom:1px solid var(--bdr)"><td style="${td};text-align:left">${pmEsc(_cstBudMesTxt(f.ym))}</td><td style="${td}">${_cstNum(f.un, 0)}</td><td style="${td}">${_cstNum(f.kg, 1)}</td><td style="${td}">${_cstNum(f.hh, 1)}</td>` +
-      `<td style="${td};color:${colorOcup(f.ocup)};font-weight:700">${f.ocup === null ? '—' : _cstNum(f.ocup, 1) + ' %'}</td><td style="${td}">${f.extra > 0.0001 ? _cstNum(f.extra, 1) : '—'}</td><td style="${td}">${f.extra > 0.0001 ? cstMoney(f.costoExtra, 0) : '—'}</td><td style="${td};font-weight:700">${cstMoney(f.nomina, 0)}</td></tr>`;
+    html += `<tr style="border-bottom:1px solid var(--bdr)"><td style="${td};text-align:left">${pmEsc(_cstBudMesTxt(f.ym))}</td><td style="${td}">${_cstNum(f.kg, 1)}</td><td style="${td}">${_cstNum(f.hh, 1)}</td>` +
+      `<td style="${td};color:${colorOcup(f.ocup)};font-weight:700">${f.ocup === null ? '—' : _cstNum(f.ocup, 1) + ' %'}</td><td style="${td}">${cstMoney(f.directa, 0)}</td><td style="${td}">${f.fijaProd > 0.5 ? cstMoney(f.fijaProd, 0) : '—'}</td><td style="${td}">${f.ociosa > 0.5 ? cstMoney(f.ociosa, 0) : '—'}</td><td style="${td}">${f.apoyo > 0.5 ? cstMoney(f.apoyo, 0) : '—'}</td><td style="${td}">${f.admin > 0.5 ? cstMoney(f.admin, 0) : '—'}</td><td style="${td};font-weight:700">${cstMoney(f.nomina, 0)}</td></tr>`;
   });
   html += '</tbody></table></div>';
   tabla.innerHTML = html;
