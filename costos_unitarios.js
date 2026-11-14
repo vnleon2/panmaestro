@@ -14,6 +14,7 @@
 // kg de ventas normales, que también se pueden escribir a mano). No toca el costo actual de Costeo / Precio de venta.
 
 let _cstUnMargen = 40;       // % de margen sobre el precio
+let _cstUnVista = 'margen';   // 'margen' (costo primo → costo de fábrica → precio actual → margen bruto) o 'sugerido' (costo total y precio sugerido)
 let _cstUnSoloBudget = false; // listar solo los productos con unidades en el Budget (por defecto, todos)
 
 function cstUnCalcular() {
@@ -44,8 +45,15 @@ function cstUnCalcular() {
     const fabrica = directo !== null && indirecto !== null ? directo + indirecto : null;
     const total = fabrica !== null && gastos !== null ? fabrica + gastos : null;
     const sugerido = total !== null ? total / (1 - margen / 100) : null;
+    // Vista de margen: costo primo = materiales (con empaque) + mano de obra; margen bruto = precio de venta actual sin IVA − costo de fábrica;
+    // costo remanente por cubrir = gastos del período (venta, mercadeo y administración), que el margen bruto debe pagar
+    const matEmp = f.mat !== null ? f.mat + f.emp : null;
+    const primo = matEmp !== null && mod !== null ? matEmp + mod : null;
+    const precioSin = f.precio > 0 ? f.precio / (1 + (Number(f.iva) || 0) / 100) : null;
+    const margenBruto = precioSin !== null && fabrica !== null ? precioSin - fabrica : null;
+    const resultado = margenBruto !== null && gastos !== null ? margenBruto - gastos : null;
     filas.push({ p: f.p, un, mat: f.mat, emp: f.mat !== null ? f.emp : null, mod, directo, fija, vari, gastos,
-      indirecto, fabrica, total, sugerido, sugeridoIva: sugerido !== null ? sugerido * (1 + f.iva / 100) : null, precio: f.precio, iva: f.iva, avisos,
+      indirecto, fabrica, total, matEmp, primo, precioSin, margenBruto, resultado, sugerido, sugeridoIva: sugerido !== null ? sugerido * (1 + f.iva / 100) : null, precio: f.precio, iva: f.iva, avisos,
       sinEmp: !((typeof _cstProdEmp !== 'undefined' && _cstProdEmp[f.p.id]) || []).length });
   });
   // Referencia: promedio mensual del Budget frente a los kg de ventas normales del estándar
@@ -74,6 +82,7 @@ function cstUnSetInicio(v) {
   try { localStorage.setItem(CST_BUD_LS, v); } catch (e) { /* ok */ }
   cstUnRender();
 }
+function cstUnSetVista(v) { _cstUnVista = v === 'sugerido' ? 'sugerido' : 'margen'; cstUnRender(); }
 function cstUnSoloBud(v) { _cstUnSoloBudget = !!v; cstUnRender(); }
 function cstUnSetMargen(v) {
   const n = parseFloat(String(v).replace(',', '.'));
@@ -121,6 +130,32 @@ function cstUnRender() {
   const sinEmp = r.filas.filter(f => f.sinEmp);
   if (sinEmp.length) L.push(`📦 ${sinEmp.length} de ${r.filas.length} productos no tienen empaque asignado (su costo total no lo incluye): ${sinEmp.map(f => f.p.nombre).join(' · ')}. Se asigna en Empaques › Por producto.`);
   if (av) av.innerHTML = L.length ? `<div class="card">${L.map(x => `<div style="font-size:12px;margin:3px 0">${pmEsc(x)}</div>`).join('')}</div>` : '';
+  if (_cstUnVista === 'margen') {
+    const PC = x => (x === null || x === undefined ? '—' : _cstNum(x, 1) + ' %');
+    const neg = x => (x !== null && x !== undefined && x < 0 ? 'color:#b91c1c;' : '');
+    let h = `<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:12px"><thead>` +
+      `<tr style="border-bottom:1px solid var(--bdr)"><th style="${th};text-align:left">Producto</th>` +
+      `<th style="${th}" title="Materiales + empaque">Costo material</th><th style="${th}">Costo MOD</th><th style="${th};${bg}">COSTO PRIMO</th>` +
+      `<th style="${th};border-left:1px solid var(--bdr)">CIF fijo</th><th style="${th}">CIF variable</th><th style="${th};${bg}" title="Costo primo + CIF fijo + CIF variable (NIC 2)">COSTO DE FÁBRICA</th>` +
+      `<th style="${th};border-left:1px solid var(--bdr)" title="Precio de venta actual del maestro, sin IVA">Precio de venta (sin IVA)</th><th style="${th};${bg}">MARGEN BRUTO</th><th style="${th}">% s/ precio</th>` +
+      `<th style="${th};border-left:1px solid var(--bdr)" title="Venta, mercadeo y administración por unidad: lo que el margen bruto todavía tiene que pagar">Costo remanente por cubrir</th><th style="${th}" title="Margen bruto − costo remanente">Resultado por unidad</th></tr></thead><tbody>`;
+    if (!r.filas.length) h += `<tr><td colspan="12" style="padding:14px;color:var(--cream2)">No hay productos para mostrar.</td></tr>`;
+    _cstBudGrupos(r.filas.map(f => f.p)).forEach(g => {
+      h += `<tr><td colspan="12" style="padding:9px 8px 3px;font-size:11px;font-weight:700;color:var(--gold,#b8860b);text-transform:uppercase">${pmEsc(g.nombre)}</td></tr>`;
+      g.prods.forEach(p => {
+        const f = r.filas.find(x => x.p.id === p.id);
+        h += `<tr style="border-bottom:1px solid var(--bdr)"><td style="${td};text-align:left">${pmEsc(p.nombre)}</td>` +
+          `<td style="${td}">${U(f.matEmp)}</td><td style="${td}">${U(f.mod)}</td><td style="${td};font-weight:700;${bg}">${U(f.primo)}</td>` +
+          `<td style="${td};border-left:1px solid var(--bdr)">${U(f.fija)}</td><td style="${td}">${U(f.vari)}</td><td style="${td};font-weight:800;${bg}">${U(f.fabrica)}</td>` +
+          `<td style="${td};border-left:1px solid var(--bdr)">${U(f.precioSin)}</td><td style="${td};font-weight:700;${bg}${neg(f.margenBruto)}">${U(f.margenBruto)}</td>` +
+          `<td style="${td};${neg(f.margenBruto)}">${PC(f.margenBruto !== null && f.precioSin ? f.margenBruto / f.precioSin * 100 : null)}</td>` +
+          `<td style="${td};border-left:1px solid var(--bdr)">${U(f.gastos)}</td><td style="${td};font-weight:700;${neg(f.resultado)}">${U(f.resultado)}</td></tr>`;
+      });
+    });
+    h += '</tbody></table></div>';
+    tabla.innerHTML = h;
+    return;
+  }
   let html = `<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:12px"><thead>` +
     `<tr style="border-bottom:1px solid var(--bdr)"><th style="${th};text-align:left" rowspan="2">Producto</th><th style="${th}" rowspan="2" title="Unidades del año en el Budget (solo referencia)">Budget (un./año)</th>` +
     `<th style="${th};text-align:center;border-left:1px solid var(--bdr)" colspan="4">DIRECTO por unidad</th>` +
