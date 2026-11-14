@@ -101,6 +101,7 @@
         <button class="ntab" data-tab="pg-costos-gasbud" onclick="showTab('pg-costos-gasbud');pmCloseNav()">🧾 Gasto fijo presupuestado</button>
         <button class="ntab" data-tab="pg-costos-activos" onclick="showTab('pg-costos-activos');pmCloseNav()">📦 Activos depreciables</button>
         <button class="ntab" data-tab="pg-costos-resbud" onclick="showTab('pg-costos-resbud');pmCloseNav()">📊 Resultados presupuestarios</button>
+        <button class="ntab" data-tab="pg-costos-varbud" onclick="showTab('pg-costos-varbud');pmCloseNav()">⚖️ Real contra presupuesto</button>
         <button class="ntab" data-tab="pg-costos-unitarios" onclick="showTab('pg-costos-unitarios');pmCloseNav()">🏷️ Costo unitario y precio sugerido</button>
         <div class="drop-h">1 · Datos base</div>
         <button class="ntab" data-tab="pg-costos-maestros" onclick="showTab('pg-costos-maestros');pmCloseNav()">🏭 Departamentos y cuentas</button>
@@ -2328,6 +2329,21 @@
   <div id="cstrb-tabla"></div>
 </div>
 
+<!-- ═══ 💲 Costos · Real contra presupuesto ═══ -->
+<div class="page" id="pg-costos-varbud">
+  <div class="pg-title">⚖️ Real contra presupuesto</div>
+  <div class="pg-sub">Compara, por cuenta y departamento, el gasto presupuestado de los meses del período (gasto fijo presupuestado + depreciación) con el gasto real cargado en Gastos del período, y muestra la variación — solo lectura</div>
+  <div class="card">
+    <div class="ctitle">Período</div>
+    <div class="row">
+      <div class="col" style="flex:2"><label>Período del gasto real</label><select id="cstvb-periodo" onchange="cstVbElegirPer(this.value)"></select></div>
+    </div>
+  </div>
+  <div class="stats" id="cstvb-stats"></div>
+  <div id="cstvb-avisos"></div>
+  <div id="cstvb-tabla"></div>
+</div>
+
 <!-- ═══ 💲 Costos · Costo unitario y precio sugerido ═══ -->
 <div class="page" id="pg-costos-unitarios">
   <div class="pg-title">🏷️ Costo unitario y precio sugerido</div>
@@ -2483,6 +2499,7 @@
 <script src="costos_compras.js?v=20261114c"></script>
 <script src="costos_gasbud.js?v=20261114f"></script>
 <script src="costos_resbud.js?v=20261114c"></script>
+<script src="costos_varbud.js?v=20261114a"></script>
 <script src="costos_unitarios.js?v=20261114j"></script>
 <script src="mps_forecast.js?v=20261114a"></script>
 <script src="costos_consulta.js?v=20261025a"></script>
