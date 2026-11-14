@@ -208,6 +208,27 @@ async function cstTasSetKg(valor) {
   }
 }
 
+// Toma los kg de masa del Budget de ventas en los meses del período (el budget no se toca; solo se lee)
+async function cstTasKgDelBudget() {
+  const per = _cstPerActual();
+  if (!per || per.estado !== 'borrador') { pmToast('El período no está en borrador', 'err'); return; }
+  try {
+    await cstBudCargarDatos();
+    const meses = [];
+    let y = parseInt(String(per.inicio).slice(0, 4), 10), m = parseInt(String(per.inicio).slice(5, 7), 10);
+    const n = Math.max(1, Number(per.meses) || 1);
+    for (let i = 0; i < n; i++) { meses.push(y + '-' + String(m).padStart(2, '0')); m++; if (m > 12) { m = 1; y++; } }
+    const r = cstBudCalcular(null, meses);
+    const conVenta = r.porMes.filter(x => x.un > 0).length;
+    const kg = Math.round(r.porMes.reduce((a, x) => a + x.kg, 0) * 100) / 100;
+    if (!(kg > 0)) { pmToast('El Budget no tiene unidades en los meses de este período', 'err'); return; }
+    await cstTasSetKg(String(kg));
+    const el = document.getElementById('cstta-kg');
+    if (el) el.value = kg;
+    pmToast('Kg normales = ' + kg + ' kg del Budget (' + conVenta + ' de ' + n + ' meses con unidades)', 'ok');
+  } catch (e) { console.warn('[cstTasKgDelBudget]', e.message); pmToast('⚠️ ' + e.message, 'err'); }
+}
+
 function cstTasVer(modo) {
   _cstTasVer = modo === 'kg' ? 'kg' : 'pz';
   cstTasRenderResumen();
