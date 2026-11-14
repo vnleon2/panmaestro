@@ -107,6 +107,7 @@
         <div class="drop-h">3 · Resultados</div>
         <button class="ntab" data-tab="pg-costos-tarifas" onclick="showTab('pg-costos-tarifas');pmCloseNav()">🧮 Tarifas y aprobación</button>
         <button class="ntab" data-tab="pg-costos-reportes" onclick="showTab('pg-costos-reportes');pmCloseNav()">📊 Reportes de costo</button>
+        <button class="ntab" data-tab="pg-costos-equilibrio" onclick="showTab('pg-costos-equilibrio');pmCloseNav()">⚖️ Punto de equilibrio</button>
         <button class="ntab" data-tab="pg-costos-consulta" onclick="showTab('pg-costos-consulta');pmCloseNav()">🔎 Consulta de productos</button>
         <div class="drop-sep"></div>
         <button class="ntab" data-tab="pg-costos-config" onclick="showTab('pg-costos-config');pmCloseNav()">⚙️ Parámetros</button>
@@ -2190,6 +2191,26 @@
   <div id="cstrp-hoja"></div>
 </div>
 
+<!-- ═══ 💲 Costos · Punto de equilibrio ═══ -->
+<div class="page" id="pg-costos-equilibrio">
+  <div class="pg-title">⚖️ Punto de equilibrio</div>
+  <div class="pg-sub">Cuántas piezas y kg de un producto hacen falta al mes para cubrir los costos fijos (y para ganar lo que querés), con tres escenarios de venta — solo lectura, no cambia nada</div>
+
+  <div class="card">
+    <div class="ctitle">Período, producto y meta</div>
+    <div class="row">
+      <div class="col" style="flex:2"><label>Período</label><select id="csteq-periodo" onchange="cstEqElegirPer(this.value)"></select></div>
+    </div>
+    <div id="csteq-controles"></div>
+    <div id="csteq-estado" style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap"></div>
+  </div>
+
+  <div class="stats" id="csteq-stats"></div>
+  <div id="csteq-avisos"></div>
+  <div id="csteq-escenarios"></div>
+  <div id="csteq-tabla"></div>
+</div>
+
 <!-- ═══ 💲 Costos · Consulta de productos (costo estándar) ═══ -->
 <div class="page" id="pg-costos-consulta">
   <div class="pg-title">🔎 Consulta de productos</div>
@@ -2299,10 +2320,11 @@
 <script src="costos_tasas.js?v=20261024b"></script>
 <script src="costos_plan.js?v=20261024b"></script>
 <script src="costos_reportes.js?v=20261111c"></script>
+<script src="costos_equilibrio.js?v=20261114a"></script>
 <script src="costos_consulta.js?v=20261025a"></script>
 <script src="costos_hoja.js?v=20261023a"></script>
 
-<script src="precio_venta.js?v=20261002a"></script>
+<script src="precio_venta.js?v=20261114a"></script>
 <script src="explosion.js?v=20261028a"></script>
 <script src="ordenes_prod.js?v=20261028a"></script>
 <script src="reporte_control.js?v=20261018a"></script>
