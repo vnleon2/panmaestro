@@ -96,6 +96,10 @@
       <div class="group-drop">
         <div class="drop-h">0 · Presupuesto</div>
         <button class="ntab" data-tab="pg-costos-budget" onclick="showTab('pg-costos-budget');pmCloseNav()">📈 Budget de ventas</button>
+        <button class="ntab" data-tab="pg-costos-compras" onclick="showTab('pg-costos-compras');pmCloseNav()">🛒 Compras de materiales</button>
+        <button class="ntab" data-tab="pg-costos-nomest" onclick="showTab('pg-costos-nomest');pmCloseNav()">👷 Nómina estimada</button>
+        <button class="ntab" data-tab="pg-costos-gasbud" onclick="showTab('pg-costos-gasbud');pmCloseNav()">🧾 Gasto fijo presupuestado</button>
+        <button class="ntab" data-tab="pg-costos-activos" onclick="showTab('pg-costos-activos');pmCloseNav()">📦 Activos depreciables</button>
         <div class="drop-h">1 · Datos base</div>
         <button class="ntab" data-tab="pg-costos-maestros" onclick="showTab('pg-costos-maestros');pmCloseNav()">🏭 Departamentos y cuentas</button>
         <button class="ntab" data-tab="pg-costos-personal" onclick="showTab('pg-costos-personal');pmCloseNav()">👥 Personal</button>
@@ -2218,6 +2222,75 @@
   <div id="cstbud-tabla"></div>
 </div>
 
+<!-- ═══ 💲 Costos · Compras de materiales ═══ -->
+<div class="page" id="pg-costos-compras">
+  <div class="pg-title">🛒 Compras de materiales</div>
+  <div class="pg-sub">Qué ingredientes hay que comprar cada mes para producir el Budget de ventas: se explotan las recetas (con subrecetas, rellenos y merma) — solo lectura, no cambia nada</div>
+  <div class="card">
+    <div class="ctitle">Meses y vista</div>
+    <div class="row">
+      <div class="col"><label>Primer mes (el mismo del Budget)</label><input type="month" id="cstcom-inicio" onchange="cstComSetInicio(this.value)"></div>
+      <div class="col"><label>Ver en</label><div><button class="btn btn-sm btn-gold" id="cstcom-v-kg" onclick="cstComVer('kg')">Kilos</button> <button class="btn btn-sm btn-out" id="cstcom-v-cr" onclick="cstComVer('cr')">Colones</button></div></div>
+    </div>
+  </div>
+  <div class="stats" id="cstcom-stats"></div>
+  <div id="cstcom-avisos"></div>
+  <div id="cstcom-tabla"></div>
+</div>
+
+<!-- ═══ 💲 Costos · Nómina estimada ═══ -->
+<div class="page" id="pg-costos-nomest">
+  <div class="pg-title">👷 Nómina estimada</div>
+  <div class="pg-sub">Cuántas horas-hombre pide el Budget de ventas cada mes, contra las horas del equipo (producción + capacidad ociosa), y cuánto costaría sumar las que falten — solo lectura</div>
+  <div class="card">
+    <div class="ctitle">Meses y período de referencia</div>
+    <div class="row">
+      <div class="col"><label>Primer mes (el mismo del Budget)</label><input type="month" id="cstnom-inicio" onchange="cstNomSetInicio(this.value)"></div>
+      <div class="col" style="flex:2"><label>Período de la nómina y las tarifas</label><select id="cstnom-periodo" onchange="cstNomElegirPer(this.value)"></select></div>
+    </div>
+  </div>
+  <div class="stats" id="cstnom-stats"></div>
+  <div id="cstnom-tabla"></div>
+</div>
+
+<!-- ═══ 💲 Costos · Gasto fijo presupuestado ═══ -->
+<div class="page" id="pg-costos-gasbud">
+  <div class="pg-title">🧾 Gasto fijo presupuestado</div>
+  <div class="pg-sub">Plantilla de 12 meses del gasto fijo (mercadeo, administración, venta y demás cuentas): una línea por cuenta y departamento. La depreciación de los activos entra sola. Los gastos reales de «Gastos del período» se compararán contra esto</div>
+  <div class="card">
+    <div class="ctitle">Agregar línea</div>
+    <div class="row">
+      <div class="col"><label>Primer mes (el mismo del Budget)</label><input type="month" id="cstgb-inicio" onchange="cstGbSetInicio(this.value)"></div>
+      <div class="col" style="flex:2"><label>Cuenta</label><select id="cstgb-n-cuenta" onchange="cstGbNuevaCuenta()"></select></div>
+      <div class="col" style="flex:2"><label>Departamento</label><select id="cstgb-n-depto"></select></div>
+      <div class="col sm"><label>Monto mensual</label><input type="number" min="0" step="any" id="cstgb-n-monto" placeholder="0" style="text-align:right"></div>
+      <div class="col sm"><label>&nbsp;</label><button class="btn btn-gold" onclick="cstGbAgregar()">Agregar</button></div>
+    </div>
+  </div>
+  <div class="stats" id="cstgb-stats"></div>
+  <div id="cstgb-tabla"></div>
+</div>
+
+<!-- ═══ 💲 Costos · Activos depreciables ═══ -->
+<div class="page" id="pg-costos-activos">
+  <div class="pg-title">📦 Activos depreciables</div>
+  <div class="pg-sub">Maestro de activos por departamento. La depreciación mensual (línea recta) pasa al presupuesto como gasto fijo del departamento</div>
+  <div class="card">
+    <div class="ctitle">Agregar activo</div>
+    <div class="row">
+      <div class="col" style="flex:2"><label>Activo</label><input type="text" id="cstact-n-nombre" placeholder="Ej.: Horno Unox"></div>
+      <div class="col" style="flex:2"><label>Departamento</label><select id="cstact-n-depto"></select></div>
+      <div class="col sm"><label>Costo</label><input type="number" min="0" step="any" id="cstact-n-costo" style="text-align:right"></div>
+      <div class="col sm"><label>Valor residual</label><input type="number" min="0" step="any" id="cstact-n-res" placeholder="0" style="text-align:right"></div>
+      <div class="col sm"><label>Vida útil (meses)</label><input type="number" min="1" step="1" id="cstact-n-vida" placeholder="60" style="text-align:right"></div>
+      <div class="col"><label>Empieza a depreciarse</label><input type="month" id="cstact-n-inicio"></div>
+      <div class="col sm"><label>&nbsp;</label><button class="btn btn-gold" onclick="cstActAgregar()">Agregar</button></div>
+    </div>
+  </div>
+  <div class="stats" id="cstact-stats"></div>
+  <div id="cstact-tabla"></div>
+</div>
+
 <!-- ═══ 💲 Costos · Punto de equilibrio ═══ -->
 <div class="page" id="pg-costos-equilibrio">
   <div class="pg-title">⚖️ Punto de equilibrio</div>
@@ -2348,7 +2421,9 @@
 <script src="costos_plan.js?v=20261024b"></script>
 <script src="costos_reportes.js?v=20261111c"></script>
 <script src="costos_equilibrio.js?v=20261114b"></script>
-<script src="costos_budget.js?v=20261114b"></script>
+<script src="costos_budget.js?v=20261114c"></script>
+<script src="costos_compras.js?v=20261114a"></script>
+<script src="costos_gasbud.js?v=20261114a"></script>
 <script src="mps_forecast.js?v=20261114a"></script>
 <script src="costos_consulta.js?v=20261025a"></script>
 <script src="costos_hoja.js?v=20261023a"></script>

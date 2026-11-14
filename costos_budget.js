@@ -76,7 +76,7 @@ function cstBudCalcular(unFn, mesesIn) {
   const porMes = meses.map(ym => {
     let un = 0, kg = 0;
     prods.forEach(p => { const u = un_(p.id, ym); un += u; kg += u * (kgPz[p.id] || 0); });
-    let uso = null, donde = '', usoKg = null;
+    let uso = null, donde = '', usoKg = null, hhNec = 0;
     if (tarifas.length && un > 0) {
       const r = cstPlnCalc(prods.map(p => p.id), (id, n, d) => (d === 1 ? un_(id, ym) : 0), semana, tarifas, 1);
       // Capacidad medida en horas-hombre: producción + capacidad ociosa (tiempo ya pagado que aún no se usa).
@@ -90,14 +90,15 @@ function cstBudCalcular(unFn, mesesIn) {
         if (uso === null || mensual > uso) { uso = mensual; donde = nom; }
       });
       const hhDisp = hhProd + hhOciosaPeriodo;
+      hhNec = hhDem;
       if (hhDem > 0 && hhDisp > 0) {
         const mensual = hhDem / hhDisp * 100 * mesesPer;
         if (uso === null || mensual > uso) { uso = mensual; donde = 'horas-hombre (producción + ociosa)'; }
       }
     } else if (tarifas.length) { uso = 0; }
-    return { ym, un, kg, uso, donde };
+    return { ym, un, kg, uso, donde, hh: hhNec };
   });
-  return { meses, porMes, kgPz, sinMasa, sinRuta, prods, hayTarifas: tarifas.length > 0, per };
+  return { meses, porMes, kgPz, sinMasa, sinRuta, prods, hayTarifas: tarifas.length > 0, per, mesesPer, hhProd: tarifas.reduce((a, t) => a + (t.hh > 0 ? t.hh : 0), 0), hhOciosa: hhOciosaPeriodo };
 }
 
 function _cstBudNivel(uso) {
