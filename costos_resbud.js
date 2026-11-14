@@ -12,6 +12,8 @@
 //     la nómina y la depreciación de esos departamentos van a sus gastos fijos.
 // Los montos de gasto salen de la matriz «Gasto fijo presupuestado» (lo que se escribió, mes a mes).
 
+let _cstRbPrecio = 'actual';   // precio para los ingresos: 'actual' (precio de venta de hoy, sin IVA) o 'sugerido' (costo total con el margen elegido)
+
 const CST_RB_GRUPOS = [
   { serie: 5, id: 'fab' }, { serie: 6, id: 'ven' }, { serie: 7, id: 'mer' }, { serie: 8, id: 'adm' },
 ];
@@ -42,7 +44,23 @@ function cstRbCalcular() {
   const ids = _cstRutProd.map(p => p.id);
   const sem = [{ n: 1, activos: [true, true, true, true, true, true, true] }];
   const cifFMes = tarifas.reduce((a, t) => a + (isFinite(t.cifF) ? t.cifF : 0), 0) / n;
+  // Precios sin IVA por producto para los ingresos (el mismo cálculo del costo unitario)
+  const precios = {};
+  try {
+    const soloBud = _cstUnSoloBudget; _cstUnSoloBudget = false;
+    const u = cstUnCalcular();
+    _cstUnSoloBudget = soloBud;
+    if (u) u.filas.forEach(f => { precios[f.p.id] = _cstRbPrecio === 'sugerido' ? f.sugerido : (f.precio > 0 ? f.precio / (1 + (Number(f.iva) || 0) / 100) : null); });
+  } catch (e) { /* sin precios: ingresos en cero */ }
+  const sinPrecio = [];
   const cols = meses.map((ym, i) => {
+    let ingresos = 0;
+    _cstRutProd.forEach(p => {
+      const un = _cstBudUn(p.id, ym);
+      if (!(un > 0)) return;
+      if (precios[p.id] > 0) ingresos += un * precios[p.id];
+      else if (!sinPrecio.includes(p.nombre)) sinPrecio.push(p.nombre);
+    });
     const f = nom.filas[i] || { kg: 0, directa: 0, fijaProd: 0, ociosa: 0, apoyo: 0 };
     let cifFAbs = null;
     if (tarifas.length && cifFMes > 0) {
@@ -71,10 +89,10 @@ function cstRbCalcular() {
     const costoProd = f.directa + moFija + g.fab.v + g.fab.f;
     const sub = k => g[k].v + g[k].f;
     const gastos = sub('ven') + sub('mer') + sub('adm');
-    return { ym, kg: f.kg, mod: f.directa, moFija, g, costoProd, subVen: sub('ven'), subMer: sub('mer'), subAdm: sub('adm'), gastos, total: costoProd + gastos,
+    return { ym, kg: f.kg, mod: f.directa, moFija, g, costoProd, subVen: sub('ven'), subMer: sub('mer'), subAdm: sub('adm'), gastos, total: costoProd + gastos, ingresos, utilidad: ingresos - (costoProd + gastos),
       cifFEst: cifFAbs === null ? null : cifFMes, cifFAbs, cifFNoAbs: cifFAbs === null ? null : cifFMes - cifFAbs };
   });
-  return { meses, cols, per: nom.per };
+  return { meses, cols, per: nom.per, sinPrecio };
 }
 
 // ── Pantalla ────────────────────────────────────────────────
@@ -88,6 +106,8 @@ async function cstRbInit() {
   if (ini) ini.value = _cstBudInicio;
   cstRbRender();
 }
+
+function cstRbSetPrecio(v) { _cstRbPrecio = v === 'sugerido' ? 'sugerido' : 'actual'; cstRbRender(); }
 
 function cstRbSetInicio(v) {
   if (!/^\d{4}-\d{2}$/.test(v || '')) return;
@@ -155,17 +175,29 @@ function cstRbRender() {
     html += fila('CIF fijo absorbido por la producción prevista', c => c.cifFAbs || 0);
     html += fila('CIF fijo no absorbido (capacidad no usada: gasto del período)', c => c.cifFNoAbs || 0, { sub: true });
   }
+  html += cab('Resultado (ingresos − costos y gastos)');
+  html += fila(`Ingresos por ventas (Budget × precio ${_cstRbPrecio === 'sugerido' ? 'sugerido' : 'actual'} sin IVA)`, c => c.ingresos, { sub: true });
+  html += fila('Costos y gastos totales', c => c.total);
+  html += fila('UTILIDAD (PÉRDIDA) DEL MES', c => c.utilidad, { total: true });
+  html += `<tr style="border-bottom:1px solid var(--bdr)"><td style="${td};text-align:left;padding-left:22px">Margen sobre ventas</td>` +
+    r.cols.map(c => `<td style="${td}">${c.ingresos > 0 ? _cstNum(c.utilidad / c.ingresos * 100, 1) + ' %' : '—'}</td>`).join('') +
+    `<td style="${td}">${sum(c => c.ingresos) > 0 ? _cstNum(sum(c => c.utilidad) / sum(c => c.ingresos) * 100, 1) + ' %' : '—'}</td></tr>`;
+  html += `<tr style="border-bottom:1px solid var(--bdr)"><td style="${td};text-align:left;padding-left:22px">Ingreso por kg</td>` +
+    r.cols.map(c => `<td style="${td}">${c.kg > 0 && c.ingresos > 0 ? cstMoney(c.ingresos / c.kg, 2) : '—'}</td>`).join('') +
+    `<td style="${td}">${kgAnio > 0 && sum(c => c.ingresos) > 0 ? cstMoney(sum(c => c.ingresos) / kgAnio, 2) : '—'}</td></tr>`;
   const pk = (v, kg) => kg > 0 ? cstMoney(v / kg, 2) : '—';
   html += `<tr style="border-bottom:1px solid var(--bdr)"><td style="${td};text-align:left;padding-left:22px">Costo de producción por kg</td>` +
     r.cols.map(c => `<td style="${td}">${pk(c.costoProd, c.kg)}</td>`).join('') + `<td style="${td}">${pk(sum(c => c.costoProd), kgAnio)}</td></tr>`;
   html += `<tr style="border-bottom:1px solid var(--bdr)"><td style="${td};text-align:left;padding-left:22px">Costos y gastos totales por kg</td>` +
     r.cols.map(c => `<td style="${td}">${pk(c.total, c.kg)}</td>`).join('') + `<td style="${td}">${pk(sum(c => c.total), kgAnio)}</td></tr>`;
   html += '</tbody></table></div>';
+  if (r.sinPrecio.length) html += `<div class="card" style="margin-top:8px;font-size:12px">⚠ ${r.sinPrecio.length} producto${r.sinPrecio.length === 1 ? '' : 's'} con unidades en el Budget sin precio ${_cstRbPrecio === 'sugerido' ? 'sugerido (falta costo completo)' : 'de venta'}, no suman ingresos: ${pmEsc(r.sinPrecio.join(' · '))}</div>`;
   tabla.innerHTML = html;
   const stat = (t, v, s) => `<div class="stat"><div class="stat-lbl">${t}</div><div class="stat-val" style="font-size:17px">${v}</div>${s ? `<div class="stat-sub">${s}</div>` : ''}</div>`;
   const totAnio = sum(c => c.total), prodAnio = sum(c => c.costoProd);
   if (stats) stats.innerHTML = stat('Costos y gastos del año', cstMoney(Math.round(totAnio), 0), 'producción + venta + mercadeo + administración') +
     stat('Costos de producción', cstMoney(Math.round(prodAnio), 0), totAnio > 0 ? _cstNum(prodAnio / totAnio * 100, 0) + ' % del total' : '') +
     stat('Producción prevista', _cstNum(kgAnio, 0) + ' kg', 'kg de masa del año') +
-    stat('Costo total por kg', kgAnio > 0 ? cstMoney(totAnio / kgAnio, 2) : '—', 'costos y gastos ÷ kg');
+    stat('Costo total por kg', kgAnio > 0 ? cstMoney(totAnio / kgAnio, 2) : '—', 'costos y gastos ÷ kg') +
+    stat('Utilidad del año', cstMoney(Math.round(sum(c => c.utilidad)), 0), sum(c => c.ingresos) > 0 ? 'margen ' + _cstNum(sum(c => c.utilidad) / sum(c => c.ingresos) * 100, 1) + ' % sobre ventas' : 'sin ingresos: faltan precios o Budget');
 }
