@@ -13,7 +13,11 @@
 // - "Preparar renglones" crea un renglón en cero por cada cuenta activa que aún no tenga
 //   ninguno; "Copiar de otro período" trae los renglones y montos de un período anterior.
 
-let _cstGasRows = [];   // renglones del período seleccionado
+let _cstGasRows = [];   // renglones del período seleccionado (gasto real cargado)
+// De dónde toma el costo estándar los gastos: 'real' = lo cargado en Gastos del período; 'presupuesto' = la matriz de gasto fijo
+// presupuestado (meses del período) más la depreciación de los activos. La pantalla de Gastos del período siempre muestra el real.
+let _cstGasFuente = 'real';
+try { if (localStorage.getItem('cst_gas_fuente') === 'presupuesto') _cstGasFuente = 'presupuesto'; } catch (e) { /* ok */ }
 
 const CST_GAS_SERIES = [5, 6, 7, 8];
 const CST_GAS_COMPARTIDA = '';   // valor del select cuando el gasto es compartido
@@ -80,6 +84,7 @@ async function cstGasCargar() {
     _cstGasRows = [];
     pmToast('⚠️ ' + _cstErr(e, 'sql_costos_gastos.sql'), 'err');
   }
+  await cstGasAsegurarPres();
 }
 
 async function cstGasElegirPer(id) {
@@ -262,12 +267,76 @@ function _cstBaseNoReparte(driverId) {
   return !d || d.codigo === 'DIRECTO' || d.codigo === 'PCT_VENTA';
 }
 
+// Meses (AAAA-MM) que cubre el período seleccionado
+function _cstGasMesesPer() {
+  const per = _cstPerActual();
+  if (!per || !per.inicio || typeof _cstBudSumarMes !== 'function') return [];
+  const n = Number(per.meses) > 0 ? Number(per.meses) : 1;
+  const ini = String(per.inicio).slice(0, 7);
+  return Array.from({ length: n }, (_, i) => _cstBudSumarMes(ini, i));
+}
+
+// Renglones de gasto armados con el presupuesto: matriz de gasto fijo de los meses del período (cada cuenta × departamento)
+// + depreciación de los activos por departamento. Misma forma que los renglones reales (monto del período, % variable de la cuenta).
+function cstGasFilasPresupuesto() {
+  const meses = new Set(_cstGasMesesPer());
+  const acum = {};
+  (typeof _cstGbRows !== 'undefined' ? _cstGbRows : []).filter(r => meses.has(r.mes)).forEach(r => {
+    const c = _cstCuentas.find(x => x.id === r.cuenta_id);
+    if (!c || (typeof _cstGbEsDeprec === 'function' && _cstGbEsDeprec(c))) return;
+    const k = r.cuenta_id + '|' + (r.depto_id || '');
+    if (!acum[k]) acum[k] = { cuenta_id: r.cuenta_id, depto_id: r.depto_id || null, monto: 0, pct_variable: c.pct_variable >= 0 ? Number(c.pct_variable) : 0, _virtual: true };
+    acum[k].monto += Number(r.monto);
+  });
+  const dep = typeof _cstGbEsDeprec === 'function' ? _cstCuentas.find(c => c.activo !== false && _cstGbEsDeprec(c)) : null;
+  if (dep && typeof cstActDepPorDepto === 'function') {
+    meses.forEach(ym => {
+      const pd = cstActDepPorDepto(ym);
+      Object.keys(pd).forEach(did => {
+        const k = dep.id + '|' + did;
+        if (!acum[k]) acum[k] = { cuenta_id: dep.id, depto_id: did || null, monto: 0, pct_variable: 0, _virtual: true };
+        acum[k].monto += pd[did];
+      });
+    });
+  }
+  return Object.values(acum).filter(r => r.monto > 0);
+}
+
+// Los renglones que usa el cálculo (reparto, tarifas, equilibrio): reales o del presupuesto, según la fuente elegida
+function cstGasFilas() { return _cstGasFuente === 'presupuesto' ? cstGasFilasPresupuesto() : _cstGasRows; }
+
+// Carga lo que hace falta del presupuesto cuando la fuente es el presupuesto
+async function cstGasAsegurarPres() {
+  if (_cstGasFuente !== 'presupuesto') return;
+  if (typeof _cstGbAsegurar === 'function' && !(await _cstGbAsegurar())) return;
+  if (typeof cstGbCargarDatos === 'function' && !_cstGbCargado) await cstGbCargarDatos();
+}
+
+// Cambia la fuente y repinta lo que esté abierto
+async function cstGasSetFuente(v) {
+  _cstGasFuente = v === 'presupuesto' ? 'presupuesto' : 'real';
+  try { localStorage.setItem('cst_gas_fuente', _cstGasFuente); } catch (e) { /* ok */ }
+  await cstGasAsegurarPres();
+  ['cstTasRender', 'cstCapRender', 'cstEqRender', 'cstUnRender', 'cstRepRender', 'cstPlnRender', 'cstBudRender', 'cstRbRender'].forEach(fn => {
+    try { if (typeof window[fn] === 'function') window[fn](); } catch (e) { console.warn('[cstGasSetFuente]', fn, e.message); }
+  });
+}
+
+// Selector reutilizable (Tarifas, Equilibrio, Costo unitario)
+function cstGasFuenteHtml() {
+  const hay = _cstGasFuente === 'presupuesto';
+  const nGb = typeof _cstGbRows !== 'undefined' ? _cstGbRows.length : 0;
+  const aviso = hay && !nGb ? '<div style="font-size:11px;color:#B45309;margin-top:4px">⚠ El presupuesto de gasto fijo no tiene datos cargados (o no ha cargado todavía): llená 🧾 Gasto fijo presupuestado.</div>' : '';
+  return `<div style="margin-top:8px"><label style="font-size:11px;color:var(--cream2)">Gastos que usa el costo estándar</label>
+    <select onchange="cstGasSetFuente(this.value)" style="max-width:420px"><option value="real"${hay ? '' : ' selected'}>Gastos cargados del período (real)</option><option value="presupuesto"${hay ? ' selected' : ''}>Presupuesto de gasto fijo + depreciación de activos</option></select>${aviso}</div>`;
+}
+
 function cstGasResumen() {
   const tot = { f: 0, v: 0 };
   const porDepto = {};        // clave: depto_id o '' (compartida)
   const avisos = [];
   const conMonto = new Set();
-  _cstGasRows.forEach(r => {
+  cstGasFilas().forEach(r => {
     const { f, v } = cstGasFV(r);
     tot.f += f; tot.v += v;
     const k = r.depto_id || '';

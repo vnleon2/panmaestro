@@ -78,6 +78,7 @@ async function cstCapCargar() {
     }));
     _cstRepRows = (rep || []).map(r => Object.assign({}, r, { cantidad: Number(r.cantidad) }));
     _cstGasRows = (gas || []).map(r => Object.assign({}, r, { monto: Number(r.monto), pct_variable: Number(r.pct_variable) }));
+    await cstGasAsegurarPres();
   } catch (e) {
     console.warn('[cstCapCargar]', e.message);
     pmToast('⚠️ ' + _cstErr(e, 'sql_costos_gastos.sql'), 'err');
@@ -317,7 +318,7 @@ function cstCapBasesNecesarias() {
     if (!mapa[d.id].motivos.includes(motivo)) mapa[d.id].motivos.push(motivo);
     if (alcance === 'todos') mapa[d.id].alcance = 'todos';
   };
-  _cstGasRows.forEach(r => {
+  cstGasFilas().forEach(r => {
     if (r.depto_id || !(r.monto > 0)) return;
     const c = _cstCuentas.find(x => x.id === r.cuenta_id);
     if (c) add(c.base_reparto_id, `reparte ${c.codigo} ${c.nombre}`, 'todos');
@@ -341,7 +342,7 @@ function cstRepartoCalc() {
   const avisos = [];
 
   // 1. Gastos: directos y compartidos
-  _cstGasRows.forEach(r => {
+  cstGasFilas().forEach(r => {
     if (!(r.monto > 0)) return;
     const { f, v } = cstGasFV(r);
     if (r.depto_id) { const x = get(r.depto_id); x.dirF += f; x.dirV += v; return; }
@@ -429,7 +430,7 @@ function cstRepartoCalc() {
     avisos.push(`Nómina: ${cstMoney(Math.abs(nomTotal - nomDist))} de la nómina ${nomDist < nomTotal ? 'no llega' : 'se cuenta de más'} a los departamentos (cargada ${cstMoney(nomTotal)}, repartida ${cstMoney(nomDist)}) — revisá el reparto de tiempo de cada colaborador en Personal`);
     rs.avisos.filter(a => /reparto de tiempo|reparto suma/i.test(a)).forEach(a => avisos.push('Nómina: ' + a));
   }
-  if (!_cstGasRows.length) avisos.push('El período no tiene gastos cargados — cargalos en Gastos del período');
+  if (!cstGasFilas().length) avisos.push('El período no tiene gastos cargados — cargalos en Gastos del período');
   return { R, prod, apoyo, gasto, ocioso, total, sinRepartir, avisos };
 }
 

@@ -133,6 +133,8 @@ function cstUnRender() {
   const stats = document.getElementById('cstun-stats');
   const av = document.getElementById('cstun-avisos');
   const chk = document.getElementById('cstun-solobud'); if (chk) chk.checked = _cstUnSoloBudget;
+  const fuenteEl = document.getElementById('cstun-fuente');
+  if (fuenteEl) fuenteEl.innerHTML = cstGasFuenteHtml();
   const r = cstUnCalcular();
   if (!r) {
     if (stats) stats.innerHTML = ''; if (av) av.innerHTML = '';
