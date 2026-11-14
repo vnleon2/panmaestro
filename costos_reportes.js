@@ -10,8 +10,8 @@
 //   · gasto       → tasa por kg del período × masa de la pieza (entrega 7)
 // y lo compara con el costo que Costeo / Precio de venta usan hoy (materiales + % de MOD + % de GG),
 // para ver la diferencia ANTES de conectar el nuevo sistema (entrega 9).
-// Criterio: los materiales se pagan por la masa CRUDA. Materiales por pieza = costo de la receta con merma ÷ unidades que rinde
-// (masa cruda por pieza = masa ÷ unidades). Si las unidades no cuadran con el peso del producto, se usa (costo ÷ masa) × peso del producto.
+// Criterio: los materiales se pagan por la masa CRUDA. Con merma en la receta: (costo con merma ÷ masa) × peso del producto (la merma es la pérdida a masa cruda).
+// Sin merma: costo de la receta ÷ unidades que rinde (masa cruda por pieza = masa ÷ unidades); si las unidades no cuadran con el peso, (costo ÷ masa) × peso.
 // (La conversión y el gasto del período usan la masa por pieza de la ruta si se indicó, o el peso del producto: lo normal es dejarla vacía.)
 // Las tarifas son las congeladas si el período está aprobado; si está en borrador, las calculadas en vivo.
 
@@ -42,7 +42,9 @@ function cstRepMateriales(p, ruta, cache) {
   const units = Number(r.units) > 0 ? Number(r.units) : 0;
   const masaCrudaG = units > 0 ? c.mass / units : 0;
   let matPz = cpg * peso, base = 'peso', avisoMat = '';
-  if (masaCrudaG >= peso * 0.98 && masaCrudaG <= peso * 1.6) { matPz = c.totalMerma / units; base = 'receta'; }
+  // Si la receta ya tiene merma, la merma ES la pérdida entre pan terminado y masa cruda: (costo con merma ÷ masa) × peso. No se usa la regla por unidades (contaría la pérdida dos veces).
+  if (Number(r.merma) > 0) { /* matPz = cpg × peso */ }
+  else if (masaCrudaG >= peso * 0.98 && masaCrudaG <= peso * 1.6) { matPz = c.totalMerma / units; base = 'receta'; }
   else if (units > 0 && masaCrudaG > 0) avisoMat = `la receta rinde ${units} ud de ${_cstNum(masaCrudaG, 0)} g y el producto pesa ${_cstNum(peso, 0)} g: no cuadran, los materiales se calcularon sobre el peso del producto (revisá las unidades de la receta)`;
   const out = { ok: true, receta: r, cpg, masaG: peso, matPz, masaRuta, masaCrudaG, base, avisoMat };
   // Costo actual del sistema: materiales (con el peso del producto) + MOD % + GG %
