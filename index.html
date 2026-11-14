@@ -94,6 +94,8 @@
     <div class="nav-group">
       <button class="nav-toggle" onclick="pmToggleGroup(this)">💲 Costos ▾</button>
       <div class="group-drop">
+        <div class="drop-h">0 · Presupuesto</div>
+        <button class="ntab" data-tab="pg-costos-budget" onclick="showTab('pg-costos-budget');pmCloseNav()">📈 Budget de ventas</button>
         <div class="drop-h">1 · Datos base</div>
         <button class="ntab" data-tab="pg-costos-maestros" onclick="showTab('pg-costos-maestros');pmCloseNav()">🏭 Departamentos y cuentas</button>
         <button class="ntab" data-tab="pg-costos-personal" onclick="showTab('pg-costos-personal');pmCloseNav()">👥 Personal</button>
@@ -2191,6 +2193,27 @@
   <div id="cstrp-hoja"></div>
 </div>
 
+<!-- ═══ 💲 Costos · Budget de ventas ═══ -->
+<div class="page" id="pg-costos-budget">
+  <div class="pg-title">📈 Budget de ventas</div>
+  <div class="pg-sub">Matriz de 12 meses: cuántas unidades de cada pan, galleta u otro producto se piensan vender (= producir) cada mes, agrupadas por categoría de mercadeo — dice si algún mes excede la capacidad. Es la base del costo estándar, de las compras de materiales y de la nómina</div>
+
+  <div class="card">
+    <div class="ctitle">Mes de inicio y capacidad de referencia</div>
+    <div class="row">
+      <div class="col"><label>Primer mes de la matriz</label><input type="month" id="cstbud-inicio" onchange="cstBudSetInicio(this.value)"></div>
+      <div class="col" style="flex:2"><label>Período para medir la capacidad</label><select id="cstbud-periodo" onchange="cstBudElegirPer(this.value)"></select></div>
+      <div class="col sm"><label>Cambio por mes (%)</label><input type="number" step="0.5" id="cstbud-crec" placeholder="0" style="text-align:right"></div>
+      <div class="col sm"><label>&nbsp;</label><button class="btn btn-out" onclick="cstBudRellenar()" title="Copia el primer mes a los meses 2 a 12 con ese cambio mensual">Completar meses 2–12</button></div>
+    </div>
+    <div id="cstbud-estado" style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap"></div>
+  </div>
+
+  <div class="stats" id="cstbud-stats"></div>
+  <div id="cstbud-avisos"></div>
+  <div id="cstbud-tabla"></div>
+</div>
+
 <!-- ═══ 💲 Costos · Punto de equilibrio ═══ -->
 <div class="page" id="pg-costos-equilibrio">
   <div class="pg-title">⚖️ Punto de equilibrio</div>
@@ -2321,6 +2344,7 @@
 <script src="costos_plan.js?v=20261024b"></script>
 <script src="costos_reportes.js?v=20261111c"></script>
 <script src="costos_equilibrio.js?v=20261114b"></script>
+<script src="costos_budget.js?v=20261114a"></script>
 <script src="costos_consulta.js?v=20261025a"></script>
 <script src="costos_hoja.js?v=20261023a"></script>
 
