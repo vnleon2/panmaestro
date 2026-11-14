@@ -51,7 +51,7 @@ function cstActDepTotal(ym) { return Object.values(cstActDepPorDepto(ym)).reduce
 
 // Total de gasto fijo presupuestado de un mes: líneas escritas + depreciación (la usan otras pantallas)
 function cstGbTotalMes(ym) {
-  return _cstGbRows.filter(r => r.mes === ym).reduce((a, r) => a + Number(r.monto), 0) + cstActDepTotal(ym);
+  return _cstGbRows.filter(r => r.mes === ym && !_cstGbEsDeprec(_cstGbCuentaDeId(r.cuenta_id))).reduce((a, r) => a + Number(r.monto), 0) + cstActDepTotal(ym);
 }
 
 // ── Carga ───────────────────────────────────────────────────
@@ -82,8 +82,11 @@ async function _cstGbAsegurar() {
 }
 
 function _cstGbDeptoNom(id) { const d = _cstDeps.find(x => x.id === id); return d ? d.nombre : 'Compartido'; }
+// La depreciación sale de la tabla de activos: sus cuentas no se llenan a mano en esta matriz
+function _cstGbEsDeprec(c) { return !!c && /deprec/i.test(String(c.nombre || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')); }
+function _cstGbCuentaDeId(id) { return _cstCuentas.find(x => x.id === id) || null; }
 function _cstGbCuentas() {
-  return _cstCuentas.filter(c => c.activo !== false && CST_GAS_SERIES.includes(Number(c.serie)))
+  return _cstCuentas.filter(c => c.activo !== false && CST_GAS_SERIES.includes(Number(c.serie)) && !_cstGbEsDeprec(c))
     .sort((a, b) => a.codigo.localeCompare(b.codigo, 'es', { numeric: true }));
 }
 function _cstGbDeptoOpts(sel) {
@@ -236,7 +239,7 @@ function _cstGbTieneDatos(cuentaId, deptoId) {
 function _cstGbLineas() {
   const m = new Map();
   _cstGbCuentas().forEach(c => { const d = c.depto_defecto_id || null; m.set(_cstGbKey(c.id, d), { cuentaId: c.id, deptoId: d }); });
-  _cstGbRows.forEach(r => { const k = _cstGbKey(r.cuenta_id, r.depto_id); if (!m.has(k)) m.set(k, { cuentaId: r.cuenta_id, deptoId: r.depto_id || null }); });
+  _cstGbRows.filter(r => !_cstGbEsDeprec(_cstGbCuentaDeId(r.cuenta_id))).forEach(r => { const k = _cstGbKey(r.cuenta_id, r.depto_id); if (!m.has(k)) m.set(k, { cuentaId: r.cuenta_id, deptoId: r.depto_id || null }); });
   return Array.from(m.values()).sort((a, b) => {
     const ca = _cstCuentas.find(c => c.id === a.cuentaId), cb = _cstCuentas.find(c => c.id === b.cuentaId);
     return (ca ? ca.codigo : '').localeCompare(cb ? cb.codigo : '', 'es', { numeric: true }) || _cstGbDeptoNom(a.deptoId).localeCompare(_cstGbDeptoNom(b.deptoId), 'es');
@@ -404,7 +407,7 @@ function cstActRender() {
   if (st) {
     const stat = (t, v, s) => `<div class="stat"><div class="stat-lbl">${t}</div><div class="stat-val" style="font-size:17px">${v}</div>${s ? `<div class="stat-sub">${s}</div>` : ''}</div>`;
     st.innerHTML = stat('Activos', String(vig.length), vig.length === _cstActivos.length ? 'todos en uso' : (_cstActivos.length - vig.length) + ' en pausa') +
-      stat('Costo de los activos', _cstGbM(vig.reduce((a, x) => a + x.costo, 0)), 'sin residual') +
+      stat('Costo de los activos', _cstGbM(vig.reduce((a, x) => a + x.costo, 0)), 'costo de compra') +
       stat('Depreciación de este mes', _cstGbM(mensualHoy), 'va al presupuesto de gasto fijo');
   }
 }
