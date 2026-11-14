@@ -58,8 +58,19 @@ function cstBudCalcular(unFn, mesesIn) {
   const sinRuta = prods.filter(p => meses.some(m => un_(p.id, m) > 0) && kgPz[p.id] > 0 && !_cstPlnTieneRuta(p));
 
   // HH del período que la nómina deja en capacidad ociosa (disponibles para producir más)
+  // (cstHHDepto devuelve 0 fuera de los departamentos productivos, así que se calcula aquí con la misma fórmula)
   let hhOciosaPeriodo = 0;
-  try { Object.values(cstLabResumen().porDepto).forEach(x => { if (cstTratamiento(x.depto.tipo) === 'OCIOSA') hhOciosaPeriodo += x.hh || 0; }); } catch (e) { hhOciosaPeriodo = 0; }
+  try {
+    _cstColabs.filter(c => c.activo !== false).forEach(c => {
+      cstRepartoDe(c.id).forEach(r => {
+        const d = _cstDeps.find(y => y.id === r.depto_id);
+        if (!d || d.tipo !== 'ociosa') return;
+        const car = _cstCargos.find(x => x.id === c.cargo_id);
+        const util = car ? Number(car.pct_utilizacion) : 0;
+        hhOciosaPeriodo += Number(c.horas_mes) * util / 100 * Number(r.pct) / 100 * mesesPer;
+      });
+    });
+  } catch (e) { hhOciosaPeriodo = 0; }
 
   const semana = [{ n: 1, activos: [true, true, true, true, true, true, true] }];
   const porMes = meses.map(ym => {
