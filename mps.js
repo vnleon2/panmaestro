@@ -133,13 +133,14 @@ function mpsBloqueado() {
 // NAVEGACIÓN
 // ═══════════════════════════════════════════════════════════
 function mpsTab(tab, btn) {
-  ['est', 'ven', 'bal', 'rep', 'cal'].forEach(t => {
+  ['est', 'for', 'ven', 'bal', 'rep', 'cal'].forEach(t => {
     const el = document.getElementById('mpst-' + t);
     if (el) el.style.display = t === tab ? 'block' : 'none';
   });
   document.querySelectorAll('#mps-pills .pill').forEach(p => p.classList.remove('on'));
   if (btn) btn.classList.add('on');
   if (tab === 'cal') mpsCalRender();
+  if (tab === 'for' && typeof mpfCargar === 'function') mpfCargar();
   if (tab === 'ven' && typeof mpvCargar === 'function') mpvCargar();
   if (tab === 'bal' && typeof mpbCargar === 'function') mpbCargar();
   if (tab === 'rep' && typeof mprCargar === 'function') mprCargar();

@@ -42,8 +42,9 @@ function _cstBudFilaDe(prodId, ym) { return _cstBudRows.find(r => r.producto_id 
 function _cstBudUn(prodId, ym) { const r = _cstBudFilaDe(prodId, ym); return r ? Number(r.unidades) : 0; }
 
 // ── Cálculo (puro) ──────────────────────────────────────────
-function cstBudCalcular() {
-  const meses = _cstBudMeses();
+function cstBudCalcular(unFn, mesesIn) {
+  const un_ = unFn || _cstBudUn;            // de dónde salen las unidades (por defecto, el budget)
+  const meses = mesesIn || _cstBudMeses();
   const per = _cstPerActual();
   const mesesPer = per && Number(per.meses) > 0 ? Number(per.meses) : 1;
   const tas = per ? cstTasActuales() : null;
@@ -53,16 +54,16 @@ function cstBudCalcular() {
   // kg por pieza de cada producto
   const kgPz = {};
   prods.forEach(p => { kgPz[p.id] = cstMasaPiezaKg(p, _cstRutaDe(p.id)); });
-  const sinMasa = prods.filter(p => _cstBudMeses().some(m => _cstBudUn(p.id, m) > 0) && !(kgPz[p.id] > 0));
-  const sinRuta = prods.filter(p => _cstBudMeses().some(m => _cstBudUn(p.id, m) > 0) && kgPz[p.id] > 0 && !_cstPlnTieneRuta(p));
+  const sinMasa = prods.filter(p => meses.some(m => un_(p.id, m) > 0) && !(kgPz[p.id] > 0));
+  const sinRuta = prods.filter(p => meses.some(m => un_(p.id, m) > 0) && kgPz[p.id] > 0 && !_cstPlnTieneRuta(p));
 
   const semana = [{ n: 1, activos: [true, true, true, true, true, true, true] }];
   const porMes = meses.map(ym => {
     let un = 0, kg = 0;
-    prods.forEach(p => { const u = _cstBudUn(p.id, ym); un += u; kg += u * (kgPz[p.id] || 0); });
+    prods.forEach(p => { const u = un_(p.id, ym); un += u; kg += u * (kgPz[p.id] || 0); });
     let uso = null, donde = '', usoKg = null;
     if (tarifas.length && un > 0) {
-      const r = cstPlnCalc(prods.map(p => p.id), (id, n, d) => (d === 1 ? _cstBudUn(id, ym) : 0), semana, tarifas, 1);
+      const r = cstPlnCalc(prods.map(p => p.id), (id, n, d) => (d === 1 ? un_(id, ym) : 0), semana, tarifas, 1);
       r.deptos.forEach(d => {
         [[d.pct, d.t.depto ? d.t.depto.nombre : 'departamento'], [d.pctHH, (d.t.depto ? d.t.depto.nombre : 'departamento') + ' (horas-hombre)']].forEach(([pct, nom]) => {
           if (pct === null || pct === undefined) return;
@@ -99,23 +100,60 @@ async function cstBudCargarDatos() {
   } catch (e) { console.warn('[cstBudCats]', e.message); _cstBudCats = []; _cstBudProdCat = {}; }
 }
 
-async function cstBudInit() {
-  if (!pmDB.disponible()) { pmToast('Sin conexión Supabase', 'err'); return; }
-  try { _cstBudInicio = localStorage.getItem(CST_BUD_LS) || _cstBudInicio; } catch (e) { /* ok */ }
-  if (!/^\d{4}-\d{2}$/.test(_cstBudInicio)) _cstBudInicio = _cstBudMesHoy();
+// Deja cargado lo que hace falta de Costos (productos, rutas, períodos, tarifas). Devuelve false si falla.
+async function cstBudAsegurarCostos() {
+  if (!pmDB.disponible()) { pmToast('Sin conexión Supabase', 'err'); return false; }
   await cstCfgCargar();
   try {
     await cstPersonalDatos();
     await cstPerCargar();
     await cstRutDatos();
   } catch (e) {
-    console.warn('[cstBudInit]', e.message);
+    console.warn('[cstBudAsegurarCostos]', e.message);
     pmToast('⚠️ ' + _cstErr(e, 'sql_costos_maestros.sql, sql_costos_personal.sql y sql_costos_rutas.sql'), 'err');
-    return;
+    return false;
   }
   cstPerInicial();
   await cstTasCargar();
+  return true;
+}
+
+// Ventas reales (mps_venta_real) sumadas por mes y producto, de 'desde' (incluido) a 'hasta' (excluido), 'AAAA-MM'.
+// Devuelve { 'AAAA-MM': { producto_id: unidades } }. Lee de 1000 en 1000 para no quedarse corto.
+async function cstRealPorMes(desde, hasta) {
+  const out = {};
+  for (let off = 0; ; off += 1000) {
+    const rows = await pmDB.get('mps_venta_real', {}, `*&fecha=gte.${desde}-01&fecha=lt.${hasta}-01&order=fecha.asc&limit=1000&offset=${off}`);
+    (rows || []).forEach(r => {
+      const ym = String(r.fecha).slice(0, 7);
+      const m = out[ym] = out[ym] || {};
+      m[r.producto_id] = (m[r.producto_id] || 0) + (Number(r.cantidad) || 0);
+    });
+    if (!rows || rows.length < 1000) break;
+  }
+  return out;
+}
+
+// Promedio mensual real por producto: los últimos 3 meses cerrados que tengan ventas (referencia, no cambia el budget)
+let _cstBudReal = {};   // producto_id → unidades por mes
+let _cstBudRealN = 0;   // cuántos meses entraron al promedio
+async function cstBudCargarReal() {
+  _cstBudReal = {}; _cstBudRealN = 0;
+  try {
+    const hoy = _cstBudMesHoy();
+    const por = await cstRealPorMes(_cstBudSumarMes(hoy, -3), hoy);
+    const meses = Object.keys(por).filter(ym => Object.values(por[ym]).some(x => x > 0));
+    _cstBudRealN = meses.length;
+    meses.forEach(ym => Object.keys(por[ym]).forEach(pid => { _cstBudReal[pid] = (_cstBudReal[pid] || 0) + por[ym][pid] / meses.length; }));
+  } catch (e) { console.warn('[cstBudCargarReal]', e.message); }
+}
+
+async function cstBudInit() {
+  try { _cstBudInicio = localStorage.getItem(CST_BUD_LS) || _cstBudInicio; } catch (e) { /* ok */ }
+  if (!/^\d{4}-\d{2}$/.test(_cstBudInicio)) _cstBudInicio = _cstBudMesHoy();
+  if (!(await cstBudAsegurarCostos())) return;
   await cstBudCargarDatos();
+  await cstBudCargarReal();
   cstPerLlenarSelectId('cstbud-periodo', '— Sin períodos: no se puede medir la capacidad —');
   const ini = document.getElementById('cstbud-inicio');
   if (ini) ini.value = _cstBudInicio;
@@ -223,25 +261,26 @@ function cstBudRender() {
   const filasHtml = grupos.map(g => `
     <tr style="background:#F1F5F9"><td style="${_CST_BU_CEL};font-weight:600">${pmEsc(g.nombre)} <span style="font-weight:400;color:var(--cream2)">· kg</span></td>
       ${C.meses.map((ym, i) => `<td style="${_CST_BU_CEL}${_CST_BU_MONO};color:var(--cream2)" id="cstbud-sub-${g.key}-${i}">—</td>`).join('')}
-      <td style="${_CST_BU_CEL}${_CST_BU_MONO};color:var(--cream2)" id="cstbud-sub-${g.key}-t">—</td></tr>
+      <td style="${_CST_BU_CEL}${_CST_BU_MONO};color:var(--cream2)" id="cstbud-sub-${g.key}-t">—</td><td style="${_CST_BU_CEL}"></td></tr>
     ${g.prods.map(p => `<tr>
       <td style="${_CST_BU_CEL};white-space:nowrap">${pmEsc(p.nombre)}${C.kgPz[p.id] > 0 ? '' : '<span title="No tiene masa por pieza (peso del producto en Maestros): no suma kg" style="color:var(--red);margin-left:4px;cursor:help">⚠</span>'}</td>
       ${C.meses.map(ym => celdaIn(p, ym)).join('')}
-      <td style="${_CST_BU_CEL}${_CST_BU_MONO}" id="cstbud-tot-${p.id}">—</td></tr>`).join('')}`).join('');
+      <td style="${_CST_BU_CEL}${_CST_BU_MONO}" id="cstbud-tot-${p.id}">—</td>
+      <td style="${_CST_BU_CEL}${_CST_BU_MONO};color:var(--cream2)">${_cstBudReal[p.id] > 0 ? _cstNum(_cstBudReal[p.id], 0) : '—'}</td></tr>`).join('')}`).join('');
 
   tabEl.innerHTML = `
     <div class="card" style="padding:0;overflow-x:auto">
       <table style="border-collapse:collapse;min-width:1080px;width:100%">
-        <thead><tr>${th('Unidades por mes')}${C.meses.map(ym => th(_cstBudMesTxt(ym), 1)).join('')}${th('Total año', 1)}</tr></thead>
+        <thead><tr>${th('Unidades por mes')}${C.meses.map(ym => th(_cstBudMesTxt(ym), 1)).join('')}${th('Total año', 1)}${th('Real (prom.)', 1).replace('<th ', '<th title="Promedio mensual de lo realmente vendido en los últimos meses cerrados: solo referencia, no cambia el budget" ')}</tr></thead>
         <tbody>${filasHtml}</tbody>
         <tfoot>
-          <tr style="background:#F8FAFC"><td style="${_CST_BU_CEL};font-weight:600">Total unidades</td>${C.meses.map((ym, i) => `<td style="${_CST_BU_CEL}${_CST_BU_MONO};font-weight:600" id="cstbud-un-${i}">—</td>`).join('')}<td style="${_CST_BU_CEL}${_CST_BU_MONO};font-weight:600" id="cstbud-un-t">—</td></tr>
-          <tr style="background:#F8FAFC"><td style="${_CST_BU_CEL};font-weight:600">Total kg de masa</td>${C.meses.map((ym, i) => `<td style="${_CST_BU_CEL}${_CST_BU_MONO};font-weight:600" id="cstbud-kg-${i}">—</td>`).join('')}<td style="${_CST_BU_CEL}${_CST_BU_MONO};font-weight:600" id="cstbud-kg-t">—</td></tr>
-          <tr style="background:#F8FAFC"><td style="${_CST_BU_CEL};font-weight:600">Capacidad usada</td>${C.meses.map((ym, i) => `<td style="${_CST_BU_CEL}${_CST_BU_MONO};font-weight:600" id="cstbud-cap-${i}">—</td>`).join('')}<td style="${_CST_BU_CEL}"></td></tr>
+          <tr style="background:#F8FAFC"><td style="${_CST_BU_CEL};font-weight:600">Total unidades</td>${C.meses.map((ym, i) => `<td style="${_CST_BU_CEL}${_CST_BU_MONO};font-weight:600" id="cstbud-un-${i}">—</td>`).join('')}<td style="${_CST_BU_CEL}${_CST_BU_MONO};font-weight:600" id="cstbud-un-t">—</td><td style="${_CST_BU_CEL}"></td></tr>
+          <tr style="background:#F8FAFC"><td style="${_CST_BU_CEL};font-weight:600">Total kg de masa</td>${C.meses.map((ym, i) => `<td style="${_CST_BU_CEL}${_CST_BU_MONO};font-weight:600" id="cstbud-kg-${i}">—</td>`).join('')}<td style="${_CST_BU_CEL}${_CST_BU_MONO};font-weight:600" id="cstbud-kg-t">—</td><td style="${_CST_BU_CEL}"></td></tr>
+          <tr style="background:#F8FAFC"><td style="${_CST_BU_CEL};font-weight:600">Capacidad usada</td>${C.meses.map((ym, i) => `<td style="${_CST_BU_CEL}${_CST_BU_MONO};font-weight:600" id="cstbud-cap-${i}">—</td>`).join('')}<td style="${_CST_BU_CEL}"></td><td style="${_CST_BU_CEL}"></td></tr>
         </tfoot>
       </table>
     </div>
-    <div style="font-size:11px;color:var(--cream2);margin:4px 2px 0">Escribí las unidades que pensás vender (= producir) cada mes. Los productos salen del maestro y se agrupan con su categoría de mercadeo. <b>Capacidad usada</b> = el departamento más exigido del mes (por su base y por horas-hombre) contra su capacidad normal mensual; verde hasta ${CST_PLN_OK} %, ámbar hasta 100 %, rojo si se pasa — en ese mes hay que corregir el presupuesto. Con el cursor sobre el porcentaje ves cuál departamento limita.</div>`;
+    <div style="font-size:11px;color:var(--cream2);margin:4px 2px 0">Escribí las unidades que pensás vender (= producir) cada mes. Los productos salen del maestro y se agrupan con su categoría de mercadeo. <b>Real (prom.)</b> es solo una referencia: el promedio mensual de lo vendido en los últimos meses cerrados${_cstBudRealN ? ` (${_cstBudRealN} mes${_cstBudRealN === 1 ? '' : 'es'} con ventas)` : ''}; el budget no se toca solo. <b>Capacidad usada</b> = el departamento más exigido del mes (por su base y por horas-hombre) contra su capacidad normal mensual; verde hasta ${CST_PLN_OK} %, ámbar hasta 100 %, rojo si se pasa — en ese mes hay que corregir el presupuesto. Con el cursor sobre el porcentaje ves cuál departamento limita.</div>`;
   cstBudTotales();
 }
 
