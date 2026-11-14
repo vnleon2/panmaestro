@@ -90,6 +90,7 @@ function _cstGbDeptoOpts(sel) {
 // ═══ Gasto fijo presupuestado ═══════════════════════════════
 async function cstGbInit() {
   if (!(await _cstGbAsegurar())) return;
+  try { _cstGbOcultar = localStorage.getItem('cst_gb_ocultar') === '1'; } catch (e) { /* ok */ }
   await cstGbCargarDatos();
   const ini = document.getElementById('cstgb-inicio');
   if (ini) ini.value = _cstBudInicio;
@@ -137,10 +138,7 @@ async function cstGbAgregar() {
 
 async function _cstGbGuardar(cuentaId, deptoId, ym, n) {
   const ex = _cstGbFila(cuentaId, deptoId, ym);
-  if (n === 0) {
-    // 0 también es un valor (la línea sigue existiendo): se guarda como renglón en 0
-    if (ex) { await pmDB.update('cost_gasto_budget', ex.id, { monto: 0 }); ex.monto = 0; return; }
-  }
+  if (!ex && n === 0) return;   // celda vacía que se deja vacía: no se crea renglón
   if (ex) {
     await pmDB.update('cost_gasto_budget', ex.id, { monto: n });
     ex.monto = n;
@@ -184,7 +182,7 @@ async function cstGbCopiar(cuentaId, deptoId) {
 async function cstGbQuitar(cuentaId, deptoId) {
   const k = _cstGbKey(cuentaId, deptoId || null);
   const ids = _cstGbRows.filter(r => _cstGbKey(r.cuenta_id, r.depto_id) === k).map(r => r.id);
-  if (!confirm('¿Quitar esta línea del presupuesto (los 12 meses)?')) return;
+  if (!confirm('¿Borrar los montos de esta línea (los 12 meses)?')) return;
   try {
     await pmDB.hardDeleteMany('cost_gasto_budget', ids);
     _cstGbRows = _cstGbRows.filter(r => _cstGbKey(r.cuenta_id, r.depto_id) !== k);
@@ -195,8 +193,15 @@ async function cstGbQuitar(cuentaId, deptoId) {
   }
 }
 
+// Esqueleto: todas las cuentas de gasto, cada una con su departamento por defecto (o compartida), más cualquier otra
+// combinación cuenta + departamento que ya tenga montos.
+function _cstGbTieneDatos(cuentaId, deptoId) {
+  const k = _cstGbKey(cuentaId, deptoId || null);
+  return _cstGbRows.some(r => _cstGbKey(r.cuenta_id, r.depto_id) === k && Number(r.monto) > 0);
+}
 function _cstGbLineas() {
   const m = new Map();
+  _cstGbCuentas().forEach(c => { const d = c.depto_defecto_id || null; m.set(_cstGbKey(c.id, d), { cuentaId: c.id, deptoId: d }); });
   _cstGbRows.forEach(r => { const k = _cstGbKey(r.cuenta_id, r.depto_id); if (!m.has(k)) m.set(k, { cuentaId: r.cuenta_id, deptoId: r.depto_id || null }); });
   return Array.from(m.values()).sort((a, b) => {
     const ca = _cstCuentas.find(c => c.id === a.cuentaId), cb = _cstCuentas.find(c => c.id === b.cuentaId);
@@ -204,26 +209,43 @@ function _cstGbLineas() {
   });
 }
 
+let _cstGbOcultar = false;   // true = no mostrar las líneas sin datos (solo es la vista; no borra nada)
+function cstGbOcultar(v) {
+  _cstGbOcultar = !!v;
+  try { localStorage.setItem('cst_gb_ocultar', v ? '1' : '0'); } catch (e) { /* ok */ }
+  cstGbRender();
+}
+
 function cstGbRender() {
   const tabla = document.getElementById('cstgb-tabla');
   if (!tabla) return;
   const meses = _cstGbMeses();
-  const lineas = _cstGbLineas();
+  const todas = _cstGbLineas();
+  const lineas = _cstGbOcultar ? todas.filter(l => _cstGbTieneDatos(l.cuentaId, l.deptoId)) : todas;
+  const chk = document.getElementById('cstgb-ocultar'); if (chk) chk.checked = _cstGbOcultar;
   const th = 'padding:6px 8px;text-align:right;font-size:11px;white-space:nowrap';
   const td = 'padding:3px 4px;text-align:right';
   const inp = 'width:92px;text-align:right;padding:4px 6px;font-size:12px';
   let html = '<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:12px"><thead><tr style="border-bottom:1px solid var(--bdr)">' +
     '<th style="' + th + ';text-align:left">Cuenta · departamento</th>' + meses.map(m => `<th style="${th}">${pmEsc(_cstGbMesTxt(m))}</th>`).join('') +
     `<th style="${th}">Total año</th><th></th></tr></thead><tbody>`;
-  if (!lineas.length) html += `<tr><td colspan="${meses.length + 3}" style="padding:14px;color:var(--cream2)">Todavía no hay líneas. Agregá la primera arriba (cuenta, departamento y monto mensual).</td></tr>`;
+  if (!lineas.length) html += `<tr><td colspan="${meses.length + 3}" style="padding:14px;color:var(--cream2)">${todas.length ? 'Ninguna línea tiene montos todavía. Desmarcá «Ocultar líneas sin datos» para ver todas y llenarlas.' : 'No hay cuentas de gasto: se crean en Departamentos y cuentas.'}</td></tr>`;
+  let serieAct = null;
   lineas.forEach(l => {
     const c = _cstCuentas.find(x => x.id === l.cuentaId);
+    const serie = c ? Number(c.serie) : 0;
+    if (serie !== serieAct) {
+      serieAct = serie;
+      const sn = (CST_SERIES.find(x => x.id === serie) || {}).nombre || 'Otras';
+      html += `<tr><td colspan="${meses.length + 3}" style="padding:8px 8px 3px;font-size:11px;font-weight:700;color:var(--gold,#b8860b);text-transform:uppercase">${serie} · ${pmEsc(sn)}</td></tr>`;
+    }
     const nom = (c ? c.codigo + ' · ' + c.nombre : '(cuenta eliminada)') + ' · ' + _cstGbDeptoNom(l.deptoId);
     const tot = meses.reduce((a, m) => a + _cstGbMonto(l.cuentaId, l.deptoId, m), 0);
+    const tiene = _cstGbRows.some(r => _cstGbKey(r.cuenta_id, r.depto_id) === _cstGbKey(l.cuentaId, l.deptoId));
     html += `<tr style="border-bottom:1px solid var(--bdr)"><td style="padding:3px 8px;text-align:left">${pmEsc(nom)}</td>` +
       meses.map(m => `<td style="${td}"><input type="number" min="0" step="any" style="${inp}" value="${_cstGbMonto(l.cuentaId, l.deptoId, m) || ''}" placeholder="—" onchange="cstGbSet('${l.cuentaId}','${l.deptoId || ''}','${m}',this.value)"></td>`).join('') +
-      `<td style="${td};padding-right:8px" id="cstgb-t-${l.cuentaId}-${l.deptoId || 'x'}">${cstMoney(tot)}</td>` +
-      `<td style="white-space:nowrap"><button class="btn btn-out btn-sm" title="Copia el primer mes a los meses 2 a 12" onclick="cstGbCopiar('${l.cuentaId}','${l.deptoId || ''}')">⇢ Copiar mes 1</button> <button class="btn btn-out btn-sm" onclick="cstGbQuitar('${l.cuentaId}','${l.deptoId || ''}')">🗑</button></td></tr>`;
+      `<td style="${td};padding-right:8px" id="cstgb-t-${l.cuentaId}-${l.deptoId || 'x'}">${tot > 0 ? cstMoney(tot) : '—'}</td>` +
+      `<td style="white-space:nowrap"><button class="btn btn-out btn-sm" title="Copia el primer mes a los meses 2 a 12" onclick="cstGbCopiar('${l.cuentaId}','${l.deptoId || ''}')">⇢ Copiar mes 1</button>${tiene ? ` <button class="btn btn-out btn-sm" title="Borra los montos de esta línea" onclick="cstGbQuitar('${l.cuentaId}','${l.deptoId || ''}')">🗑</button>` : ''}</td></tr>`;
   });
   // Depreciación (solo lectura): una fila por departamento con activos
   const deptosDep = Array.from(new Set(_cstActivos.filter(a => a.activo !== false).map(a => a.depto_id || '')));
@@ -247,7 +269,7 @@ function cstGbTotales() {
   meses.forEach((m, i) => { const el = document.getElementById('cstgb-tm-' + i); if (el) el.textContent = cstMoney(cstGbTotalMes(m)); });
   _cstGbLineas().forEach(l => {
     const el = document.getElementById(`cstgb-t-${l.cuentaId}-${l.deptoId || 'x'}`);
-    if (el) el.textContent = cstMoney(meses.reduce((a, m) => a + _cstGbMonto(l.cuentaId, l.deptoId, m), 0));
+    if (el) { const t = meses.reduce((a, m) => a + _cstGbMonto(l.cuentaId, l.deptoId, m), 0); el.textContent = t > 0 ? cstMoney(t) : '—'; }
   });
   const total = meses.reduce((a, m) => a + cstGbTotalMes(m), 0);
   const tt = document.getElementById('cstgb-tt'); if (tt) tt.textContent = cstMoney(total);
