@@ -10,10 +10,11 @@
 //     La capacidad ociosa no se carga a las piezas.
 //   · Precio sugerido = costo total ÷ (1 − margen). El margen es sobre el precio de venta (40 % → el costo es el 60 % del precio).
 //     Es el precio SIN IVA; se muestra también con el IVA de cada producto.
-// El Budget solo decide qué productos se listan (los que tienen unidades) y, con el botón de Tarifas, los kg de ventas normales.
+// Funciona sin Budget: lista todos los productos. El Budget es opcional (filtro de productos y, con el botón de Tarifas, fuente de los
+// kg de ventas normales, que también se pueden escribir a mano). No toca el costo actual de Costeo / Precio de venta.
 
 let _cstUnMargen = 40;       // % de margen sobre el precio
-let _cstUnSoloBudget = true; // listar solo los productos con unidades en el Budget
+let _cstUnSoloBudget = false; // listar solo los productos con unidades en el Budget (por defecto, todos)
 
 function cstUnCalcular() {
   if (!_cstPerActual()) return null;
@@ -27,14 +28,20 @@ function cstUnCalcular() {
     if (_cstUnSoloBudget && !(un > 0)) return;
     const avisos = [];
     if (f.mat === null) avisos.push(...f.avisos.filter(a => a.startsWith('Materiales')));
-    if (f.c && f.c.sinRuta) avisos.push('Conversión: no tiene ruta (se arma en Etapas y rutas)');
-    else if (f.c && !f.c.completo) avisos.push(...f.avisos.filter(a => a.startsWith('Conversión')));
-    const ok = f.completo;
-    const directo = ok ? f.mat + f.emp + f.mod : null;
-    const indirecto = ok ? f.fija + f.vari + f.capa2 : null;
-    const total = ok ? f.total : null;
+    const c = f.c;
+    if (c && c.sinRuta) avisos.push('Conversión: no tiene ruta (se arma en Etapas y rutas)');
+    else if (c && c.avisos.length) avisos.push(...c.avisos.map(a => 'Conversión: ' + a));
+    // Conversión utilizable aunque falten los kg de ventas normales (esos solo afectan los gastos del período)
+    const convOk = !!c && !c.sinRuta && c.avisos.length === 0 && c.completo !== undefined;
+    const mod = convOk ? c.mod : null;
+    const fija = convOk ? c.fija : null, vari = convOk ? c.vari : null;
+    const gastos = convOk && c.capa2 !== null && c.capa2 !== undefined ? c.capa2 : null;
+    if (convOk && gastos === null) avisos.push('Gastos del período: faltan los kg de ventas normales o la masa de la pieza');
+    const directo = f.mat !== null && mod !== null ? f.mat + f.emp + mod : null;
+    const indirecto = fija !== null && gastos !== null ? fija + vari + gastos : null;
+    const total = directo !== null && indirecto !== null ? directo + indirecto : null;
     const sugerido = total !== null ? total / (1 - margen / 100) : null;
-    filas.push({ p: f.p, un, mat: f.mat, emp: f.emp, mod: f.mod, directo, fija: ok ? f.fija : null, vari: ok ? f.vari : null, gastos: ok ? f.capa2 : null,
+    filas.push({ p: f.p, un, mat: f.mat, emp: f.mat !== null ? f.emp : null, mod, directo, fija, vari, gastos,
       indirecto, total, sugerido, sugeridoIva: sugerido !== null ? sugerido * (1 + f.iva / 100) : null, precio: f.precio, iva: f.iva, avisos });
   });
   // Referencia: promedio mensual del Budget frente a los kg de ventas normales del estándar
@@ -99,7 +106,7 @@ function cstUnRender() {
     stat('Margen sobre el precio', _cstNum(r.margen, 1) + ' %', 'precio = costo ÷ ' + _cstNum(1 - r.margen / 100, 2)) +
     stat('Productos', String(r.filas.length), r.origen === 'guardado' ? 'tarifas del período aprobado' : 'tarifas calculadas en vivo (borrador)');
   const L = [];
-  if (!(r.kgNormales > 0)) L.push('⚠ Faltan los kg de ventas normales del período: sin ellos no hay tasa de gasto y los costos salen incompletos (en Tarifas, botón «Tomar del Budget»).');
+  if (!(r.kgNormales > 0)) L.push('⚠ Faltan los kg de ventas normales del período: sin ellos no hay tasa de gasto y los costos salen incompletos (escribilos a mano en Tarifas, o usá el botón «Tomar del Budget»).');
   else if (r.kgBudMes) {
     const dif = (r.kgBudMes - r.kgNormales / (Number(_cstPerActual().meses) || 1)) / (r.kgNormales / (Number(_cstPerActual().meses) || 1)) * 100;
     if (Math.abs(dif) > 15) L.push(`ℹ El Budget promedia ${_cstNum(r.kgBudMes, 1)} kg al mes y los kg de ventas normales del estándar son ${_cstNum(r.kgNormales / (Number(_cstPerActual().meses) || 1), 1)} al mes (${_cstNum(dif, 0)} %). El estándar no se mueve con el Budget; esa diferencia aparecerá como variación de volumen.`);
