@@ -158,7 +158,8 @@ function cstComRender() {
 // ═══ Nómina estimada ════════════════════════════════════════
 // Nómina presupuestada = lo que se aplica a la producción (mano de obra directa) + lo fijo.
 //   · Directa: las HH que pide el Budget × la tasa de MOD por HH de cada departamento (los factores de asignación de la nómina).
-//   · Fija de producción: la nómina asignada a producción que el Budget no absorbe (equipo pagado de más), más la capacidad ociosa.
+//   · Fija de producción: la nómina asignada a producción que el Budget no absorbe (equipo pagado de más), más la capacidad ociosa que quede sin usar
+//     (las HH directas que pasan de las productivas se cubren con horas ociosas: salen de la ociosa, no se suman).
 //   · Apoyo (MOI) y administración / mercadeo / venta: nómina fija del período.
 // Si el Budget pide más de lo que la nómina de producción cubre, lo que sobra se valora a la misma tasa (horas a sumar).
 // Devuelve null si faltan tarifas / período
@@ -175,12 +176,17 @@ function cstNomCalcular() {
   const admin = rs.tot.GASTO / n;
   const tasaHH = hhProdMes > 0 ? poolMod / hhProdMes : 0;
   const filas = c.porMes.map(x => {
-    const directa = Math.min(x.modAp, poolMod);
-    const sobra = Math.max(0, x.modAp - poolMod);       // directa que la nómina actual no cubre
-    const fijaProd = Math.max(0, poolMod - x.modAp);    // nómina de producción no absorbida
+    // Directa = todas las HH del Budget × tasa de MOD. Lo que pasa de las HH productivas se toma de la capacidad ociosa
+    // (horas ya pagadas): sale de la ociosa, no se suma. Solo lo que pasa de todo el equipo es nómina nueva.
+    const directa = x.modAp;
+    const sobre = Math.max(0, x.modAp - poolMod);          // directa que excede la nómina de producción
+    const deOciosa = Math.min(ociosa, sobre);               // la parte que se cubre con horas ociosas
+    const sobra = Math.max(0, sobre - ociosa);              // lo que excede a todo el equipo: nómina a sumar
+    const fijaProd = Math.max(0, poolMod - x.modAp);        // nómina de producción que el Budget no absorbe
+    const ociosaRest = ociosa - deOciosa;
     const ocup = hhEquipo > 0 ? x.hh / hhEquipo * 100 : null;
     const extra = Math.max(0, x.hh - hhEquipo);
-    return { ym: x.ym, un: x.un, kg: x.kg, hh: x.hh, ocup, extra, directa: directa + sobra, fijaProd, ociosa, apoyo, admin, sobra, nomina: directa + sobra + fijaProd + ociosa + apoyo + admin };
+    return { ym: x.ym, un: x.un, kg: x.kg, hh: x.hh, ocup, extra, directa, fijaProd, ociosa: ociosaRest, deOciosa, apoyo, admin, sobra, nomina: directa + fijaProd + ociosaRest + apoyo + admin };
   });
   return { per: c.per, filas, hhEquipo, hhProdMes, hhOciMes, poolMod, ociosa, apoyo, admin, tasaHH, nominaMes: poolMod + ociosa + apoyo + admin };
 }
@@ -228,8 +234,8 @@ function cstNomRender() {
   if (stats) stats.innerHTML = stat('Nómina mensual cargada', cstMoney(r.nominaMes, 0), 'período ' + pmEsc(r.per.inicio)) +
     stat('Nómina fija (apoyo + admin, mercadeo y venta)', cstMoney(r.apoyo + r.admin, 0), 'no cambia con la producción') +
     stat('Nómina de producción', cstMoney(r.poolMod + r.ociosa, 0), `${_cstNum(r.hhProdMes, 1)} HH productivas + ${_cstNum(r.hhOciMes, 1)} HH ociosas · ₡${_cstNum(r.tasaHH, 2)} por HH directa`) +
-    stat('Meses que piden más de lo cargado', String(conExtra.length), conExtra.length ? 'el Budget exige más horas directas que las de la nómina' : 'la nómina actual alcanza');
-  let html = `<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:12px"><thead><tr style="border-bottom:1px solid var(--bdr)"><th style="${th};text-align:left">Mes</th><th style="${th}">Kg de masa</th><th style="${th}">HH del Budget</th><th style="${th}">Ocupación</th><th style="${th}" title="HH del Budget × tasa de mano de obra por HH">Directa aplicada</th><th style="${th}" title="Nómina de producción que el Budget no absorbe">Fija de producción</th><th style="${th}" title="Departamento de capacidad ociosa">Ociosa</th><th style="${th}">Apoyo</th><th style="${th}">Admin · mercadeo · venta</th><th style="${th}">Nómina estimada</th></tr></thead><tbody>`;
+    stat('Meses que piden más de lo cargado', String(conExtra.length), conExtra.length ? 'el Budget exige más horas que todo el equipo (hay que sumar nómina)' : 'la nómina actual alcanza');
+  let html = `<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:12px"><thead><tr style="border-bottom:1px solid var(--bdr)"><th style="${th};text-align:left">Mes</th><th style="${th}">Kg de masa</th><th style="${th}">HH del Budget</th><th style="${th}">Ocupación</th><th style="${th}" title="HH del Budget × tasa de mano de obra por HH">Directa aplicada</th><th style="${th}" title="Nómina de producción que el Budget no absorbe">Fija de producción</th><th style="${th}" title="Capacidad ociosa que queda sin usar (las horas que usa la producción directa salen de aquí)">Ociosa</th><th style="${th}">Apoyo</th><th style="${th}">Admin · mercadeo · venta</th><th style="${th}">Nómina estimada</th></tr></thead><tbody>`;
   r.filas.forEach(f => {
     html += `<tr style="border-bottom:1px solid var(--bdr)"><td style="${td};text-align:left">${pmEsc(_cstBudMesTxt(f.ym))}</td><td style="${td}">${_cstNum(f.kg, 1)}</td><td style="${td}">${_cstNum(f.hh, 1)}</td>` +
       `<td style="${td};color:${colorOcup(f.ocup)};font-weight:700">${f.ocup === null ? '—' : _cstNum(f.ocup, 1) + ' %'}</td><td style="${td}">${cstMoney(f.directa, 0)}</td><td style="${td}">${f.fijaProd > 0.5 ? cstMoney(f.fijaProd, 0) : '—'}</td><td style="${td}">${f.ociosa > 0.5 ? cstMoney(f.ociosa, 0) : '—'}</td><td style="${td}">${f.apoyo > 0.5 ? cstMoney(f.apoyo, 0) : '—'}</td><td style="${td}">${f.admin > 0.5 ? cstMoney(f.admin, 0) : '—'}</td><td style="${td};font-weight:700">${cstMoney(f.nomina, 0)}</td></tr>`;
