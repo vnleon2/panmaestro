@@ -50,6 +50,8 @@ hidratacion.js
 maestros.js
 catalogo.js
 etiquetas.js
+etiquetas_hoja.js
+etiquetas_lote.js
 mercadeo.js
 mps.js
 mps_ventas.js
@@ -87,6 +89,7 @@ práctica **no es perfecto** — hay excepciones documentadas abajo.
 | `maestros.js`        | `pan`, `gall`, `ing`, `est`      | **Catálogo** de tipos de pan/galleta (⚠️ ver nota) y CRUD de ingredientes/estados |
 | `catalogo.js`        | `cat`                           | Fotos de catálogo (Supabase Storage) |
 | `etiquetas.js`       | `et`                            | Impresión de etiquetas de producto (integrada como pestaña propia — antes standalone) |
+| `etiquetas_lote.js`  | `etl`                           | Etiquetas en lote: lista con tick, tipo (individual 7×4 / hoja carta) y cantidad por producto; imprime todo de una vez. Usa `etEtiquetaHtml` (etiquetas.js) y `ethContenido`/`ethEtiqueta` (etiquetas_hoja.js) |
 | `mercadeo.js`        | `mkt`                           | Categorías, estilos y atributos de producto — módulo de marketing (ver sección 7) |
 | `mps.js`             | `mps`                           | MPS (plan maestro de producción): hoja de estimado por pan y canal, calendario de entregas (ver sección 11) |
 | `mps_balance.js`     | `mpb`                           | MPS: balance diario de inventario por pan (solo lectura; ver sección 11) |
