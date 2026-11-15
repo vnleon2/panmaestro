@@ -299,7 +299,7 @@ function ethGenerar() {
 
   const d = {
     marca: String((typeof ETMK_DATOS !== 'undefined' && ETMK_DATOS.nombre) || 'PanMaestro').toUpperCase(),
-    nombre: _ethActual.nombre,
+    nombre: pmNombreSinPeso(_ethActual.nombre),
     pesoTxt: pesoVal > 0 ? pesoVal + ' g' : '',
     contenido,
     gluten: document.getElementById('eth-gluten').checked

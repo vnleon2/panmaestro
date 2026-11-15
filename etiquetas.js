@@ -8,7 +8,7 @@
 // para no chocar con el CSS de impresión de la app principal.
 
 function etMostrar(id) {
-  ['et-producto-wrap','et-hoja-wrap','et-marca-wrap'].forEach(v => {
+  ['et-producto-wrap','et-hoja-wrap','et-lote-wrap','et-marca-wrap'].forEach(v => {
     const el = document.getElementById(v);
     if (el) el.style.display = v===id ? 'block' : 'none';
   });
@@ -94,7 +94,7 @@ function etSeleccionar(idx) {
 function etActualizarPreview() {
   const ctc = document.getElementById('et-p-contacto');
   if (ctc) ctc.textContent = etContactoTexto();
-  const nombre = etActual ? etActual.nombre : '—';
+  const nombre = etActual ? pmNombreSinPeso(etActual.nombre) : '—';
   const pesoVal   = document.getElementById('et-peso').value;
   const precioVal = document.getElementById('et-precio').value;
   const peso   = pesoVal ? `${pesoVal} g` : '—';
@@ -122,16 +122,8 @@ function etActualizarPreview() {
   }
 }
 
-function etImprimir() {
-  if (!etActual) return;
-  const cantidad = Math.max(1, parseInt(document.getElementById('et-cantidad').value) || 1);
-  const pesoVal   = document.getElementById('et-peso').value;
-  const precioVal = document.getElementById('et-precio').value;
-  const peso   = pesoVal ? `${pesoVal} g` : '';
-  const precio = precioVal ? `₡${Number(precioVal).toLocaleString('es-CR')}` : '';
-  const esMM   = !!etActual.es_masa_madre;
-
-  const CSS = `
+// CSS y HTML de UNA etiqueta de producto (7×4 cm). Los usan Producto y En lote.
+const ET_CSS = `
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:-apple-system,'Segoe UI',Roboto,sans-serif}
     .label{width:7cm;height:4cm;border:2px solid #000;padding:0.3cm;display:flex;flex-direction:column;justify-content:space-between;background:#fff;page-break-after:always}
@@ -146,9 +138,13 @@ function etImprimir() {
     @page{size:7cm 4cm;margin:0}
   `;
 
-  const unaEtiqueta = `
+function etEtiquetaHtml(p, pesoVal, precioVal) {
+  const peso   = pesoVal ? `${pesoVal} g` : '';
+  const precio = precioVal ? `₡${Number(precioVal).toLocaleString('es-CR')}` : '';
+  const esMM   = !!p.es_masa_madre;
+  return `
     <div class="label">
-      <div class="nombre">${pmEsc(etActual.nombre)}</div>
+      <div class="nombre">${pmEsc(pmNombreSinPeso(p.nombre))}</div>
       <div class="fila">
         <div class="campo"><div class="k">peso</div><div class="v">${peso}</div></div>
         <div class="campo"><div class="k">precio</div><div class="v">${precio}</div></div>
@@ -156,12 +152,21 @@ function etImprimir() {
       </div>
       <div class="contacto">${pmEsc(etContactoTexto())}</div>
     </div>`;
+}
+
+function etImprimir() {
+  if (!etActual) return;
+  const cantidad = Math.max(1, parseInt(document.getElementById('et-cantidad').value) || 1);
+  const pesoVal   = document.getElementById('et-peso').value;
+  const precioVal = document.getElementById('et-precio').value;
+
+  const unaEtiqueta = etEtiquetaHtml(etActual, pesoVal, precioVal);
 
   const win = window.open('', '_blank');
   win.document.write(`<!DOCTYPE html><html><head>
     <meta charset="UTF-8">
-    <title>Etiquetas — ${pmEsc(etActual.nombre)}</title>
-    <style>${CSS}</style>
+    <title>Etiquetas — ${pmEsc(pmNombreSinPeso(etActual.nombre))}</title>
+    <style>${ET_CSS}</style>
   </head><body>${unaEtiqueta.repeat(cantidad)}<script>window.onload=()=>{window.print();}<\/script></body></html>`);
   win.document.close();
 }

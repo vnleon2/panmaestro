@@ -396,6 +396,18 @@ function pmEsc(str) {
   }[c]));
 }
 
+// Nombre para etiquetas: quita del nombre cualquier "número + unidad de peso"
+// (500 g, 500g, 1 kg, 0.5 kg, 800 GR, 2 k...) para que el peso salga una sola
+// vez, en su campo. Solo se usa al imprimir; el nombre del producto no cambia.
+// "Pan 7 granos" no se toca: la unidad debe ser una palabra completa.
+function pmNombreSinPeso(nombre) {
+  const limpio = String(nombre ?? '')
+    .replace(/\s*\b\d+(?:[.,]\d+)?\s*(?:kgs?|grs?|gramos?|g|k)\b\.?/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+  return limpio || String(nombre ?? '').trim();
+}
+
 // FIX D3: selector de método de pago — valores EXACTOS que acepta el
 // constraint ventas_metodo_pago_check en Supabase (confirmado por SQL):
 // 'efectivo' | 'sinpe' | 'transferencia' | 'otro'. No agregar otros
