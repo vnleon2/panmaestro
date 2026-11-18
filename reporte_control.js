@@ -109,6 +109,21 @@ async function _rcCalcular(desde, hasta) {
   const lineas  = pedIds.length ? await _rcTraerPorIds('pedido_lineas', 'pedido_id', pedIds) : [];
   const prods   = await pmDB.get('productos_terminados', {}) || [];
 
+  // Ventas de pedidos promocionales (notas 'PRM-<id>', sin pedido_id): cliente y
+  // productos salen de pedido_promo / pedido_promo_det. Solo cuentan las
+  // unidades cobradas (cantidad − regalía): la regalía es gasto de mercadeo.
+  const prmIds = ventas.map(v => String(v.notas || '')).filter(n => n.startsWith('PRM-')).map(n => n.slice(4));
+  const prmCab = prmIds.length ? await _rcTraerPorIds('pedido_promo', 'id', prmIds) : [];
+  const prmDet = prmIds.length ? await _rcTraerPorIds('pedido_promo_det', 'pedido_id', prmIds) : [];
+  const prmClis = prmIds.length ? ((await pmDB.get('clientes', {}, 'id,nombre')) || []) : [];
+  const prmCabPorId = Object.fromEntries(prmCab.map(p => [p.id, p]));
+  const prmCliPorId = Object.fromEntries(prmClis.map(c => [c.id, c.nombre]));
+  const prmLineas = {};
+  prmDet.forEach(d => {
+    const cant = (parseFloat(d.cantidad) || 0) - (parseFloat(d.regalia_cant) || 0);
+    if (cant > 0) (prmLineas[d.pedido_id] = prmLineas[d.pedido_id] || []).push({ producto_id: d.producto_id, cantidad: cant });
+  });
+
   const pedPorId   = Object.fromEntries(pedidos.map(p => [p.id, p]));
   const prodPorId  = Object.fromEntries(prods.map(p => [p.id, p]));
   const lineasPed  = {};
@@ -122,9 +137,14 @@ async function _rcCalcular(desde, hasta) {
 
   // 3) Una fila por venta
   const filas = ventas.map(v => {
-    const ped = v.pedido_id ? pedPorId[v.pedido_id] : null;
+    const notas = String(v.notas || '');
+    const prmId = notas.startsWith('PRM-') ? notas.slice(4) : null;
+    const prm = prmId ? prmCabPorId[prmId] : null;
+    const ped = prm ? { numero_pedido: prm.titulo || notas, cliente_nom: prmCliPorId[prm.cliente_id] } : (v.pedido_id ? pedPorId[v.pedido_id] : null);
+    const lins = prmId ? (prmLineas[prmId] || []) : (lineasPed[v.pedido_id] || []);
     let mat = 0, mo = 0, gg = 0, sinCosto = [];
-    (lineasPed[v.pedido_id] || []).forEach(l => {
+    // Un reverso (venta negativa) no vuelve a sumar costos: solo corrige la venta.
+    (v.es_reverso ? [] : lins).forEach(l => {
       const cant = parseFloat(l.cantidad) || 0;
       const c = costoDe(l.producto_id);
       if (!c) { sinCosto.push(prodPorId[l.producto_id]?.nombre || 'producto desconocido'); return; }
@@ -134,10 +154,10 @@ async function _rcCalcular(desde, hasta) {
       fecha:    _rcFechaVenta(v),
       pedido:   (ped && ped.numero_pedido) || v.notas || '—',
       cliente:  (ped && ped.cliente_nom) || v.cliente_nom || '—',
-      tipo:     v.tipo === 'comercial' ? 'Comercial' : v.tipo === 'pan' ? 'Pan' : v.tipo === 'galleta' ? 'Galleta' : (v.tipo || '—'),
+      tipo:     v.es_reverso ? 'Reverso' : prmId ? 'Promocional' : v.tipo === 'comercial' ? 'Comercial' : v.tipo === 'pan' ? 'Pan' : v.tipo === 'galleta' ? 'Galleta' : (v.tipo || '—'),
       venta:    parseFloat(v.total) || 0,
-      sinPedido: !ped,
-      sinLineas: !(lineasPed[v.pedido_id] || []).length,
+      sinPedido: !v.es_reverso && !ped,
+      sinLineas: !v.es_reverso && !lins.length,
       mat, mo, gg, sinCosto
     };
   }).sort((a, b) => a.fecha.localeCompare(b.fecha) || String(a.pedido).localeCompare(String(b.pedido)));
