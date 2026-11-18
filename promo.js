@@ -163,6 +163,8 @@ function _prmTotales() {
     t.unidades += _prmN(l.cantidad); t.regalias += _prmN(l.regalia_cant);
     if (c.sinCosto && _prmN(l.cantidad) > 0) t.sinCosto++;
   });
+  t.envio = _prmN(_prm.ped && _prm.ped.envio_monto);
+  t.total = t.neto + t.envio;          // total a cobrar = neto + envío (la regalía NO se cobra ni es venta)
   t.margen = t.neto - t.costoTot;
   t.margenPct = t.neto > 0 ? t.margen / t.neto * 100 : 0;
   return t;
@@ -208,7 +210,7 @@ function prmRenderLista() {
       '<td>' + pmEsc(_prmCliNombre(p.cliente_id)) + '</td>' +
       '<td>' + pmEsc(p.titulo || '') + '</td>' +
       '<td><span class="prm-badge ' + p.estado + '">' + PRM_ESTADO_LBL[p.estado] + '</span></td>' +
-      '<td class="n">' + pmMoney(Math.round(t.total_neto_cobrar || 0)) + '</td>' +
+      '<td class="n">' + pmMoney(Math.round((t.total_neto_cobrar || 0) + _prmN(p.envio_monto))) + '</td>' +
       '<td class="n">' + pmMoney(Math.round(t.margen_bruto || 0)) + '</td>' +
       '</tr>';
   }).join('');
@@ -221,7 +223,7 @@ function prmRenderLista() {
       '<button class="btn btn-gold" onclick="prmNuevo()">+ Nuevo pedido promocional</button>' +
     '</div>' +
     '<div class="card"><div class="prm-scroll"><table class="prm-t prm-lista">' +
-      '<thead><tr><th>Entrega</th><th>Cliente</th><th>Pedido</th><th>Estado</th><th class="n">Neto a cobrar</th><th class="n">Margen (costo receta)</th></tr></thead>' +
+      '<thead><tr><th>Entrega</th><th>Cliente</th><th>Pedido</th><th>Estado</th><th class="n">Total a cobrar</th><th class="n">Margen (costo receta)</th></tr></thead>' +
       '<tbody>' + (filas || '<tr><td colspan="6" class="prm-hint" style="padding:14px">No hay pedidos en esta vista.</td></tr>') + '</tbody>' +
     '</table></div></div>';
 }
@@ -328,6 +330,10 @@ function prmRenderEditor() {
   } else if (p.estado === 'entregado') {
     acciones += '<button class="btn btn-gold" onclick="prmCobrar()">💰 Registrar cobro</button>';
   }
+  if (p.estado === 'cobrado') {
+    acciones += '<button class="btn btn-out" onclick="prmRegistrarVenta()">💳 Registrar venta del cobro</button>';
+    acciones += '<button class="btn btn-out" onclick="prmReversar()">↩️ Reversar venta</button>';
+  }
   if (!esNuevo) {
     acciones += '<button class="btn btn-out" onclick="prmImprimir()">🖨 Imprimir hoja</button>';
     if (p.estado === 'confirmado') acciones += '<button class="btn btn-out" onclick="prmCambiarEstado(\'borrador\')">✏️ Reabrir a borrador</button>';
@@ -349,6 +355,10 @@ function prmRenderEditor() {
       '</div>' +
       '<div class="row"><div class="col"><label>Condiciones particulares (se imprimen en la hoja)</label>' +
         '<input type="text" id="prm-con"' + dis + ' value="' + pmEsc(p.condiciones || '') + '" placeholder="Ej: pago por SINPE contra entrega" oninput="prmHead(\'condiciones\',this.value)"></div></div>' +
+      '<div class="row">' +
+        '<div class="col sm"><label>Envío (₡)</label><input type="number" min="0" step="any" id="prm-env"' + dis + ' value="' + (p.envio_monto ? p.envio_monto : '') + '" placeholder="0" oninput="prmHead(\'envio_monto\',this.value)"></div>' +
+        '<div class="col"><label>Nota del envío (opcional)</label><input type="text" id="prm-envn"' + dis + ' value="' + pmEsc(p.envio_nota || '') + '" placeholder="Ej: moto, entrega en Heredia" oninput="prmHead(\'envio_nota\',this.value)"></div>' +
+      '</div>' +
     '</div>' +
     '<div class="card"><div class="ctitle">Productos</div>' +
       '<div class="prm-scroll"><table class="prm-t"><thead><tr>' +
@@ -390,8 +400,10 @@ function _prmRecalc(refrescarDesc) {
     st.innerHTML =
       card('Valor a PVP', pmMoney(Math.round(t.valorPvp)), _prmFmt(t.unidades, 0) + ' unidades') +
       card('Con precio pactado', pmMoney(Math.round(t.valorPact))) +
-      card('Regalía', pmMoney(Math.round(t.montoReg)), _prmFmt(t.regalias, 1) + ' unidades') +
+      card('Regalía (gasto de mercadeo)', pmMoney(Math.round(t.montoReg)), _prmFmt(t.regalias, 1) + ' unidades · no es venta') +
       card('Neto a cobrar', pmMoney(Math.round(t.neto))) +
+      card('Envío', pmMoney(Math.round(t.envio))) +
+      card('Total a cobrar', pmMoney(Math.round(t.total)), 'esto es la venta') +
       card('Costo de receta', pmMoney(Math.round(t.costoTot)), 'regalía: ' + pmMoney(Math.round(t.costoReg))) +
       card('Margen', pmMoney(Math.round(t.margen)), _prmFmt(t.margenPct, 1) + '% del neto');
   }
@@ -406,8 +418,10 @@ function _prmRecalc(refrescarDesc) {
 // ── Edición de cabecera y líneas ───────────────────────────────
 function prmHead(campo, valor) {
   if (!_prmEditable()) return;
+  if (campo === 'envio_monto') valor = valor === '' ? 0 : Math.max(0, _prmN(valor));
   _prm.ped[campo] = valor;
   _prm.dirty = true;
+  if (campo === 'envio_monto') _prmRecalc(false);
 }
 
 function prmAddLinea() {
@@ -522,6 +536,11 @@ async function prmGuardar() {
       cliente_id: p.cliente_id, titulo: p.titulo || null,
       fecha_entrega: p.fecha_entrega, condiciones: p.condiciones || null
     };
+    // Envío: solo si ya corriste sql_reversos_envio_promo.sql (la fila trae la columna)
+    if (p.envio_monto !== undefined || p.envio_nota !== undefined) {
+      cab.envio_monto = _prmN(p.envio_monto);
+      cab.envio_nota = p.envio_nota || null;
+    }
     if (!p.id) {
       const rows = await pmDB.insert('pedido_promo', cab);
       const nuevo = rows && rows[0];
@@ -613,17 +632,56 @@ async function prmCobrar() {
   const p = _prm.ped;
   if (!p || !p.id) return;
   const t = _prmTotales();
-  const sugerido = Math.round(t.neto);
-  const m = prompt('Monto cobrado (₡). Neto del pedido: ' + pmMoney(sugerido), String(sugerido));
+  const sugerido = Math.round(t.total);   // neto + envío
+  const m = prompt('Monto cobrado (₡). Total del pedido (neto + envío): ' + pmMoney(sugerido), String(sugerido));
   if (m === null) return;
   const monto = _prmN(m);
   if (!(monto >= 0) || m.trim() === '') { pmToast('Monto no válido', 'err'); return; }
+  const met = (prompt('Método de pago: sinpe / efectivo / transferencia / otro', 'sinpe') || 'sinpe').trim().toLowerCase();
+  const metodo = ['sinpe', 'efectivo', 'transferencia', 'otro'].includes(met) ? met : 'sinpe';
   const ref = prompt('Referencia del pago (comprobante SINPE, opcional):', '') || '';
   try {
     await _prmSetEstado('cobrado', { monto_cobrado: monto, fecha_cobro: pmHoy(), referencia_pago: ref.trim() || null });
     const dif = monto - sugerido;
-    pmToast(dif === 0 ? 'Cobro registrado ✓' : 'Cobro registrado — diferencia de ' + pmMoney(Math.round(dif)), dif === 0 ? 'ok' : 'err', 4500);
+    await _prmCrearVenta(_prm.ped, monto, metodo);
+    pmToast(dif === 0 ? 'Cobro y venta registrados ✓' : 'Cobro registrado — diferencia de ' + pmMoney(Math.round(dif)), dif === 0 ? 'ok' : 'err', 4500);
   } catch (e) { pmToast('No se pudo registrar el cobro: ' + e.message, 'err', 5000); }
+}
+
+// La venta del pedido promocional = lo cobrado (neto + envío). La regalía no
+// entra: es gasto de mercadeo. Se guarda con tipo 'comercial' y notas PRM-<id>.
+async function _prmCrearVenta(p, monto, metodo) {
+  const refId = 'PRM-' + p.id;
+  const exist = await pmDB.get('ventas', { notas: refId }).catch(() => []);
+  if (exist && exist.length) return false;
+  await pmDB.ventas.crear({
+    fecha_pago: p.fecha_cobro || pmHoy(),
+    total: monto,
+    metodo_pago: metodo || 'sinpe',
+    cliente_nom: _prmCliNombre(p.cliente_id),
+    tipo: 'comercial',
+    notas: refId
+  });
+  return true;
+}
+
+// Para pedidos ya cobrados antes de que el cobro creara la venta (idempotente).
+async function prmRegistrarVenta() {
+  const p = _prm.ped;
+  if (!p || !p.id || p.estado !== 'cobrado') return;
+  try {
+    const monto = p.monto_cobrado !== null && p.monto_cobrado !== undefined ? _prmN(p.monto_cobrado) : Math.round(_prmTotales().total);
+    const creada = await _prmCrearVenta(p, monto, 'sinpe');
+    pmToast(creada ? 'Venta registrada por ' + pmMoney(Math.round(monto)) + ' ✓' : 'Este pedido ya tiene su venta registrada', creada ? 'ok' : 'err', 4000);
+  } catch (e) { pmToast('No se pudo registrar la venta: ' + e.message, 'err', 5000); }
+}
+
+function prmReversar() {
+  const p = _prm.ped;
+  if (!p || !p.id) return;
+  if (typeof rvsInit !== 'function') { pmToast('Falta cargar reversos.js', 'err'); return; }
+  window._rvsPend = 'PRM-' + p.id;   // reversos.js lo toma al abrir la pestaña
+  showTab('pg-reversos');
 }
 
 // ── Hoja imprimible (formato del pedido a comercios) ───────────
@@ -633,6 +691,7 @@ function prmImprimir() {
   if (_prmEditable() && _prm.dirty) { pmToast('Guardá los cambios antes de imprimir', 'err'); return; }
   const money = n => _prmFmt(Math.round(n), 0);
   let totPvp = 0, totPact = 0, totReg = 0, totNeto = 0;
+  const envio = _prmN(p.envio_monto);
 
   const filas = _prm.lineas.map(l => {
     const c = _prmCalcLinea(l);
@@ -684,7 +743,8 @@ function prmImprimir() {
     '</tr></thead><tbody>' + filas +
     '<tr class="tot"><td class="l">Totales</td><td></td><td></td><td></td><td>' + money(totPvp) + '</td><td></td><td>' + money(totPact) + '</td><td></td><td>' + money(totReg) + '</td><td>' + money(totNeto) + '</td></tr>' +
     '</tbody></table>' +
-    '<div class="pago"><b>Neto a pagar: ₡' + money(totNeto) + '</b>' +
+    (envio ? '<div class="pago" style="border-width:1px;margin-top:10px">Envío' + (p.envio_nota ? ' (' + pmEsc(p.envio_nota) + ')' : '') + ': <b>₡' + money(envio) + '</b></div>' : '') +
+    '<div class="pago"><b>' + (envio ? 'Total a pagar (neto + envío)' : 'Neto a pagar') + ': ₡' + money(totNeto + envio) + '</b>' +
       (tel ? '<br>Pago por SINPE Móvil al <b>' + pmEsc(tel) + '</b>' : '') + '</div>' +
     (p.condiciones ? '<div class="cond"><b>Condiciones:</b> ' + pmEsc(p.condiciones) + '</div>' : '') +
     '<div class="firmas"><div>Entregado por</div><div>Recibido por</div></div>' +
