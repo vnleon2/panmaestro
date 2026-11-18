@@ -654,14 +654,19 @@ async function _prmCrearVenta(p, monto, metodo) {
   const refId = 'PRM-' + p.id;
   const exist = await pmDB.get('ventas', { notas: refId }).catch(() => []);
   if (exist && exist.length) return false;
-  await pmDB.ventas.crear({
-    fecha_pago: p.fecha_cobro || pmHoy(),
-    total: monto,
-    metodo_pago: metodo || 'sinpe',
-    cliente_nom: _prmCliNombre(p.cliente_id),
-    tipo: 'comercial',
-    notas: refId
-  });
+  try {
+    await pmDB.ventas.crear({
+      fecha_pago: p.fecha_cobro || pmHoy(),
+      total: monto,
+      metodo_pago: metodo || 'sinpe',
+      cliente_nom: _prmCliNombre(p.cliente_id),
+      tipo: 'comercial',
+      notas: refId
+    });
+  } catch (e) {
+    if (/duplicate|unique|23505/i.test(e.message)) return false;   // ya existía (índice único)
+    throw e;
+  }
   return true;
 }
 

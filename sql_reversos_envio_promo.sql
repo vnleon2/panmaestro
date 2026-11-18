@@ -46,3 +46,25 @@ comment on column public.pedido_promo.envio_monto is 'Cargo de envío del pedido
 comment on column public.ventas.es_reverso is 'true = fila negativa que reversa (total o parcialmente) otra venta.';
 
 notify pgrst, 'reload schema';
+
+-- ════════════════════════════════════════════════════════════════
+-- Limpieza (18 nov 2026): venta del pedido promocional duplicada
+-- ════════════════════════════════════════════════════════════════
+-- 1) Borra los duplicados de una misma venta PRM-<id> (deja la más antigua)
+delete from public.ventas v
+ using public.ventas w
+ where v.notas like 'PRM-%'
+   and v.notas = w.notas
+   and (v.created_at, v.id::text) > (w.created_at, w.id::text);
+
+-- 2) Una sola venta por pedido promocional, para siempre
+create unique index if not exists ventas_prm_unica
+  on public.ventas (notas) where notas like 'PRM-%';
+
+-- 3) Rellena el nombre del cliente en las ventas PRM que quedaron sin nombre
+update public.ventas v
+   set cliente_nom = c.nombre
+  from public.pedido_promo p
+  join public.clientes c on c.id = p.cliente_id
+ where v.notas = 'PRM-' || p.id::text
+   and coalesce(v.cliente_nom, '') = '';
