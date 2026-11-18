@@ -68,6 +68,7 @@
         <button class="ntab" data-tab="pg-galletas" onclick="showTab('pg-galletas');pmCloseNav()">🍪 Galletas</button>
         <button class="ntab" data-tab="pg-com" onclick="showTab('pg-com');pmCloseNav()">🏪 Comercial</button>
         <button class="ntab" data-tab="pg-promo" onclick="showTab('pg-promo');pmCloseNav()">🎁 Promocional</button>
+        <button class="ntab" data-tab="pg-reversos" onclick="showTab('pg-reversos');pmCloseNav()">↩️ Reversar venta</button>
       </div>
     </div>
 
@@ -486,6 +487,13 @@
   <div class="pg-title">🎁 Pedido comercial promocional</div>
   <div class="pg-sub">Pedido a comercios con precio pactado y regalías — alimenta la planificación, el costo y el cobro</div>
   <div id="prm-out"></div>
+</div>
+
+<!-- ═══ ↩️ Reversar venta ═══ -->
+<div class="page" id="pg-reversos">
+  <div class="pg-title">↩️ Reversar venta</div>
+  <div class="pg-sub">Reversa una venta pagada, total o por producto, con un movimiento negativo (no se borra nada)</div>
+  <div id="rvs-out"></div>
 </div>
 
 <!-- ═══ 💰 Gastos ═══ -->
@@ -2531,10 +2539,11 @@
 <script src="reporte_control.js?v=20261018a"></script>
 <script src="simulador.js?v=20261018c"></script>
 <script src="molde.js?v=20261031a"></script>
-<script src="promo.js?v=20261105b"></script>
+<script src="promo.js?v=20261118a"></script>
+<script src="reversos.js?v=20261118a"></script>
 <script src="plan_libre.js?v=20261026b"></script>
 
-<script src="pm_app.js?v=20261105a"></script>
+<script src="pm_app.js?v=20261118a"></script>
 
 </body>
 </html>

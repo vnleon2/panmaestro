@@ -1385,7 +1385,7 @@ async function repVentas(mes) {
     const d = v.fecha_pago;
     if (!byDia[d]) byDia[d] = { total: 0, count: 0, metodos: {} };
     byDia[d].total += parseFloat(v.total) || 0;
-    byDia[d].count++;
+    if (!v.es_reverso) byDia[d].count++;
     const mp = v.metodo_pago || 'efectivo';
     byDia[d].metodos[mp] = (byDia[d].metodos[mp] || 0) + (parseFloat(v.total) || 0);
   });
@@ -1396,7 +1396,7 @@ async function repVentas(mes) {
     const mp = v.metodo_pago || 'efectivo';
     if (!byMetodo[mp]) byMetodo[mp] = { total: 0, count: 0 };
     byMetodo[mp].total += parseFloat(v.total) || 0;
-    byMetodo[mp].count++;
+    if (!v.es_reverso) byMetodo[mp].count++;
   });
 
   // Agrupar por cliente (para ventas comerciales)
@@ -1410,7 +1410,7 @@ async function repVentas(mes) {
     const cli = v.cliente_nom || '(sin nombre de cliente)';
     if (!byCliente[cli]) byCliente[cli] = { total: 0, count: 0 };
     byCliente[cli].total += parseFloat(v.total) || 0;
-    byCliente[cli].count++;
+    if (!v.es_reverso) byCliente[cli].count++;
   });
 
   const rowsCliente = Object.entries(byCliente).sort((a,b) => b[1].total - a[1].total).map(([cli, v]) =>
@@ -1470,7 +1470,7 @@ async function repVentas(mes) {
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         ${repStatBox('Total cobrado', pmMoney(totalVentas))}
-        ${repStatBox('Transacciones', ventas.length, 'var(--cream2)')}
+        ${repStatBox('Transacciones', ventas.filter(v => !v.es_reverso).length, 'var(--cream2)')}
         <button class="btn btn-gold btn-sm no-print" onclick="repPrintSection('rep-ventas-inner')">🖨 Imprimir</button>
       </div>
     </div>
