@@ -86,6 +86,7 @@
       <button class="nav-toggle" onclick="pmToggleGroup(this)">📖 Recetas ▾</button>
       <div class="group-drop">
         <button class="ntab" data-tab="pg-costeo" onclick="showTab('pg-costeo');pmCloseNav()">📖 Costeo</button>
+        <button class="ntab" data-tab="pg-crq" onclick="showTab('pg-crq');pmCloseNav()">🔗 Dónde se usa</button>
         <button class="ntab" data-tab="pg-rec" onclick="showTab('pg-rec');pmCloseNav()">📚 Recetario</button>
         <button class="ntab" data-tab="pg-gmrec" onclick="showTab('pg-gmrec');pmCloseNav()">🌾 Gluten Morgen</button>
         <button class="ntab" data-tab="pg-hid" onclick="showTab('pg-hid');pmCloseNav()">💧 Hidratación</button>
@@ -473,6 +474,13 @@
   <div id="sim-ctrl"></div>
   <div id="sim-barra"></div>
   <div id="sim-out"></div>
+</div>
+
+<!-- ═══ 🔗 Dónde se usa una receta (consulta, solo lectura) ═══ -->
+<div class="page" id="pg-crq">
+  <div class="pg-title">🔗 Dónde se usa</div>
+  <div class="pg-sub">Elige una receta y mira qué panes y galletas se elaboran con ella — solo consulta, no guarda nada</div>
+  <div id="crq-out"></div>
 </div>
 
 <!-- ═══ 📏 Masa por molde (utilidad de cálculo, no guarda nada) ═══ -->
@@ -2539,6 +2547,7 @@
 <script src="reporte_control.js?v=20261118a"></script>
 <script src="simulador.js?v=20261018c"></script>
 <script src="molde.js?v=20261031a"></script>
+<script src="consulta_receta.js?v=20261119c"></script>
 <script src="promo.js?v=20261118b"></script>
 <script src="reversos.js?v=20261118a"></script>
 <script src="plan_libre.js?v=20261026b"></script>
