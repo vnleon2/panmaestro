@@ -539,6 +539,9 @@ async function cpListarPrecios(clienteId) {
       return;
     }
     const escalaColor = { comercial:'var(--gold)', mayorista:'var(--blue)', minorista:'var(--cream2)', vip:'var(--green)' };
+    // Un producto creado después de la primera carga del mapa no está en el
+    // inverso uuid→código: sin refrescar, la línea salía con el UUID como nombre.
+    if (rows.some(r => !_sbProdMapInv?.[r.producto_id])) await _sbProdEnsureMap(true);
     const prods = [...(G.tiposPan||[]), ...(G.tiposGalleta||[])];
     el.innerHTML =
       '<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--cream2);margin-bottom:8px">Portafolio (' + rows.length + ' producto' + (rows.length!==1?'s':'') + ')</div>' +
