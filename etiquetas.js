@@ -82,13 +82,14 @@ async function etCargarCatalogo() {
 }
 
 function etSeleccionar(idx) {
-  if (idx === '') { etActual = null; document.getElementById('et-btn-imprimir').disabled = true; return; }
+  if (idx === '') { etActual = null; document.getElementById('et-btn-imprimir').disabled = true; document.getElementById('et-btn-imprimir-sp').disabled = true; return; }
   etActual = etProductos[Number(idx)];
   if (!etActual) return;
   document.getElementById('et-peso').value   = etActual.peso_g ?? '';
   document.getElementById('et-precio').value = etActual.precio_full ?? '';
   etActualizarPreview();
   document.getElementById('et-btn-imprimir').disabled = false;
+  document.getElementById('et-btn-imprimir-sp').disabled = false;
 }
 
 function etActualizarPreview() {
@@ -138,7 +139,8 @@ const ET_CSS = `
     @page{size:7cm 4cm;margin:0}
   `;
 
-function etEtiquetaHtml(p, pesoVal, precioVal) {
+// sinPrecio=true: misma etiqueta 7×4 pero sin el campo de precio (el peso ocupa todo el ancho).
+function etEtiquetaHtml(p, pesoVal, precioVal, sinPrecio) {
   const peso   = pesoVal ? `${pesoVal} g` : '';
   const precio = precioVal ? `₡${Number(precioVal).toLocaleString('es-CR')}` : '';
   const esMM   = !!p.es_masa_madre;
@@ -147,20 +149,20 @@ function etEtiquetaHtml(p, pesoVal, precioVal) {
       <div class="nombre">${pmEsc(pmNombreSinPeso(p.nombre))}</div>
       <div class="fila">
         <div class="campo"><div class="k">peso</div><div class="v">${peso}</div></div>
-        <div class="campo"><div class="k">precio</div><div class="v">${precio}</div></div>
+        ${sinPrecio ? '' : `<div class="campo"><div class="k">precio</div><div class="v">${precio}</div></div>`}
         ${esMM ? '<div class="mm">MASA MADRE</div>' : ''}
       </div>
       <div class="contacto">${pmEsc(etContactoTexto())}</div>
     </div>`;
 }
 
-function etImprimir() {
+function etImprimir(sinPrecio) {
   if (!etActual) return;
   const cantidad = Math.max(1, parseInt(document.getElementById('et-cantidad').value) || 1);
   const pesoVal   = document.getElementById('et-peso').value;
   const precioVal = document.getElementById('et-precio').value;
 
-  const unaEtiqueta = etEtiquetaHtml(etActual, pesoVal, precioVal);
+  const unaEtiqueta = etEtiquetaHtml(etActual, pesoVal, precioVal, sinPrecio === true);
 
   const win = window.open('', '_blank');
   win.document.write(`<!DOCTYPE html><html><head>
