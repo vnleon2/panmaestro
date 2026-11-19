@@ -66,7 +66,7 @@ function panAdd() {
     // "Pan del Día") y cualquier pedido que lo use nunca podrá
     // sincronizar su línea a Supabase, sin ninguna pista de por qué.
     pmDB.productos.crear({ codigo:newId, nombre:nom, tipo:'pan', presentacion:'unidad', peso_g:peso||null, precio_full:pr, receta_cod:rec||null, activo:true })
-      .then(rows => { if (rows?.[0]) { if(!_sbProdMap)_sbProdMap={}; _sbProdMap[newId]=rows[0].id; } else {
+      .then(rows => { if (rows?.[0]) { if(!_sbProdMap)_sbProdMap={}; if(!_sbProdMapInv)_sbProdMapInv={}; _sbProdMap[newId]=rows[0].id; _sbProdMapInv[rows[0].id]=newId; } else {
         pmToast('⚠️ "' + nom + '" guardado solo local — revisá la sincronización con Supabase', 'err');
       } })
       .catch(e => {
@@ -531,7 +531,7 @@ function gallAdd() {
   // Supabase — dual write
   if (pmDB.disponible()) {
     pmDB.productos.crear({ codigo:newId, nombre:nom, tipo:'galleta', presentacion:'unidad', peso_g:peso||null, precio_full:pr, receta_cod:rec||null, activo:true })
-      .then(rows => { if (rows?.[0]) { if(!_sbProdMap)_sbProdMap={}; _sbProdMap[newId]=rows[0].id; } })
+      .then(rows => { if (rows?.[0]) { if(!_sbProdMap)_sbProdMap={}; if(!_sbProdMapInv)_sbProdMapInv={}; _sbProdMap[newId]=rows[0].id; _sbProdMapInv[rows[0].id]=newId; } })
       .catch(e => console.warn('[pmDB] gallAdd sync error:', e.message));
   }
 }
