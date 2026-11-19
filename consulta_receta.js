@@ -10,6 +10,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 let _crqCod = '';
+let _crqUlt = null;   // último resultado mostrado, para imprimir
 
 function crqInit() {
   const out = document.getElementById('crq-out');
@@ -85,5 +86,35 @@ function crqElegir(cod) {
   }
   h += '</div>';
 
+  _crqUlt = { rec: rec, prods: prods, padres: padres };
+  h = '<div style="margin-bottom:10px"><button class="btn btn-out" onclick="crqImprimir()">🖨 Imprimir</button></div>' + h;
   el.innerHTML = h;
+}
+
+function crqImprimir() {
+  const u = _crqUlt;
+  if (!u) { pmToast('Primero elige una receta', 'err'); return; }
+  const nom = pmEsc(u.rec ? u.rec.name : _crqCod) + ' (' + pmEsc(_crqCod) + ')';
+  const t = 'width:100%;border-collapse:collapse;margin-bottom:18px;font-size:13px';
+  const c = 'border:1px solid #999;padding:5px 8px;text-align:left';
+  let b = '<h2 style="margin:0 0 4px">Dónde se usa: ' + nom + '</h2>' +
+    '<div style="font-size:12px;color:#555;margin-bottom:16px">' + new Date().toLocaleDateString('es-CR') + '</div>' +
+    '<h3 style="margin:0 0 6px">Panes y galletas que se elaboran con esta receta</h3>';
+  if (u.prods.length) {
+    b += '<table style="' + t + '"><tr><th style="' + c + '">Tipo</th><th style="' + c + '">Producto</th><th style="' + c + '">Peso</th><th style="' + c + '">Precio</th></tr>' +
+      u.prods.map(x => '<tr><td style="' + c + '">' + x.tipo + '</td><td style="' + c + '">' + pmEsc(x.p.nombre) + '</td><td style="' + c + '">' +
+        (x.p.peso ? pmEsc(String(x.p.peso)) + ' g' : '—') + '</td><td style="' + c + '">' +
+        (x.p.precio ? pmEsc(pmMoney(Math.round(x.p.precio))) : '—') + '</td></tr>').join('') + '</table>';
+  } else { b += '<p style="font-size:13px">Ninguno la usa directamente.</p>'; }
+  b += '<h3 style="margin:0 0 6px">Recetas que la llevan dentro</h3>';
+  if (u.padres.length) {
+    b += '<table style="' + t + '"><tr><th style="' + c + '">Receta</th><th style="' + c + '">Código</th><th style="' + c + '">Como</th></tr>' +
+      u.padres.map(x => '<tr><td style="' + c + '">' + pmEsc(x.r.name) + '</td><td style="' + c + '">' + pmEsc(x.r.code) + '</td><td style="' + c + '">' + pmEsc(x.rol) + '</td></tr>').join('') + '</table>';
+  } else { b += '<p style="font-size:13px">Ninguna otra receta la usa.</p>'; }
+  const w = window.open('', '_blank');
+  if (!w) { pmToast('El navegador bloqueó la ventana de impresión', 'err'); return; }
+  w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Dónde se usa</title></head>' +
+    '<body style="font-family:Arial,sans-serif;padding:20px">' + b + '</body></html>');
+  w.document.close();
+  setTimeout(() => { w.focus(); w.print(); }, 300);
 }
