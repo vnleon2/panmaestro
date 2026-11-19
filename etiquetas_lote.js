@@ -49,6 +49,7 @@ async function etlInit() {
       <label for="etl-chk-${i}" style="margin:0;cursor:pointer">${pmEsc(p.nombre)}${p.peso ? ' <span style="opacity:.6">— ' + pmEsc(p.peso) + ' g</span>' : ''}${p.tipo === 'galleta' ? ' <span style="opacity:.6">🍪</span>' : ''}</label>
       <select id="etl-tipo-${i}">
         <option value="ind">Individual 7×4</option>
+        <option value="indsp">Individual 7×4 sin precio</option>
         <option value="hoja">Hoja carta 6 cm</option>
       </select>
       <input type="number" id="etl-cant-${i}" min="1" step="1" value="1" title="Cantidad de etiquetas" onfocus="this.select()">
@@ -87,7 +88,7 @@ function etlSeleccion() {
 
 function etlActualizarResumen() {
   const sel = etlSeleccion();
-  const ind = sel.filter(x => x.tipo === 'ind').reduce((a, x) => a + x.cant, 0);
+  const ind = sel.filter(x => x.tipo === 'ind' || x.tipo === 'indsp').reduce((a, x) => a + x.cant, 0);
   const hoja = sel.filter(x => x.tipo === 'hoja').reduce((a, x) => a + x.cant, 0);
   const el = document.getElementById('etl-resumen');
   if (el) el.textContent = sel.length
@@ -103,10 +104,10 @@ function etlImprimir() {
   if (!sel.length) { pmToast('Marcá al menos un producto', 'err'); return; }
 
   // 1) Individuales: todas seguidas en una sola ventana (abrirla antes que nada, es el clic del usuario)
-  const ind = sel.filter(x => x.tipo === 'ind');
+  const ind = sel.filter(x => x.tipo === 'ind' || x.tipo === 'indsp');
   if (ind.length) {
     const html = ind.map(x => etEtiquetaHtml(
-      { nombre: x.p.nombre, es_masa_madre: x.p.es_masa_madre }, x.p.peso, x.p.precio
+      { nombre: x.p.nombre, es_masa_madre: x.p.es_masa_madre }, x.p.peso, x.p.precio, x.tipo === 'indsp'
     ).repeat(x.cant)).join('');
     const win = window.open('', '_blank');
     if (!win) { avisos.push('El navegador bloqueó la ventana de las etiquetas individuales: permití ventanas emergentes e intentá de nuevo.'); }

@@ -1433,6 +1433,7 @@
         <select id="etl-tipo-todos" onchange="etlTipoTodos(this.value)" style="width:auto">
           <option value="">Tipo para todos…</option>
           <option value="ind">Individual 7×4</option>
+          <option value="indsp">Individual 7×4 sin precio</option>
           <option value="hoja">Hoja carta 6 cm</option>
         </select>
         <input type="number" min="1" step="1" placeholder="Cantidad para todos" style="width:170px" onchange="etlCantTodos(this.value)">
@@ -1498,6 +1499,7 @@
       </div>
       <div id="et-mm-badge" class="et-badge off">MASA MADRE</div>
       <button class="btn btn-gold" id="et-btn-imprimir" disabled onclick="etImprimir()" style="width:100%;margin-top:16px">🖨 Imprimir etiquetas</button>
+      <button class="btn btn-out" id="et-btn-imprimir-sp" disabled onclick="etImprimir(true)" style="width:100%;margin-top:8px">🖨 Imprimir sin precio</button>
     </div>
 
     <div style="margin-top:20px;max-width:480px">
