@@ -73,7 +73,7 @@ function crqElegir(cod) {
   }
   h += '</div>';
 
-  h += '<div class="card"><div class="ctitle">Recetas que la llevan dentro</div>';
+  h += '<div class="card"><details><summary style="cursor:pointer;font-weight:600;font-size:13px">Recetas que la llevan dentro (' + padres.length + ')</summary><div style="margin-top:10px">';
   if (padres.length) {
     h += '<table style="width:100%;border-collapse:collapse"><tr>' +
       '<th ' + th + '>Receta</th><th ' + th + '>Código</th><th ' + th + '>Como</th></tr>' +
@@ -84,7 +84,7 @@ function crqElegir(cod) {
   } else {
     h += '<div style="font-size:13px;color:var(--cream2)">Ninguna otra receta la usa como sub-receta, relleno o cobertura.</div>';
   }
-  h += '</div>';
+  h += '</div></details></div>';
 
   _crqUlt = { rec: rec, prods: prods, padres: padres };
   h = '<div style="margin-bottom:10px"><button class="btn btn-out" onclick="crqImprimir()">🖨 Imprimir</button></div>' + h;
@@ -106,11 +106,7 @@ function crqImprimir() {
         (x.p.peso ? pmEsc(String(x.p.peso)) + ' g' : '—') + '</td><td style="' + c + '">' +
         (x.p.precio ? pmEsc(pmMoney(Math.round(x.p.precio))) : '—') + '</td></tr>').join('') + '</table>';
   } else { b += '<p style="font-size:13px">Ninguno la usa directamente.</p>'; }
-  b += '<h3 style="margin:0 0 6px">Recetas que la llevan dentro</h3>';
-  if (u.padres.length) {
-    b += '<table style="' + t + '"><tr><th style="' + c + '">Receta</th><th style="' + c + '">Código</th><th style="' + c + '">Como</th></tr>' +
-      u.padres.map(x => '<tr><td style="' + c + '">' + pmEsc(x.r.name) + '</td><td style="' + c + '">' + pmEsc(x.r.code) + '</td><td style="' + c + '">' + pmEsc(x.rol) + '</td></tr>').join('') + '</table>';
-  } else { b += '<p style="font-size:13px">Ninguna otra receta la usa.</p>'; }
+  if (u.padres.length) b += '<p style="font-size:12px;color:#555">Además, ' + u.padres.length + ' receta(s) la llevan dentro como sub-receta, relleno o cobertura.</p>';
   const w = window.open('', '_blank');
   if (!w) { pmToast('El navegador bloqueó la ventana de impresión', 'err'); return; }
   w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Dónde se usa</title></head>' +
