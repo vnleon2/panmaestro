@@ -29,7 +29,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--cream);fo
 .nav-toggle:hover{color:#44564A}
 .nav-toggle.on{color:var(--gold)}
 .nav-group-label{display:none}
-.group-drop{display:none;position:absolute;top:100%;left:0;background:#FFFFFF;border:1px solid #D9E3D5;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);min-width:170px;z-index:300;padding:6px}
+.group-drop{display:none;position:absolute;top:100%;left:0;background:#FFFFFF;border:1px solid #D9E3D5;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);min-width:170px;z-index:300;padding:6px;max-height:calc(100vh - 70px);overflow-y:auto}
 .group-drop.show{display:block}
 .group-drop .ntab{display:block;width:100%;text-align:left;border-bottom:none;border-radius:6px;padding:9px 10px}
 .group-drop .ntab:hover{background:var(--bg)}
@@ -54,7 +54,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--cream);fo
   .nav-toggle.on{color:var(--gold)}
   .nav-group-label{display:none}
   /* acordeón: cada grupo plegado hasta tocarlo; uno abierto a la vez */
-  .group-drop{display:none;position:static;box-shadow:none;border:none;border-radius:0;padding:0 6px 8px;min-width:0}
+  .group-drop{display:none;position:static;box-shadow:none;border:none;border-radius:0;padding:0 6px 8px;min-width:0;max-height:none;overflow-y:visible}
   .group-drop.show{display:block}
   #nav>.ntab{border-bottom:none;padding:12px 14px;font-size:13px;color:var(--cream);font-weight:600}
   #nav>.ntab.on{color:var(--gold)}
