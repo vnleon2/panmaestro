@@ -27,7 +27,10 @@ let _rvs = {
   reversos: [],      // reversos previos de la venta abierta
   saldo: 0,
   estiloOk: false,
-  ocupado: false
+  ocupado: false,
+  ncFecha: '',       // nota de crédito: fecha de los reversos
+  ncCli: '',         // nota de crédito: cliente
+  refs: {}           // caché de referencia (factura/pedido) por venta original
 };
 
 function _rvsN(v) {
@@ -135,6 +138,7 @@ function rvsRenderLista() {
   const tot = lista.reduce((s, v) => s + _rvsSaldo(v), 0);
 
   out.innerHTML =
+    '<div id="rvs-nc"></div>' +
     '<div class="rvs-bar">' +
       '<input type="month" value="' + pmEsc(_rvs.mes) + '" onchange="rvsFiltro(\'mes\',this.value)" style="max-width:160px">' +
       '<select onchange="rvsFiltro(\'tipo\',this.value)" style="max-width:150px">' +
@@ -149,6 +153,7 @@ function rvsRenderLista() {
       '<thead><tr><th>Fecha</th><th>Cliente</th><th>Tipo</th><th>Referencia</th><th class="n">Venta</th><th class="n">Reversado</th><th class="n">Saldo</th></tr></thead>' +
       '<tbody>' + (filas || '<tr><td colspan="7" class="rvs-hint" style="padding:14px">No hay ventas con ese filtro.</td></tr>') + '</tbody>' +
     '</table></div></div>';
+  rvsNcRender();
 }
 
 // ── Detalle de una venta ───────────────────────────────────────
@@ -344,5 +349,147 @@ async function _rvsGuardar(monto, motivo, detalle) {
   } catch (e) {
     const falta = /es_reverso|venta_origen_id|motivo|detalle/i.test(e.message);
     pmToast('No se pudo reversar: ' + e.message + (falta ? ' — corré sql_reversos_envio_promo.sql en Supabase' : ''), 'err', 7000);
+  } finally { _rvs.ocupado = false; }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 🧾 NOTA DE CRÉDITO — se emite por fecha + cliente
+// Reúne los reversos de ese cliente en esa fecha (fecha del reverso),
+// muestra la referencia de la venta original (factura / pedido), el detalle
+// y el monto, y los imprime con un número NC-0000001 propio y permanente
+// (columna ventas.numero_nc, ver sql_nota_credito.sql).
+// ═══════════════════════════════════════════════════════════════
+function _rvsNcFilas() {
+  if (!_rvs.ncFecha) _rvs.ncFecha = pmHoy();
+  return _rvs.ventas.filter(v => v.es_reverso && String(v.fecha_pago || '').slice(0, 10) === _rvs.ncFecha);
+}
+function _rvsFechaLarga(f) {
+  const m = String(f || '').slice(0, 10).split('-');
+  return m.length === 3 ? m[2] + '/' + m[1] + '/' + m[0] : String(f || '');
+}
+
+async function _rvsRefOrigen(r) {
+  const o = _rvs.ventas.find(x => String(x.id) === String(r.venta_origen_id));
+  if (!o) return { ref: '—', fecha: '' };
+  const key = String(o.id);
+  if (_rvs.refs[key]) return _rvs.refs[key];
+  const partes = [];
+  const notas = String(o.notas || '');
+  try {
+    if (notas.startsWith('PRM-')) {
+      const cab = ((await pmDB.get('pedido_promo', { id: notas.slice(4) })) || [])[0];
+      partes.push(cab && cab.titulo ? cab.titulo : notas);
+    } else if (o.pedido_id) {
+      const p = ((await pmDB.get('pedidos', { id: o.pedido_id })) || [])[0];
+      if (p) {
+        if (p.numero_factura) partes.push(p.numero_factura);
+        if (p.numero_pedido) partes.push('Pedido ' + p.numero_pedido);
+      }
+    }
+  } catch (e) { console.warn('[reversos] referencia', e.message); }
+  if (!partes.length) partes.push(notas || ('Venta ' + key.slice(0, 8)));
+  return (_rvs.refs[key] = { ref: partes.join(' · '), fecha: o.fecha_pago || '' });
+}
+
+function _rvsDetalleTxt(r) {
+  const det = Array.isArray(r.detalle) ? r.detalle : [];
+  if (!det.length) return '';
+  return det.map(d => d.k === 'total' ? 'Reverso total de la venta' : (_rvsFmt(d.cant) + ' × ' + d.nombre)).join('; ');
+}
+
+function rvsNcFecha(f) { _rvs.ncFecha = f || pmHoy(); _rvs.ncCli = ''; rvsNcRender(); }
+function rvsNcCliente(c) { _rvs.ncCli = c; rvsNcRender(); }
+
+async function rvsNcRender() {
+  const box = document.getElementById('rvs-nc');
+  if (!box) return;
+  const del = _rvsNcFilas();
+  const clientes = [...new Set(del.map(r => r.cliente_nom || '(sin cliente)'))].sort();
+  if (!clientes.includes(_rvs.ncCli)) _rvs.ncCli = clientes[0] || '';
+  const filas = del.filter(r => (r.cliente_nom || '(sin cliente)') === _rvs.ncCli);
+
+  let cuerpo;
+  if (!clientes.length) {
+    cuerpo = '<div class="rvs-hint">No hay reversos registrados en esa fecha.</div>';
+  } else {
+    const refs = await Promise.all(filas.map(r => _rvsRefOrigen(r)));
+    const tot = filas.reduce((s, r) => s + Math.abs(_rvsN(r.total)), 0);
+    const nro = (filas.find(r => r.numero_nc) || {}).numero_nc;
+    cuerpo =
+      '<div class="rvs-bar"><select onchange="rvsNcCliente(this.value)" style="max-width:260px">' +
+        clientes.map(c => '<option value="' + pmEsc(c) + '"' + (c === _rvs.ncCli ? ' selected' : '') + '>' + pmEsc(c) + '</option>').join('') +
+      '</select>' + (nro ? '<span class="rvs-tag">' + pmEsc(nro) + '</span>' : '<span class="rvs-hint">Sin número aún — se asigna al imprimir</span>') + '</div>' +
+      '<div class="rvs-scroll"><table class="rvs-t"><thead><tr><th>Referencia</th><th>Detalle</th><th>Motivo</th><th class="n">Monto</th></tr></thead><tbody>' +
+      filas.map((r, i) =>
+        '<tr><td>' + pmEsc(refs[i].ref) + (refs[i].fecha ? '<div class="rvs-hint">Venta del ' + pmEsc(_rvsFechaLarga(refs[i].fecha)) + '</div>' : '') + '</td>' +
+        '<td>' + pmEsc(_rvsDetalleTxt(r)) + '</td><td>' + pmEsc(r.motivo || '') + '</td>' +
+        '<td class="n">' + pmMoney(Math.round(Math.abs(_rvsN(r.total)))) + '</td></tr>').join('') +
+      '</tbody></table></div>' +
+      '<div class="rvs-bar" style="margin-top:10px"><span style="font-size:15px"><b>Total a acreditar: ' + pmMoney(Math.round(tot)) + '</b></span><span class="sp"></span>' +
+        '<button class="btn btn-gold" onclick="rvsNcImprimir()">🖨️ Imprimir nota de crédito</button></div>';
+  }
+  box.innerHTML = '<div class="card"><div class="ctitle">🧾 Nota de crédito</div>' +
+    '<div class="rvs-bar"><label class="rvs-hint">Fecha del reverso</label><input type="date" value="' + pmEsc(_rvs.ncFecha) + '" onchange="rvsNcFecha(this.value)" style="max-width:160px"></div>' +
+    cuerpo + '</div>';
+}
+
+async function rvsNcImprimir() {
+  if (_rvs.ocupado) return;
+  const filas = _rvsNcFilas().filter(r => (r.cliente_nom || '(sin cliente)') === _rvs.ncCli);
+  if (!filas.length) { pmToast('No hay reversos para esa fecha y cliente', 'err', 3500); return; }
+  if (!('numero_nc' in filas[0])) { pmToast('Falta la columna numero_nc — corré sql_nota_credito.sql en Supabase', 'err', 7000); return; }
+  const win = window.open('', '_blank');   // se abre ya, antes de los awaits (bloqueadores de ventanas)
+  if (!win) { pmToast('El navegador bloqueó la ventana de impresión', 'err', 5000); return; }
+  _rvs.ocupado = true;
+  try {
+    let num = (filas.find(r => r.numero_nc) || {}).numero_nc;
+    if (!num) {
+      const n = await _corrSiguiente('nota_credito');
+      if (!n) throw new Error('no se pudo obtener el correlativo');
+      num = _corrFmt(n, 'NC-');
+    }
+    for (const r of filas) {
+      if (!r.numero_nc) { await pmDB.ventas.editar(r.id, { numero_nc: num }); r.numero_nc = num; }
+    }
+    const refs = await Promise.all(filas.map(r => _rvsRefOrigen(r)));
+    const tot = filas.reduce((s, r) => s + Math.abs(_rvsN(r.total)), 0);
+    const mon = n => '₡' + Math.round(n).toLocaleString('es-CR');
+    const CSS = `*{box-sizing:border-box;margin:0;padding:0}
+      body{font-family:'Helvetica Neue',Arial,sans-serif;font-size:13px;color:#1a1a1a;background:#fff}
+      .page{width:100%;max-width:720px;margin:0 auto;padding:32px 36px}
+      .header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:16px;border-bottom:2px solid #1a1a1a;margin-bottom:24px}
+      .brand{font-size:22px;font-weight:900;letter-spacing:-.5px}
+      .brand-sub{font-size:10px;color:#777;margin-top:4px;text-transform:uppercase;letter-spacing:1.2px}
+      .doc-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#777;text-align:right}
+      .doc-num{font-size:20px;font-weight:900;text-align:right;margin-top:4px}
+      .meta{display:flex;gap:32px;margin-bottom:24px}
+      .meta-item label{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:#888;display:block;margin-bottom:3px}
+      .meta-item .val{font-size:14px;font-weight:600}
+      table{width:100%;border-collapse:collapse;margin-bottom:16px}
+      thead tr{border-bottom:2px solid #1a1a1a}
+      th{padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:#444;font-weight:700}
+      th.r,td.r{text-align:right}
+      td{padding:9px 10px;border-bottom:1px solid #e8e8e8;vertical-align:top}
+      .sub{font-size:11px;color:#888}
+      .total-row td{padding-top:12px;font-weight:700;font-size:14px;border-bottom:none;border-top:2px solid #1a1a1a}
+      .footer{margin-top:28px;padding-top:14px;border-top:1px solid #ddd;font-size:10px;color:#aaa;text-align:center}`;
+    const cuerpo = filas.map((r, i) =>
+      '<tr><td>' + pmEsc(refs[i].ref) + (refs[i].fecha ? '<div class="sub">Venta del ' + pmEsc(_rvsFechaLarga(refs[i].fecha)) + '</div>' : '') + '</td>' +
+      '<td>' + pmEsc(_rvsDetalleTxt(r)) + '</td><td>' + pmEsc(r.motivo || '') + '</td>' +
+      '<td class="r">' + mon(Math.abs(_rvsN(r.total))) + '</td></tr>').join('');
+    win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Nota de crédito ' + pmEsc(num) + '</title><style>' + CSS + '</style></head><body><div class="page">' +
+      '<div class="header"><div><div class="brand">Victor\'s Bakery &amp; Sweets</div><div class="brand-sub">Panadería artesanal</div></div>' +
+      '<div><div class="doc-label">Nota de crédito</div><div class="doc-num">#' + pmEsc(num) + '</div></div></div>' +
+      '<div class="meta"><div class="meta-item"><label>Cliente</label><div class="val">' + pmEsc(_rvs.ncCli) + '</div></div>' +
+      '<div class="meta-item"><label>Fecha</label><div class="val">' + pmEsc(_rvsFechaLarga(_rvs.ncFecha)) + '</div></div></div>' +
+      '<table><thead><tr><th>Referencia</th><th>Detalle</th><th>Motivo</th><th class="r">Monto</th></tr></thead><tbody>' + cuerpo +
+      '<tr class="total-row"><td colspan="3">Total acreditado</td><td class="r">' + mon(tot) + '</td></tr></tbody></table>' +
+      '<div class="footer">Victor\'s Bakery &amp; Sweets · Nota de crédito #' + pmEsc(num) + '</div></div>' +
+      '<script>window.onload=function(){window.print();}<\/script></body></html>');
+    win.document.close();
+    rvsNcRender();
+  } catch (e) {
+    try { win.close(); } catch (e2) {}
+    pmToast('No se pudo emitir la nota de crédito: ' + e.message, 'err', 6000);
   } finally { _rvs.ocupado = false; }
 }
