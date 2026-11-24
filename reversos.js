@@ -309,19 +309,35 @@ async function _rvsGuardar(monto, motivo, detalle) {
   if (!confirm('Reversar ' + pmMoney(Math.round(monto)) + ' de la venta a ' + (v.cliente_nom || 'cliente') + '?\n\nSe agrega un movimiento negativo; la venta original no se borra.')) return;
   _rvs.ocupado = true;
   try {
-    await pmDB.ventas.crear({
+    // FIX (23 nov 2026): el reverso NO lleva pedido_id. La tabla ventas tiene
+    // UNIQUE(pedido_id) (una venta por pedido), así que copiar el pedido de la
+    // venta original chocaba con ella y Supabase respondía "duplicado". El
+    // vínculo con la venta original ya lo da venta_origen_id; además, dejarlo
+    // sin pedido evita que los reportes "corrijan" el monto negativo con el
+    // total del pedido.
+    const creada = await pmDB.ventas.crear({
       fecha_pago: pmHoy(),
       total: -monto,
       metodo_pago: v.metodo_pago || 'sinpe',
       cliente_nom: v.cliente_nom,
       tipo: v.tipo,
       notas: 'REV-' + String(v.id).slice(0, 8) + '-' + Date.now(),
-      pedido_id: v.pedido_id || null,
+      pedido_id: null,
       es_reverso: true,
       venta_origen_id: String(v.id),
       motivo,
       detalle
     });
+    // El trigger fill_venta_cliente vacía cliente_nom cuando no hay pedido_id
+    // (se corrige en sql_reversos_pedido_unico.sql). Mientras ese SQL no se
+    // haya corrido, se restituye el nombre aquí para que el reverso reste en
+    // el total del cliente.
+    try {
+      const fila = Array.isArray(creada) ? creada[0] : creada;
+      if (fila && fila.id && v.cliente_nom && !fila.cliente_nom) {
+        await pmDB.ventas.editar(fila.id, { cliente_nom: v.cliente_nom });
+      }
+    } catch (e2) { console.warn('[reversos] no se pudo restituir cliente_nom', e2.message); }
     pmToast('Reverso de ' + pmMoney(Math.round(monto)) + ' registrado ✓');
     _rvs.ventas = (await pmDB.ventas.listar()) || [];
     await rvsAbrir(v.id);
