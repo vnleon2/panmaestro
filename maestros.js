@@ -42,16 +42,32 @@ async function _sbProdEnsureMap(forzar = false) {
   }
 }
 
+// Vista previa en vivo: "Se mostrará como: Pan Piñita Anisado 280 g"
+function pmPrevNombre(idNom, idPeso, idPrev) {
+  const el = document.getElementById(idPrev);
+  if (!el) return;
+  const nom = document.getElementById(idNom)?.value || '';
+  const peso = parseFloat(document.getElementById(idPeso)?.value) || 0;
+  if (pmNombreTienePeso(nom)) {
+    el.style.color = 'var(--red)';
+    el.textContent = '⚠ El nombre no lleva el peso: escríbelo solo en Peso g';
+  } else {
+    el.style.color = 'var(--cream2)';
+    el.textContent = 'Se mostrará como: ' + (pmNombreProd(nom, peso) || '—');
+  }
+}
+
 function panAdd() {
   const nom = document.getElementById('pan-nom').value.trim();
   const pr  = parseFloat(document.getElementById('pan-pr').value)||0;
   const peso= parseFloat(document.getElementById('pan-peso').value)||0;
   const rec = document.getElementById('pan-rec').value.trim();
   if (!nom) { pmToast('Ingresá el nombre','err'); return; }
+  if (pmNombreTienePeso(nom)) { pmToast('El nombre no lleva el peso: escribilo solo en el campo Peso g y el sistema lo agrega al nombre', 'err'); return; }
   const existing = G.tiposPan.map(p => parseInt(p.id.replace('P',''))||0);
   const next = String(Math.max(0,...existing)+1).padStart(3,'0');
   const newId = 'P'+next;
-  G.tiposPan.push({ id:newId, nombre:nom, precio:pr, peso, recetaCod: rec });
+  G.tiposPan.push(pmAplicarNombre({ id:newId, precio:pr, recetaCod: rec }, nom, peso));
   pmSave('sistema');
   document.getElementById('pan-nom').value='';
   document.getElementById('pan-pr').value='';
@@ -88,16 +104,19 @@ async function panCargarSb() {
         // Reconstruir G.tiposPan desde SB manteniendo orden y campos locales
         const sbPanes = rows.map(r => {
           const local = G.tiposPan.find(p => p.id === r.codigo);
+          const peso = r.peso_g || local?.peso || 0;
           return {
             id: r.codigo,
-            nombre: r.nombre,
+            nombreBase: r.nombre_base ?? r.nombre,                  // lo que se guarda
+            nombre: pmNombreProd(r.nombre_base ?? r.nombre, peso),  // lo que se muestra: nombre + peso
             precio: r.precio_full || r.precio || 0,
-            peso: r.peso_g || local?.peso || 0,
+            peso,
             recetaCod: r.receta_cod || local?.recetaCod || ''
           };
         });
         // Mantener panes locales que no estén en SB (offline)
         const offline = G.tiposPan.filter(p => !sbPanes.find(s => s.id === p.id));
+        offline.forEach(p => pmAplicarNombre(p, p.nombreBase ?? p.nombre));
         G.tiposPan = [...sbPanes, ...offline];
         pmSave('sistema');
       }
@@ -112,20 +131,21 @@ async function panCargarSb() {
 // Mercadeo (Masas saladas, Galletas, Otros…, tabla producto_categoria) y la
 // marca es_masa_madre de productos_terminados. Solo se LEE.
 let _panClase = {};   // código de pan → { cat: 'Masas saladas' | '', mm: true/false }
-async function panClasesCargar(rows) {
+async function panClasesCargar(rows) { return _claseCargar(rows, 'pan-clase'); }
+async function gallClasesCargar(rows) { return _claseCargar(rows, 'gall-clase'); }
+async function _claseCargar(rows, selId) {
   try {
     const [cats, rel] = await Promise.all([pmDB.get('categorias', { activo: true }), pmDB.get('producto_categoria')]);
     const catPorId = {};
     (cats || []).forEach(c => { catPorId[c.id] = c; });
     const catDeProd = {};
     (rel || []).forEach(r => { catDeProd[r.producto_id] = r.categoria_id; });
-    _panClase = {};
     (rows || []).forEach(r => {
       const c = catPorId[catDeProd[r.id]];
       _panClase[r.codigo] = { cat: c ? c.nombre : '', mm: !!r.es_masa_madre };
     });
     // opciones del filtro, en el orden de las categorías de Mercadeo
-    const sel = document.getElementById('pan-clase');
+    const sel = document.getElementById(selId);
     if (sel) {
       const actual = sel.value;
       const ordenadas = (cats || []).slice().sort((a, b) => (a.orden || 0) - (b.orden || 0));
@@ -134,7 +154,7 @@ async function panClasesCargar(rows) {
         '<option value="__sin">Sin clase</option>';
       if ([...sel.options].some(o => o.value === actual)) sel.value = actual;
     }
-  } catch (e) { console.warn('[panClasesCargar]', e.message); }
+  } catch (e) { console.warn('[_claseCargar]', e.message); }
 }
 
 function _panClaseTexto(id) {
@@ -166,11 +186,11 @@ function _ordenProdIniciar(sel, render) {
   el.onchange = () => { _ordenProdSet(sel); render(); };
 }
 
-// Lista filtrada (búsqueda + clase), ordenada por código
-function _panListaFiltrada() {
-  const q = (document.getElementById('pan-search')?.value||'').toLowerCase();
-  const fc = document.getElementById('pan-clase')?.value || '';
-  const lista = G.tiposPan.filter(p => {
+// Lista filtrada (búsqueda por código o nombre + categoría), con el orden elegido
+function _prodListaFiltrada(todos, idBuscar, idClase, idOrden) {
+  const q = (document.getElementById(idBuscar)?.value||'').toLowerCase().trim();
+  const fc = document.getElementById(idClase)?.value || '';
+  const lista = (todos || []).filter(p => {
     if (q && !String(p.nombre||'').toLowerCase().includes(q) && !String(p.id||'').toLowerCase().includes(q)) return false;
     if (!fc) return true;
     const c = _panClase[p.id] || { cat: '', mm: false };
@@ -178,8 +198,9 @@ function _panListaFiltrada() {
     if (fc === '__sin') return !c.cat && !c.mm;
     return c.cat === fc;
   });
-  return _ordenProdAplicar(lista, _ordenProdGet('pan-orden'));
+  return _ordenProdAplicar(lista, _ordenProdGet(idOrden));
 }
+function _panListaFiltrada() { return _prodListaFiltrada(G.tiposPan, 'pan-search', 'pan-clase', 'pan-orden'); }
 
 // Costo de la receta vinculada → { cpg, costo, margen } (null si no hay)
 function _panCostoFila(p) {
@@ -238,7 +259,7 @@ function panNombreToggle() {
 }
 
 function _panNombreSugeridos() {
-  return G.tiposPan.map(p => ({ id: p.id, actual: p.nombre || '', sug: depTitulo(p.nombre || '') }))
+  return G.tiposPan.map(p => ({ id: p.id, actual: p.nombreBase ?? p.nombre ?? '', sug: depTitulo(p.nombreBase ?? p.nombre ?? '') }))
     .filter(x => x.sug && x.sug !== x.actual)
     .sort((a,b) => a.id.localeCompare(b.id));
 }
@@ -286,11 +307,11 @@ async function panNombreAplicar() {
   for (const id of ids) {
     const p = G.tiposPan.find(x => x.id === id);
     if (!p || !sug[id]) continue;
-    p.nombre = sug[id];
+    pmAplicarNombre(p, sug[id]);
     if (hayNube) {
       const uuid = _sbProdMap?.[id];
       if (uuid) {
-        try { await pmDB.productos.editar(uuid, { nombre: p.nombre }); }
+        try { await pmDB.productos.editar(uuid, { nombre: p.nombreBase }); }
         catch (e) { fallos++; console.warn('[panNombreAplicar]', id, e.message); }
       }
     }
@@ -311,18 +332,22 @@ async function gallCargarSb() {
       if (rows && rows.length) {
         const sbGalletas = rows.map(r => {
           const local = G.tiposGalleta.find(p => p.id === r.codigo);
+          const peso = r.peso_g || local?.peso || 0;
           return {
             id: r.codigo,
-            nombre: r.nombre,
+            nombreBase: r.nombre_base ?? r.nombre,                  // lo que se guarda
+            nombre: pmNombreProd(r.nombre_base ?? r.nombre, peso),  // lo que se muestra: nombre + peso
             precio: r.precio_full || r.precio || 0,
-            peso: r.peso_g || local?.peso || 0,
+            peso,
             recetaCod: r.receta_cod || local?.recetaCod || ''
           };
         });
         const offline = G.tiposGalleta.filter(p => !sbGalletas.find(s => s.id === p.id));
+        offline.forEach(p => pmAplicarNombre(p, p.nombreBase ?? p.nombre));
         G.tiposGalleta = [...sbGalletas, ...offline];
         pmSave('sistema');
       }
+      await gallClasesCargar(rows);
     } catch(e) { console.warn('[gallCargarSb]', e.message); }
   }
   gallRender();
@@ -358,7 +383,7 @@ function _panRenderInterno() {
       <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--gold3);min-width:44px">${p.id}</div>
       <div class="item-name">${pmEsc(p.nombre)}</div>
       <div style="font-size:10px;color:var(--cream2);white-space:nowrap">${pmEsc(_panClaseTexto(p.id))}</div>
-      <div class="item-meta">${pmMoney(p.precio)} · ${p.peso}g</div>
+      <div class="item-meta">${pmMoney(p.precio)}</div>
       ${p.recetaCod ? `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--blue);background:rgba(74,128,192,.12);padding:2px 7px;border-radius:10px;border:1px solid rgba(74,128,192,.3)">${p.recetaCod}</div>` : `<div style="font-size:10px;color:var(--cream2);opacity:.4">—</div>`}
       ${cpgCell}
       ${costoCell}
@@ -422,7 +447,8 @@ async function panEdit(id) {
   form.innerHTML = `
     <div style="display:flex;flex-direction:column;gap:2px;flex:2;min-width:140px">
       <label style="font-size:11px;color:var(--cream2)">Nombre</label>
-      <input id="pe-nom-${id}" type="text" value="${p.nombre.replace(/"/g,'&quot;')}" style="font-size:12px;padding:4px 7px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream)">
+      <input id="pe-nom-${id}" type="text" oninput="pmPrevNombre('pe-nom-${id}','pe-peso-${id}','pe-prev-${id}')" value="${(p.nombreBase ?? p.nombre).replace(/"/g,'&quot;')}" style="font-size:12px;padding:4px 7px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream)">
+      <div id="pe-prev-${id}" style="font-size:10px;color:var(--cream2)">Se mostrará como: ${pmEsc(pmNombreProd(p.nombreBase ?? p.nombre, p.peso))}</div>
     </div>
     <div style="display:flex;flex-direction:column;gap:2px;min-width:80px">
       <label style="font-size:11px;color:var(--cream2)">Precio ₡</label>
@@ -430,7 +456,7 @@ async function panEdit(id) {
     </div>
     <div style="display:flex;flex-direction:column;gap:2px;min-width:70px">
       <label style="font-size:11px;color:var(--cream2)">Peso g</label>
-      <input id="pe-peso-${id}" type="number" value="${p.peso||0}" style="font-size:12px;padding:4px 7px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream);width:70px">
+      <input id="pe-peso-${id}" type="number" oninput="pmPrevNombre('pe-nom-${id}','pe-peso-${id}','pe-prev-${id}')" value="${p.peso||0}" style="font-size:12px;padding:4px 7px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream);width:70px">
     </div>
     <div style="display:flex;flex-direction:column;gap:2px;flex:2;min-width:160px">
       <label style="font-size:11px;color:var(--cream2)">Receta</label>
@@ -456,6 +482,7 @@ async function panEditSave(id) {
   const peso = parseFloat(document.getElementById('pe-peso-' + id)?.value)||0;
   const rec  = document.getElementById('pe-rec-'  + id)?.value || '';
   if (!nom) { pmToast('El nombre no puede estar vacío','err'); return; }
+  if (pmNombreTienePeso(nom)) { pmToast('El nombre no lleva el peso: déjalo solo en el campo Peso g y el sistema lo agrega al nombre', 'err'); return; }
 
   // Punto 5 del plan de auditoría — optimistic locking: verificamos que
   // nadie más haya cambiado este tipo de pan mientras lo editábamos.
@@ -483,14 +510,14 @@ async function panEditSave(id) {
     }
   }
 
-  p.nombre = nom; p.precio = pr; p.peso = peso; p.recetaCod = rec;
+  pmAplicarNombre(p, nom, peso); p.precio = pr; p.recetaCod = rec;
   pmSave('sistema');
   panRender();
   pmToast('Actualizado ✓');
   if (pmDB.disponible()) {
     _sbProdEnsureMap().then(() => {
       const uuid = _sbProdMap?.[id];
-      if (uuid) pmDB.productos.editar(uuid, { nombre:p.nombre, precio_full:p.precio, peso_g:p.peso||null, receta_cod:p.recetaCod||null })
+      if (uuid) pmDB.productos.editar(uuid, { nombre:p.nombreBase, precio_full:p.precio, peso_g:p.peso||null, receta_cod:p.recetaCod||null })
         .catch(e => console.warn('[pmDB] panEditSave sync error:', e.message));
     });
   }
@@ -518,10 +545,11 @@ function gallAdd() {
   const peso= parseFloat(document.getElementById('gall-peso').value)||0;
   const rec = (document.getElementById('gall-rec')?.value || '').trim();
   if (!nom) { pmToast('Ingresá el nombre','err'); return; }
+  if (pmNombreTienePeso(nom)) { pmToast('El nombre no lleva el peso: escribilo solo en el campo Peso g y el sistema lo agrega al nombre', 'err'); return; }
   const existing = G.tiposGalleta.map(p => parseInt(p.id.replace('G',''))||0);
   const next = String(Math.max(0,...existing)+1).padStart(3,'0');
   const newId = 'G'+next;
-  G.tiposGalleta.push({ id:newId, nombre:nom, precio:pr, peso, recetaCod: rec });
+  G.tiposGalleta.push(pmAplicarNombre({ id:newId, precio:pr, recetaCod: rec }, nom, peso));
   pmSave('sistema');
   document.getElementById('gall-nom').value='';
   document.getElementById('gall-pr').value='';
@@ -558,7 +586,7 @@ function gallRender() {
   gallRecetaPopulate();
   const dim = '<div style="font-size:10px;color:var(--cream2);opacity:.4">—</div>';
   _ordenProdIniciar('gall-orden', gallRender);
-  const gList = _ordenProdAplicar(G.tiposGalleta, _ordenProdGet('gall-orden'));
+  const gList = _prodListaFiltrada(G.tiposGalleta, 'gall-search', 'gall-clase', 'gall-orden');
   document.getElementById('gall-count').textContent = `Tipos galleta (${gList.length})`;
   document.getElementById('gall-list').innerHTML = gList.map(p => {
     const k = _gallCostoDesdeReceta(p);
@@ -584,7 +612,7 @@ function gallRender() {
     <div class="item-row" id="gall-row-${p.id}">
       <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--gold3);min-width:44px">${p.id}</div>
       <div class="item-name">${p.nombre}</div>
-      <div class="item-meta">${pmMoney(p.precio)} · ${p.peso}g</div>
+      <div class="item-meta">${pmMoney(p.precio)}</div>
       ${recBadge}
       ${piezasCell}
       ${cpgCell}
@@ -639,7 +667,8 @@ async function gallEdit(id) {
   form.innerHTML = `
     <div style="display:flex;flex-direction:column;gap:2px;flex:2;min-width:140px">
       <label style="font-size:11px;color:var(--cream2)">Nombre</label>
-      <input id="ge-nom-${id}" type="text" value="${p.nombre.replace(/"/g,'&quot;')}" style="font-size:12px;padding:4px 7px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream)">
+      <input id="ge-nom-${id}" type="text" oninput="pmPrevNombre('ge-nom-${id}','ge-peso-${id}','ge-prev-${id}')" value="${(p.nombreBase ?? p.nombre).replace(/"/g,'&quot;')}" style="font-size:12px;padding:4px 7px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream)">
+      <div id="ge-prev-${id}" style="font-size:10px;color:var(--cream2)">Se mostrará como: ${pmEsc(pmNombreProd(p.nombreBase ?? p.nombre, p.peso))}</div>
     </div>
     <div style="display:flex;flex-direction:column;gap:2px;min-width:80px">
       <label style="font-size:11px;color:var(--cream2)">Precio ₡</label>
@@ -647,7 +676,7 @@ async function gallEdit(id) {
     </div>
     <div style="display:flex;flex-direction:column;gap:2px;min-width:70px">
       <label style="font-size:11px;color:var(--cream2)">Peso g</label>
-      <input id="ge-peso-${id}" type="number" value="${p.peso||0}" style="font-size:12px;padding:4px 7px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream);width:70px">
+      <input id="ge-peso-${id}" type="number" oninput="pmPrevNombre('ge-nom-${id}','ge-peso-${id}','ge-prev-${id}')" value="${p.peso||0}" style="font-size:12px;padding:4px 7px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream);width:70px">
     </div>
     <div style="display:flex;flex-direction:column;gap:2px;flex:2;min-width:160px">
       <label style="font-size:11px;color:var(--cream2)">Receta</label>
@@ -673,6 +702,7 @@ async function gallEditSave(id) {
   const peso = parseFloat(document.getElementById('ge-peso-' + id)?.value)||0;
   const rec  = document.getElementById('ge-rec-'  + id)?.value || '';
   if (!nom) { pmToast('El nombre no puede estar vacío','err'); return; }
+  if (pmNombreTienePeso(nom)) { pmToast('El nombre no lleva el peso: déjalo solo en el campo Peso g y el sistema lo agrega al nombre', 'err'); return; }
 
   // Punto 5 del plan de auditoría — optimistic locking: verificamos que
   // nadie más haya cambiado este tipo de galleta mientras lo editábamos.
@@ -700,14 +730,14 @@ async function gallEditSave(id) {
     }
   }
 
-  p.nombre = nom; p.precio = pr; p.peso = peso; p.recetaCod = rec;
+  pmAplicarNombre(p, nom, peso); p.precio = pr; p.recetaCod = rec;
   pmSave('sistema');
   gallRender();
   pmToast('Actualizado ✓');
   if (pmDB.disponible()) {
     _sbProdEnsureMap().then(() => {
       const uuid = _sbProdMap?.[id];
-      if (uuid) pmDB.productos.editar(uuid, { nombre:p.nombre, precio_full:p.precio, peso_g:p.peso||null, receta_cod:p.recetaCod||null })
+      if (uuid) pmDB.productos.editar(uuid, { nombre:p.nombreBase, precio_full:p.precio, peso_g:p.peso||null, receta_cod:p.recetaCod||null })
         .catch(e => console.warn('[pmDB] gallEditSave sync error:', e.message));
     });
   }

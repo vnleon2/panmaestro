@@ -267,7 +267,7 @@ function mpsRender() {
   };
   const filas = _mpsProductos.map((p, i) => `
     <tr>
-      <td><b>${pmEsc(p.nombre)}</b><span class="mps-sub">${pmEsc(p.codigo || '')} · ${p.peso_g ? mpsFmt(p.peso_g) + ' g' : '<span style="color:var(--red)">sin peso</span>'}</span></td>
+      <td><b>${pmEsc(p.nombre)}</b><span class="mps-sub">${pmEsc(p.codigo || '')}${p.peso_g ? '' : ' · <span style="color:var(--red)">sin peso</span>'}</span></td>
       ${celda(p, i, 'comercial')}${celda(p, i, 'domestico')}${celda(p, i, 'feria')}
       <td class="mps-n" id="mps-tot-${i}">0</td>
       <td class="mps-n" id="mps-kg-${i}">—</td>

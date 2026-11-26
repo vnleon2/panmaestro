@@ -49,6 +49,7 @@ async function etCargarCatalogo() {
         { activo: true },
         'codigo,nombre,peso_g,precio_full,es_masa_madre'
       ) || [];
+      data = data.map(d => Object.assign({}, d, { nombre: pmNombreProd(d.nombre, d.peso_g) }));
     }
     const enSb = new Set(data.map(d => d.codigo));
     const esGalleta = new Set((G.tiposGalleta || []).map(p => p.id));
