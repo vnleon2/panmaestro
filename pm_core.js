@@ -492,6 +492,35 @@ function pmBadge(st) {
 function pmGetPan(id) { return (G.tiposPan||[]).find(p => p.id === id); }
 function pmGetGall(id) { return (G.tiposGalleta||[]).find(p => p.id === id); }
 
+// ── NOMBRE DE PRODUCTO = nombre base + peso ─────────────────
+// Regla: el peso es un CAMPO (peso_g). El nombre que se guarda en la base es
+// solo el nombre base ("Pan Piñita Anisado") y el nombre que se MUESTRA se
+// arma siempre con los dos ("Pan Piñita Anisado 280 g"), así el nombre y el
+// peso nunca pueden discrepar. En memoria, p.nombreBase es lo que se guarda
+// y p.nombre es lo que se muestra (por eso todos los módulos lo leen igual).
+// Un peso de 5 g o menos no es un pan sino un cobro (ej. entrega, 1 g): no se muestra.
+function pmFmtPeso(g) {
+  const n = Number(g);
+  if (!isFinite(n) || n <= 5) return '';
+  return String(Math.round(n * 100) / 100).replace('.', ',') + ' g';
+}
+function pmNombreProd(base, peso) {
+  const b = String(base == null ? '' : base).trim();
+  const w = pmFmtPeso(peso);
+  return w ? (b + ' ' + w).trim() : b;
+}
+// ¿El nombre base trae un peso escrito adentro (800g, 1 Kilo, 750 G, 1k)?
+function pmNombreTienePeso(base) {
+  return /(^|[\s(])\d+([.,]\d+)?\s*(g|gr|grs|gramos?|kg|kgs|k|kilos?)(?![a-záéíóúñ])/i.test(String(base || ''));
+}
+// Fija nombre base y peso en un producto y recalcula el nombre mostrable
+function pmAplicarNombre(p, base, peso) {
+  p.nombreBase = String(base == null ? '' : base).trim();
+  if (peso !== undefined) p.peso = peso;
+  p.nombre = pmNombreProd(p.nombreBase, p.peso);
+  return p;
+}
+
 function pmNombrePan(id) { return pmGetPan(id)?.nombre || id; }
 function pmNombreGall(id) { return pmGetGall(id)?.nombre || id; }
 

@@ -279,10 +279,17 @@ const pmDB = (() => {
   };
 
   // ── PRODUCTOS TERMINADOS ──────────────────────────────────────────────────
+  // El nombre que se guarda es solo el nombre base; al leer, se arma el nombre
+  // mostrable con el peso ("Pan Piñita Anisado" + 280 → "Pan Piñita Anisado 280 g").
+  // El nombre base queda en nombre_base (lo usa el maestro para editar/guardar).
+  const conNombreCompleto = rows => (rows || []).map(r => (
+    r && typeof pmNombreProd === 'function'
+      ? Object.assign({}, r, { nombre_base: r.nombre, nombre: pmNombreProd(r.nombre, r.peso_g) })
+      : r));
   const productos = {
-    listar:       ()     => get('productos_terminados', { activo: true }),
-    listarPanes:  ()     => get('productos_terminados', { activo: true, tipo: 'pan' }),
-    listarGalletas: ()   => get('productos_terminados', { activo: true, tipo: 'galleta' }),
+    listar:       ()     => get('productos_terminados', { activo: true }).then(conNombreCompleto),
+    listarPanes:  ()     => get('productos_terminados', { activo: true, tipo: 'pan' }).then(conNombreCompleto),
+    listarGalletas: ()   => get('productos_terminados', { activo: true, tipo: 'galleta' }).then(conNombreCompleto),
     obtener:      (id)   => getById('productos_terminados', id),
     crear:        (d)    => insert('productos_terminados', d),
     editar:       (id,d) => update('productos_terminados', id, d),

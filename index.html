@@ -863,6 +863,8 @@
     </div>
     <div class="sec"><h2 id="gall-count">Tipos galleta</h2>
       <select id="gall-orden" title="Orden de la lista" style="font-size:12px;padding:4px 7px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream)"><option value="cod">Por código</option><option value="alfa">Alfabético</option></select>
+      <select id="gall-clase" onchange="gallRender()" title="Filtrar por clase" style="font-size:12px;padding:4px 7px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream)"><option value="">Todas las clases</option></select>
+      <div class="srch" style="width:160px"><input type="text" id="gall-search" placeholder="Buscar..." oninput="gallRender()"></div>
     </div>
     <div id="gall-list"></div>
   </div>

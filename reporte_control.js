@@ -107,7 +107,7 @@ async function _rcCalcular(desde, hasta) {
   const pedIds = ventas.map(v => v.pedido_id).filter(Boolean);
   const pedidos = pedIds.length ? await _rcTraerPorIds('pedidos', 'id', pedIds) : [];
   const lineas  = pedIds.length ? await _rcTraerPorIds('pedido_lineas', 'pedido_id', pedIds) : [];
-  const prods   = await pmDB.get('productos_terminados', {}) || [];
+  const prods   = ((await pmDB.get('productos_terminados', {})) || []).map(p => Object.assign({}, p, { nombre: pmNombreProd(p.nombre, p.peso_g) }));
 
   // Ventas de pedidos promocionales (notas 'PRM-<id>', sin pedido_id): cliente y
   // productos salen de pedido_promo / pedido_promo_det. Solo cuentan las
