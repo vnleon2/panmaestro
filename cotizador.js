@@ -107,7 +107,9 @@ function _cotCalc(l, redondeo) {
   const r = Math.max(1, parseInt(redondeo, 10) || 1);
   const rd = x => Math.round(x / r) * r;
   const pb = _cotN(l.peso_base_g), vb = _cotN(l.pvp_base), g = _cotN(l.peso_g);
-  const pvp = (pb > 0 && vb > 0) ? (g > 0 ? rd(vb * g / pb) : 0) : rd(_cotN(l.pvp));
+  // Precio propio escrito a mano (caso común: un precio distinto al de lista): manda sobre el del maestro y no se redondea.
+  const man = _cotN(l.pvp_manual);
+  const pvp = man > 0 ? man : ((pb > 0 && vb > 0) ? (g > 0 ? rd(vb * g / pb) : 0) : rd(_cotN(l.pvp)));
   const pcom = rd(pvp * (1 - _cotN(l.descuento_pct) / 100));
   const neto = Math.max(0, rd(pcom - _cotN(l.descuento_monto)));
   const cant = _cotN(l.cantidad);
@@ -123,6 +125,15 @@ function _cotVals(l) {
   return _cotCalc(l, _cot.cab.redondeo);
 }
 function _cotBloqueada() { return !!(_cot.cab && _cot.cab.id); }
+// Precio de lista (el del maestro, según los gramos) de una línea, ignorando cualquier precio propio escrito.
+function _cotPvpLista(l, redondeo) { return _cotCalc(Object.assign({}, l, { pvp_manual: '' }), redondeo).pvp; }
+// ¿La línea guardada usó un precio distinto al de lista? Devuelve ese precio (para que “Usar como base” no lo pierda) o ''.
+function _cotPvpPropio(l, redondeo) {
+  const pb = _cotN(l.peso_base_g), vb = _cotN(l.pvp_base), g = _cotN(l.peso_g);
+  if (!(pb > 0 && vb > 0 && g > 0)) return '';
+  const lista = _cotPvpLista(l, redondeo);
+  return _cotN(l.pvp) > 0 && _cotN(l.pvp) !== lista ? _cotN(l.pvp) : '';
+}
 function _cotHayCantidad() { return _cot.lineas.some(l => _cotN(l.cantidad) > 0); }
 
 // ── Carga de datos ─────────────────────────────────────────────
@@ -267,6 +278,7 @@ async function cotUsarBase() {
   _cot.lineas = _cot.lineas.map(l => ({
     id: null, producto_id: l.producto_id, producto_codigo: l.producto_codigo, producto_nombre: l.producto_nombre,
     peso_base_g: l.peso_base_g, pvp_base: l.pvp_base, peso_g: l.peso_g, pvp: l.pvp,
+    pvp_manual: _cotPvpPropio(l, o.redondeo),
     descuento_pct: l.descuento_pct, descuento_monto: l.descuento_monto,
     cantidad: l.cantidad, comentario: l.comentario || ''
   }));
@@ -307,9 +319,16 @@ function cotRenderEditor() {
   const filas = _cot.lineas.map((l, i) => {
     const v = _cotVals(l);
     const sinBase = !(_cotN(l.peso_base_g) > 0 && _cotN(l.pvp_base) > 0);
+    // Con precio en el maestro, la casilla arranca con el precio de lista (según los gramos) pero se puede escribir otro.
+    const propio = !lock && !sinBase && _cotN(l.pvp_manual) > 0 && _cotN(l.pvp_manual) !== _cotPvpLista(l, c.redondeo);
     const pvpCell = (!lock && sinBase)
       ? '<input class="num" type="number" min="0" step="any" value="' + (l.pvp ?? '') + '" oninput="cotInp(' + i + ',\'pvp\',this.value)">'
-      : '<span id="cot-pvp-' + i + '">' + _cotFmt(v.pvp) + '</span>';
+      : (!lock
+        ? '<input class="num" id="cot-pvp-' + i + '" type="number" min="0" step="any" value="' + v.pvp + '"' +
+          ' title="Precio de lista del maestro; escribí otro para esta cotización" style="' + (propio ? 'border-color:#B7791F;background:#FFF8E6' : '') + '"' +
+          ' oninput="cotPvp(' + i + ',this.value)" onchange="cotPvpFin(' + i + ')">' +
+          '<div class="cot-hint" id="cot-lista-' + i + '" style="white-space:nowrap">' + _cotHintLista(l, c.redondeo) + '</div>'
+        : '<span id="cot-pvp-' + i + '">' + _cotFmt(v.pvp) + '</span>');
     return '<tr>' +
       '<td style="min-width:170px"><select' + dis + ' onchange="cotSetProducto(' + i + ',this.value)">' + _cotOptsProd(l.producto_id) + '</select></td>' +
       '<td>' + pmEsc(l.producto_codigo || '') + '</td>' +
@@ -363,7 +382,7 @@ function cotRenderEditor() {
         '<textarea class="cot-notas" rows="2"' + dis + ' oninput="cotHead(\'notas\',this.value)">' + pmEsc(c.notas || '') + '</textarea></div>' +
       '<div class="cot-hint" style="margin-top:8px">' + (lock
         ? 'Esta cotización ya está emitida y no se edita. Para cambiarla usá “Usar como base”, que crea una nueva con otro número.'
-        : 'Con cantidad en alguna línea sale como cotización con totales; sin cantidades sale como lista de precios. Al guardar se asigna el número y el código de firma, y la cotización queda emitida.') + '</div>' +
+        : 'El precio al público arranca con el de lista del maestro; escribí otro en esa casilla si esta cotización lleva un precio distinto (se marca en amarillo y se puede volver a la lista con ↺). Con cantidad en alguna línea sale como cotización con totales; sin cantidades sale como lista de precios. Al guardar se asigna el número y el código de firma, y la cotización queda emitida.') + '</div>' +
     '</div>';
   _cotRecalcTotales();
 }
@@ -372,7 +391,7 @@ function cotRenderEditor() {
 function cotAddLinea() {
   _cot.lineas.push({
     id: null, producto_id: '', producto_codigo: '', producto_nombre: '',
-    peso_base_g: null, pvp_base: null, peso_g: '', pvp: '',
+    peso_base_g: null, pvp_base: null, peso_g: '', pvp: '', pvp_manual: '',
     descuento_pct: _cot.cab.descuento_pct, descuento_monto: '', cantidad: '', comentario: ''
   });
   _cot.dirty = true;
@@ -397,6 +416,7 @@ function cotSetProducto(i, prodId) {
   l.pvp_base = pvp || null;
   l.peso_g = peso || '';
   l.pvp = pvp || '';
+  l.pvp_manual = '';   // producto nuevo: vuelve al precio de lista
   _cot.dirty = true;
   cotRenderEditor();
 }
@@ -430,6 +450,39 @@ function cotHead(campo, valor) {
   if (campo === 'redondeo') _cotRecalcTodo();
 }
 
+// Texto bajo la casilla de precio cuando la línea usa un precio propio: muestra el de lista y un botón para volver a él.
+function _cotHintLista(l, redondeo) {
+  const man = _cotN(l.pvp_manual);
+  if (!(man > 0)) return '';
+  const lista = _cotPvpLista(l, redondeo);
+  if (man === lista) return '';
+  const i = _cot.lineas.indexOf(l);
+  return 'lista ₡' + _cotFmt(lista) + ' <a href="#" onclick="cotPvpLista(' + i + ');return false" title="Volver al precio de lista">↺</a>';
+}
+
+// Precio al público escrito a mano en una línea (vacío = vuelve al precio de lista del maestro)
+function cotPvp(i, valor) {
+  if (_cotBloqueada()) return;
+  const l = _cot.lineas[i];
+  l.pvp_manual = valor;
+  _cot.dirty = true;
+  _cotRecalcFila(i);
+  _cotRecalcTotales();
+}
+function cotPvpFin(i) {   // al salir de la casilla: si quedó vacía o en 0, muestra de nuevo el precio de lista
+  const l = _cot.lineas[i];
+  if (!(_cotN(l.pvp_manual) > 0)) l.pvp_manual = '';
+  _cotRecalcFila(i);
+  const el = document.getElementById('cot-pvp-' + i);
+  if (el) el.value = _cotCalc(l, _cot.cab.redondeo).pvp;
+}
+function cotPvpLista(i) {
+  if (_cotBloqueada()) return;
+  _cot.lineas[i].pvp_manual = '';
+  _cot.dirty = true;
+  cotRenderEditor();
+}
+
 function cotInp(i, campo, valor) {
   if (_cotBloqueada()) return;
   const l = _cot.lineas[i];
@@ -444,7 +497,17 @@ function _cotSet(id, txt) { const el = document.getElementById(id); if (el) el.t
 function _cotRecalcFila(i) {
   const l = _cot.lineas[i];
   const v = _cotCalc(l, _cot.cab.redondeo);
-  _cotSet('cot-pvp-' + i, _cotFmt(v.pvp));
+  const pel = document.getElementById('cot-pvp-' + i);
+  if (pel && pel.tagName === 'INPUT') {
+    // Casilla editable: se actualiza sola mientras la línea usa el precio de lista (p. ej. al cambiar los gramos); no se pisa lo que se escribe.
+    const propio = _cotN(l.pvp_manual) > 0;
+    if (!propio && document.activeElement !== pel) pel.value = v.pvp;
+    const man = propio && _cotN(l.pvp_manual) !== _cotPvpLista(l, _cot.cab.redondeo);
+    pel.style.borderColor = man ? '#B7791F' : '';
+    pel.style.background = man ? '#FFF8E6' : '';
+    const hint = document.getElementById('cot-lista-' + i);
+    if (hint) hint.innerHTML = _cotHintLista(l, _cot.cab.redondeo);
+  } else _cotSet('cot-pvp-' + i, _cotFmt(v.pvp));
   _cotSet('cot-pcom-' + i, _cotFmt(v.pcom));
   _cotSet('cot-neto-' + i, _cotFmt(v.neto));
   _cotSet('cot-tot-' + i, v.total === null ? '' : _cotFmt(v.total));
@@ -468,16 +531,16 @@ function _cotRecalcTotales() {
 
 // Trae de nuevo gramos y precio al público del maestro (solo en borradores)
 function cotActualizarPrecios() {
-  let n = 0;
+  let n = 0, propios = 0;
   _cot.lineas.forEach(l => {
     const p = _cot.productos.find(x => x.id === l.producto_id);
     if (!p) return;
     const peso = _cotN(p.peso_g), pvp = _cotN(p.precio_full) || _cotN(p.precio);
-    if (peso > 0 && pvp > 0) { l.peso_base_g = peso; l.pvp_base = pvp; n++; }
+    if (peso > 0 && pvp > 0) { l.peso_base_g = peso; l.pvp_base = pvp; n++; if (_cotN(l.pvp_manual) > 0) propios++; }
   });
   _cot.dirty = true;
   cotRenderEditor();
-  pmToast(n ? 'Precios del maestro actualizados en ' + n + ' línea(s)' : 'Ninguna línea tiene producto del maestro', n ? 'ok' : 'err');
+  pmToast(n ? 'Precios del maestro actualizados en ' + n + ' línea(s)' + (propios ? ' (' + propios + ' con precio propio no se tocan)' : '') : 'Ninguna línea tiene producto del maestro', n ? 'ok' : 'err');
 }
 
 // ── Guardar ────────────────────────────────────────────────────
