@@ -1419,13 +1419,14 @@
      propio login: usa la sesión de PanMaestro directo. -->
 <div class="page" id="pg-etiquetas">
   <div class="pg-title">🏷️ Etiquetas</div>
-  <div class="pg-sub">Etiquetas de producto (7×4cm), de marca, o una hoja carta con etiquetas de 6 cm</div>
+  <div class="pg-sub">Etiquetas de producto (7×4cm), de marca, con opciones para marcar (6×4cm), o una hoja carta con etiquetas de 6 cm</div>
 
   <div style="margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap">
     <button class="btn btn-out btn-sm" onclick="etMostrar('et-producto-wrap')">📦 Producto</button>
     <button class="btn btn-out btn-sm" onclick="etMostrar('et-hoja-wrap')">📄 Hoja carta</button>
     <button class="btn btn-out btn-sm" onclick="etMostrar('et-lote-wrap')">📋 En lote</button>
     <button class="btn btn-out btn-sm" onclick="etMostrar('et-fechas-wrap')">📅 Fechas</button>
+    <button class="btn btn-out btn-sm" onclick="etMostrar('et-opc-wrap')">✅ Con opciones</button>
     <button class="btn btn-out btn-sm" onclick="etMostrar('et-marca-wrap')">🎨 Marca</button>
   </div>
 
@@ -1448,6 +1449,44 @@
       <div id="etf-resumen" style="font-size:13px;margin-bottom:6px"></div>
       <div style="font-size:12px;opacity:.7">El conteo empieza al día siguiente: vence = elaboración + días de vida útil.</div>
       <button class="btn btn-gold" onclick="etfGenerar()" style="width:100%;margin-top:16px">📄 Generar hoja carta (PDF)</button>
+    </div>
+  </div>
+
+  <div id="et-opc-wrap" style="display:none">
+    <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start">
+      <div class="card" style="width:340px;max-width:100%">
+        <div class="col" style="margin-bottom:10px">
+          <label>Nombre del pan</label>
+          <input type="text" id="eto-nombre" placeholder="Pan de masa madre" oninput="etoActualizar()">
+        </div>
+        <div class="row" style="margin-bottom:10px">
+          <div class="col">
+            <label>Peso (g)</label>
+            <input type="number" id="eto-peso" min="1" step="1" placeholder="800" oninput="etoActualizar()">
+          </div>
+          <div class="col">
+            <label>Etiquetas (vacío = llenar la hoja)</label>
+            <input type="number" id="eto-cantidad" min="1" step="1" placeholder="Llenar la hoja (18)">
+          </div>
+        </div>
+        <div class="col" style="margin-bottom:10px">
+          <label>Ingredientes</label>
+          <textarea id="eto-ingredientes" rows="3" placeholder="harina de trigo, harina integral, agua, masa madre, sal" oninput="etoActualizar()"></textarea>
+        </div>
+        <label>Opciones para marcar (hasta 5)</label>
+        <input type="text" id="eto-opc1" placeholder="Integral" oninput="etoActualizar()" style="margin-bottom:6px">
+        <input type="text" id="eto-opc2" placeholder="Semiintegral" oninput="etoActualizar()" style="margin-bottom:6px">
+        <input type="text" id="eto-opc3" placeholder="Regular" oninput="etoActualizar()" style="margin-bottom:6px">
+        <input type="text" id="eto-opc4" placeholder="Con semilla" oninput="etoActualizar()" style="margin-bottom:6px">
+        <input type="text" id="eto-opc5" placeholder="Relleno" oninput="etoActualizar()" style="margin-bottom:6px">
+        <div id="eto-aviso" style="font-size:12px;margin-top:4px"></div>
+        <div style="font-size:12px;opacity:.7;margin-top:6px">Etiqueta de 6 × 4 cm, 18 por hoja carta. Cada opción lleva un cuadrito para marcar con bolígrafo.</div>
+        <button class="btn btn-gold" onclick="etoGenerar()" style="width:100%;margin-top:16px">📄 Generar hoja carta (PDF)</button>
+      </div>
+      <div>
+        <div style="font-size:12px;opacity:.7;margin-bottom:6px">Vista previa (escala 2:1, tamaño real 6 × 4 cm)</div>
+        <div id="eto-preview" style="max-width:100%;overflow:auto"></div>
+      </div>
     </div>
   </div>
 
@@ -2537,6 +2576,7 @@
 <script src="etiquetas_hoja.js?v=20261115a"></script>
 <script src="etiquetas_lote.js?v=20261119a"></script>
 <script src="etiquetas_fechas.js?v=20261119a"></script>
+<script src="etiquetas_opciones.js?v=20261126a"></script>
 
 <script src="mercadeo.js?v=20261107a"></script>
 <script src="cotizador.js?v=20261125a"></script>

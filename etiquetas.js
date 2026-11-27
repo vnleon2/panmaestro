@@ -8,12 +8,13 @@
 // para no chocar con el CSS de impresión de la app principal.
 
 function etMostrar(id) {
-  ['et-producto-wrap','et-hoja-wrap','et-lote-wrap','et-fechas-wrap','et-marca-wrap'].forEach(v => {
+  ['et-producto-wrap','et-hoja-wrap','et-lote-wrap','et-fechas-wrap','et-opc-wrap','et-marca-wrap'].forEach(v => {
     const el = document.getElementById(v);
     if (el) el.style.display = v===id ? 'block' : 'none';
   });
   if (id === 'et-marca-wrap') etmkRenderPreview();
   if (id === 'et-fechas-wrap' && typeof etfInit === 'function') etfInit();
+  if (id === 'et-opc-wrap' && typeof etoInit === 'function') etoInit();
 }
 
 let etProductos = [];
