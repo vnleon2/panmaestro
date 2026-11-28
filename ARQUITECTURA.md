@@ -468,3 +468,23 @@ pedido comercial (`comercial.js`).
 - Depende de `cotizador.js` (`_cotN`, `_cotFmt`, `_cotFecha`, `_cotVence`).
 - SQL: `sql_cartera_cotizacion.sql` (3 columnas nuevas en `precios_cliente`).
 - Nunca modifica el precio del maestro de panes.
+
+---
+
+## 13. Varias presentaciones de un mismo producto (nov 2026)
+
+`presentaciones.js` (prefijo `prs*`) crea de un golpe varias presentaciones (pesos)
+de un mismo pan o galleta. **No cambia la base de datos**: cada presentación sigue
+siendo un producto de `productos_terminados` con su propio código (P0xx / G0xx); el
+nombre guardado es solo el nombre base y el peso va en `peso_g` (la app arma
+«Nombre 600 g», ver `pmNombreProd`). Una «familia» es el conjunto de productos con
+el mismo nombre base (ej. Pan Masa Madre Tartine: P013, P063, P071, P001).
+
+- Entradas: botón «＋ Presentaciones» del formulario de agregar (arrastra lo ya
+  escrito) y botón «＋» en cada fila de la lista (agrega un tamaño a un producto
+  existente, con nombre y receta ya puestos).
+- Receta compartida por defecto; precio sugerido proporcional a los gramos de la
+  primera presentación (o de una ya existente), redondeado a ₡50 y editable.
+- Códigos consecutivos calculados una sola vez mirando lo local y `_sbProdMap`.
+- Bloquea peso repetido y peso ya existente en la familia. Si Supabase falla en
+  alguna fila, avisa cuáles quedaron solo locales.
