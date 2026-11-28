@@ -25,7 +25,7 @@ let _mktProdAtr = {};          // producto_id -> [ { id (fila producto_atributo)
 
 // ── Sub-navegación (pills) ──────────────────────────────────
 function mktTab(tab, btn) {
-  ['cot', 'cat', 'est', 'atr', 'prod'].forEach(t => {
+  ['cot', 'car', 'cat', 'est', 'atr', 'prod'].forEach(t => {
     const el = document.getElementById('mktt-' + t);
     if (el) el.style.display = t === tab ? 'block' : 'none';
   });
@@ -33,6 +33,7 @@ function mktTab(tab, btn) {
   if (btn) btn.classList.add('on');
   if (tab === 'prod' && !_mktProductos.length) mktProdCargar();
   if (tab === 'cot' && typeof cotInit === 'function' && !(_cot && _cot.cab)) cotInit();
+  if (tab === 'car' && typeof carInit === 'function') carInit();
 }
 
 async function mktInit() {

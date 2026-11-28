@@ -429,14 +429,27 @@ async function pcOpenLinea(pedId) {
   let opciones = [];
   if (p.cliId) {
     const rows = _sbPreciosClienteCache || G.preciosClienteCache || [];
-    const misPrecios = rows.filter(r => r.cliente_id === p.cliId);
+    const todos = rows.filter(r => r.cliente_id === p.cliId);
+    // Cartera cargada desde una cotización: tiene fecha_hasta (hereda la validez
+    // de la cotización). Vencida = ya no se usa hasta cargar otra cotización.
+    // Los precios sin fecha_hasta (cargados a mano) no vencen.
+    const hoyC = pmHoy();
+    const misPrecios = todos.filter(r => !r.fecha_hasta || String(r.fecha_hasta).slice(0, 10) >= hoyC);
+    const nVenc = todos.length - misPrecios.length;
+    if (nVenc) {
+      pmToast(misPrecios.length
+        ? nVenc + ' producto(s) de la cartera de este cliente están vencidos y no se ofrecen'
+        : 'La cartera de este cliente está vencida: se ofrece el catálogo a precio normal. Cargá una cotización nueva en Mercadeo → Cartera de clientes', 'err', 6000);
+    }
     opciones = misPrecios.map(r => {
       const prod = prods.find(x => (_sbProdMap?.[x.id] || '') === r.producto_id);
       if (!prod) return null;
       const precioBase = r.precio_especial != null ? r.precio_especial : prod.precio;
       const descPct     = r.descuento_pct || 0;
       const precioEf    = Math.round(precioBase * (1 - descPct/100));
-      return { id: prod.id, sbId: r.producto_id, nombre: prod.nombre, precioFull: prod.precio, descPct, precioEfectivo: precioEf };
+      // Precio full cotizado a este cliente (si vino de una cotización); si no, el del maestro
+      const precioFull  = r.precio_full != null ? Number(r.precio_full) : prod.precio;
+      return { id: prod.id, sbId: r.producto_id, nombre: prod.nombre, precioFull, descPct, precioEfectivo: precioEf };
     }).filter(Boolean);
   }
   if (!opciones.length) {

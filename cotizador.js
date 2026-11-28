@@ -349,6 +349,7 @@ function cotRenderEditor() {
     ? '<button class="btn btn-gold" onclick="cotImprimir()">🖨 Imprimir</button>' +
       (_cotHayCantidad() && c.estado !== 'anulada'
         ? '<button class="btn btn-out" onclick="cotConvertirPedido()">📦 Convertir en pedido</button>' : '') +
+      (c.estado !== 'anulada' ? '<button class="btn btn-out" onclick="cotACartera()">💼 Cargar a cartera</button>' : '') +
       '<button class="btn btn-out" onclick="cotUsarBase()">📋 Usar como base</button>' +
       (c.estado !== 'anulada' ? '<button class="btn btn-red" onclick="cotAnular()">Anular</button>' : '')
     : '<button class="btn btn-out btn-sm" onclick="cotActualizarPrecios()">↻ Actualizar precios del maestro</button>' +
@@ -745,6 +746,15 @@ function _cotModalPedido(c, resolver) {
     if (!fec) { pmToast('Falta la fecha de entrega', 'err'); return; }
     cerrar({ cliente_id: cli, fecha_entrega: fec });
   };
+}
+
+// Lleva la cotización emitida a la sub-pestaña Cartera de clientes (cartera.js)
+function cotACartera() {
+  const c = _cot.cab;
+  if (!c || !c.id) return;
+  if (typeof carDesdeCotizacion !== 'function') { pmToast('Falta cartera.js', 'err'); return; }
+  mktTab('car', document.getElementById('mkt-pill-car'));
+  carDesdeCotizacion(c.id);
 }
 
 async function cotConvertirPedido() {

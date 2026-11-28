@@ -562,9 +562,10 @@ async function cpListarPrecios(clienteId) {
             '</div>' +
           '</div>' +
           '<div style="display:flex;gap:16px;font-family:\'DM Mono\',monospace;font-size:12px">' +
-            '<span>Precio full: <b style="color:var(--cream2)">₡'+(prod.precio||0)+'</b></span>' +
+            '<span>Precio full: <b style="color:var(--cream2)">₡'+(r.precio_full != null ? Number(r.precio_full) : (prod.precio||0))+'</b></span>' +
             (r.precio_especial ? '<span>Precio especial: <b style="color:var(--gold)">₡'+r.precio_especial+'</b></span>' : '') +
             (r.descuento_pct   ? '<span>Descuento: <b style="color:var(--red)">'+r.descuento_pct+'%</b></span>' : '') +
+            (r.fecha_hasta     ? '<span>Vence: <b>'+String(r.fecha_hasta).slice(0,10).split('-').reverse().join('/')+'</b></span>' : '') +
           '</div>' +
         '</div>';
       }).join('');
