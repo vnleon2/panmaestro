@@ -834,7 +834,7 @@
         <div class="col xs"><label>Precio ₡</label><input type="number" id="pan-pr" placeholder="3000"></div>
         <div class="col xs"><label>Peso g</label><input type="number" id="pan-peso" placeholder="1000"></div>
         <div class="col xs"><label>Receta</label><select id="pan-rec" style="font-family:'DM Mono',monospace;font-size:12px;padding:4px 6px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream);width:100%"><option value="">— Sin receta —</option></select></div>
-        <div class="col xs"><label>&nbsp;</label><button class="btn btn-gold" onclick="panAdd()">+ Agregar</button></div>
+        <div class="col xs"><label>&nbsp;</label><button class="btn btn-gold" onclick="panAdd()">+ Agregar</button><button class="btn btn-out btn-sm" style="margin-top:4px" title="Crear varias presentaciones (pesos) del mismo pan de una vez" onclick="prsDesdeFormulario('pan')">＋ Presentaciones</button></div>
       </div>
     </div>
     <div class="sec"><h2 id="pan-count">Tipos de pan</h2>
@@ -858,7 +858,7 @@
         <div class="col xs"><label>Precio ₡</label><input type="number" id="gall-pr" placeholder="150"></div>
         <div class="col xs"><label>Peso g</label><input type="number" id="gall-peso" placeholder="10"></div>
         <div class="col xs"><label>Receta</label><select id="gall-rec" style="font-family:'DM Mono',monospace;font-size:12px;padding:4px 6px;background:var(--sf);border:1px solid var(--border);border-radius:6px;color:var(--cream);width:100%"><option value="">— Sin receta —</option></select></div>
-        <div class="col xs"><label>&nbsp;</label><button class="btn btn-gold" onclick="gallAdd()">+ Agregar</button></div>
+        <div class="col xs"><label>&nbsp;</label><button class="btn btn-gold" onclick="gallAdd()">+ Agregar</button><button class="btn btn-out btn-sm" style="margin-top:4px" title="Crear varias presentaciones (pesos) de la misma galleta de una vez" onclick="prsDesdeFormulario('galleta')">＋ Presentaciones</button></div>
       </div>
     </div>
     <div class="sec"><h2 id="gall-count">Tipos galleta</h2>
@@ -2570,7 +2570,8 @@
 
 <script src="hidratacion.js?v=20261001c"></script>
 
-<script src="maestros.js?v=20261119a"></script>
+<script src="maestros.js?v=20261127a"></script>
+<script src="presentaciones.js?v=20261127a"></script>
 <script src="maestros_export.js?v=20261024a"></script>
 <script src="ing_import.js?v=20261005a"></script>
 

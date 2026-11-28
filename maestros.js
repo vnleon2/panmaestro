@@ -389,6 +389,7 @@ function _panRenderInterno() {
       ${costoCell}
       ${margenCell}
       <div style="display:flex;gap:4px">
+        <button class="btn btn-out btn-xs" title="Agregar otra presentación (peso) de este pan" onclick="prsAbrirDesde('pan','${p.id}')">＋</button>
         <button class="btn btn-out btn-xs" onclick="panEdit('${p.id}')">✏️</button>
         <button class="btn btn-red btn-xs" onclick="panDel('${p.id}')">✕</button>
       </div>
@@ -619,6 +620,7 @@ function gallRender() {
       ${costoCell}
       ${margenCell}
       <div style="display:flex;gap:4px">
+        <button class="btn btn-out btn-xs" title="Agregar otra presentación (peso) de esta galleta" onclick="prsAbrirDesde('galleta','${p.id}')">＋</button>
         <button class="btn btn-out btn-xs" onclick="gallEdit('${p.id}')">✏️</button>
         <button class="btn btn-red btn-xs" onclick="gallDel('${p.id}')">✕</button>
       </div>
