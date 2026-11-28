@@ -444,3 +444,27 @@ estimado"). Reutiliza el cálculo del balance; se imprime y se copia a Excel.
 
 **Pendiente (entregas siguientes):** chequeo de capacidad contra Costos
 (`costos_capacidad.js`) y reporte estimado vs real por día de semana.
+
+---
+
+## 12. Cartera de clientes desde cotización (nov 2026)
+
+`cartera.js` (prefijo `car*`, sub-pestaña **💼 Cartera de clientes** de Mercadeo y
+ventas) convierte una cotización emitida en la cartera de un cliente comercial.
+La cartera NO es una tabla nueva: es `precios_cliente`, la misma que ya lee el
+pedido comercial (`comercial.js`).
+
+- Por línea de la cotización se escribe: `precio_especial` = precio neto,
+  `descuento_pct` = 0 (⚠️ `comercial.js` aplica `descuento_pct` ENCIMA de
+  `precio_especial`; cargar el 20 % otra vez sería doble descuento),
+  `precio_full` = precio al público cotizado a ese cliente (distinto al del
+  maestro), `descuento_cotizado_pct` (informativo), `cotizacion_id` (origen),
+  `fecha_desde/fecha_hasta` = fecha de la cotización y su vencimiento.
+- Vigencia heredada: `comercial.js` ignora las líneas con `fecha_hasta` vencida
+  (avisa con un toast); las sin `fecha_hasta` (cargadas a mano) no vencen.
+- Una carga nueva reemplaza línea por línea (clave: cliente + producto + escala
+  `comercial`); lo que la cotización no trae queda igual. Vista previa antes de
+  cargar; botón «💼 Cargar a cartera» en la cotización emitida.
+- Depende de `cotizador.js` (`_cotN`, `_cotFmt`, `_cotFecha`, `_cotVence`).
+- SQL: `sql_cartera_cotizacion.sql` (3 columnas nuevas en `precios_cliente`).
+- Nunca modifica el precio del maestro de panes.
